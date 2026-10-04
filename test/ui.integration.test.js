@@ -17,7 +17,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   ];
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
-  const fixtureState = { version: '1.1.1', courses, syncing: false, wechat: { enabled: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
+  const fixtureState = { version: '1.1.2', courses, syncing: false, wechat: { enabled: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
     makeTask('a', 'pl:1', 'LAB04', { dueAt: future(10) }),
     makeTask('b', 'ww:1', 'Assignment-03', { sourceStatus: 'open', dueAt: future(8) }),
     makeTask('c', 'ww:1', 'Assignment-04', { sourceStatus: 'future', opensAt: future(3) }),
@@ -33,7 +33,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     }
     if (request.url === '/api/update/check' && request.method === 'POST') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ kind: 'available', canInstall: true, currentVersion: '1.1.1',
+      response.end(JSON.stringify({ kind: 'available', canInstall: true, currentVersion: '1.1.2',
         release: { version: '1.2.0', name: '1.2.0', notes: '更新说明' } }));
       return;
     }
@@ -122,7 +122,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#update-dialog-text').textContent.includes('1.2.0')"), true);
     await evaluate("document.querySelector('#update-later').click()");
     assert.equal(await evaluate("document.querySelector('#update-dialog').open"), false);
-    assert.equal(await evaluate('document.title'), 'UBC作业管理工具 1.1.1');
+    assert.equal(await evaluate('document.title'), 'UBC作业管理工具 1.1.2');
     assert.equal(await evaluate("document.querySelector('#future-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#history-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), false);

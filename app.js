@@ -294,9 +294,9 @@ function dashboardWindowArguments() {
 }
 function openDashboard() {
   if (!process.argv.includes('--no-open')) {
-    // The launcher hides Node; the Edge app window must remain visible on first launch.
+    // Keep Edge visible and independent of the short-lived duplicate launcher.
     const browser = spawn(edgePath(), ['--no-first-run', '--no-default-browser-check', `--app=${address}`, ...dashboardWindowArguments()], {
-      windowsHide: false, stdio: 'ignore',
+      windowsHide: false, stdio: 'ignore', detached: true,
     });
     browser.on('error', error => console.error(`无法打开应用窗口：${error.message}`));
     browser.unref();
