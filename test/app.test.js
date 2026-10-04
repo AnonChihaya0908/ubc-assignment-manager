@@ -1,0 +1,77 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { parseDisplayedDeadline, isComplete } = require('../lib/deadlines');
+const { emptyState, normalizeCourseUrl, mergeRows, mergeWebworkRows } = require('../lib/store');
+const { parseCopiedTable } = require('../lib/paste');
+const { parseWebworkText, parseWebworkDate } = require('../lib/webwork');
+
+test('CPSC 310 screenshot deadline is parsed in the course year', () => {
+  const result = parseDisplayedDeadline('100% until 23:59, Thu, Oct 8', 'CPSC 310, 2026W1', new Date(2026, 9, 2));
+  const date = new Date(result.dueAt);
+  assert.equal(date.getFullYear(), 2026);
+  assert.equal(date.getMonth(), 9);
+  assert.equal(date.getDate(), 8);
+  assert.equal(date.getHours(), 23);
+  assert.equal(date.getMinutes(), 59);
+  assert.equal(result.deadlineKind, 'on_time');
+});
+
+test('late credit windows are not treated as on-time due dates', () => {
+  const result = parseDisplayedDeadline('80% until 18:05, Fri, Oct 16', 'CPSC 310, 2026W1');
+  assert.equal(result.deadlineKind, 'credit_window');
+  assert.equal(result.creditPercent, 80);
+});
+
+test('missing deadlines remain undated and student overrides remain after sync', () => {
+  const state = emptyState();
+  const rows = [
+    { name: 'Refactoring and Testability', code: 'LAB03', section: 'Lab Assignments', url: 'https://us.prairielearn.com/pl/course_instance/231184/assessment/1', creditText: '100% until 23:59, Thu, Oct 8', score: '0%' },
+    { name: 'Onboarding', code: 'LAB01', section: 'Lab Assignments', url: 'https://us.prairielearn.com/pl/course_instance/231184/assessment/2', creditText: '', score: '100%' },
+  ];
+  mergeRows(state, state.courses[0].id, { courseTitle: 'CPSC 310, 2026W1', rows });
+  assert.equal(state.tasks.length, 2);
+  assert.equal(state.tasks[1].dueAt, null);
+  assert.equal(isComplete(state.tasks[1]), true);
+  state.tasks[0].doneOverride = true;
+  state.tasks[0].deadlineOverride = new Date(2026, 9, 9, 23, 59).toISOString();
+  mergeRows(state, state.courses[0].id, { courseTitle: 'CPSC 310, 2026W1', rows });
+  assert.equal(state.tasks[0].doneOverride, true);
+  assert.equal(state.tasks[0].deadlineOverride, new Date(2026, 9, 9, 23, 59).toISOString());
+});
+
+test('course URLs are limited to supported student course pages', () => {
+  assert.equal(normalizeCourseUrl('https://us.prairielearn.com/pl/course_instance/231184/assessments').instanceId, '231184');
+  assert.equal(normalizeCourseUrl('https://webwork.elearning.ubc.ca/webwork2/2026W1_V_STAT_V_251_101_2026W1?effectiveUser=student').platform, 'webwork');
+  assert.throws(() => normalizeCourseUrl('https://example.com/pl/course_instance/231184/assessments'));
+});
+
+test('WeBWorK due dates and release dates remain distinct', () => {
+  const url = 'https://webwork.elearning.ubc.ca/webwork2/2026W1_V_STAT_V_251_101_2026W1';
+  const rows = parseWebworkText(`Open Assignments\nAssignment-03\nOpen. Due October 8, 2026, 11:59:00 PM PDT.\nFuture Assignments\nAssignment-04\nWill open on October 6, 2026, 12:00:00 AM PDT.\nAssignment-07\nWill open on November 3, 2026, 12:00:00 AM PST.\nPast Due Assignments\nAssignment-02\nAnswers available for review.`, {}, url);
+  assert.equal(rows.length, 4);
+  const course = normalizeCourseUrl(url);
+  const state = emptyState();
+  state.courses.push({ ...course, name: 'STAT 251', lastSyncedAt: null });
+  mergeWebworkRows(state, course.id, { courseTitle: 'STAT 251', rows });
+  const byName = name => state.tasks.find(task => task.name === name);
+  assert.equal(byName('Assignment-03').dueAt, '2026-10-09T06:59:00.000Z');
+  assert.equal(byName('Assignment-04').dueAt, null);
+  assert.equal(byName('Assignment-04').opensAt, '2026-10-06T07:00:00.000Z');
+  assert.equal(byName('Assignment-07').opensAt, '2026-11-03T08:00:00.000Z');
+  assert.equal(byName('Assignment-02').sourceStatus, 'past_due');
+  assert.equal(byName('Assignment-02').dueAt, null);
+  byName('Assignment-03').doneOverride = true;
+  mergeWebworkRows(state, course.id, { courseTitle: 'STAT 251', rows });
+  assert.equal(byName('Assignment-03').doneOverride, true);
+  assert.equal(parseWebworkDate('October 32, 2026, 11:59:00 PM PDT'), null);
+});
+
+test('copied student table can populate the local dashboard', () => {
+  const state = emptyState();
+  const page = parseCopiedTable('Lab Assignments\nLAB03 Refactoring and Testability\t100% until 23:59, Thu, Oct 8\t0%\nLAB04 DIP, LSP & Testability\t100% until 23:59, Thu, Oct 15\tNot started', state.courses[0]);
+  assert.equal(page.rows.length, 2);
+  mergeRows(state, state.courses[0].id, page);
+  assert.equal(state.tasks[0].code, 'LAB03');
+  assert.equal(new Date(state.tasks[0].dueAt).getDate(), 8);
+  assert.equal(state.tasks[1].score, 'Not started');
+});

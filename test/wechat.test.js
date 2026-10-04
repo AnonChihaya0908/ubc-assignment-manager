@@ -1,0 +1,85 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {
+  emptyConfig, publicConfig, validateSendKey, localDateKey, shouldSendDaily,
+  buildDailyDigest, sendServerChan,
+} = require('../lib/wechat');
+
+const sendKey = 'SCTabcdefghijklmnop';
+
+test('daily reminder is sent once at or after the local time and retries are spaced out', () => {
+  const now = new Date(2026, 9, 2, 9, 1);
+  const config = { ...emptyConfig(), enabled: true, sendKey, time: '09:00' };
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 2, 8, 59)), false);
+  assert.equal(shouldSendDaily(config, now), true);
+  config.startDate = '2026-10-03';
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 2, 23, 59)), false);
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 3, 9, 1)), true);
+  config.startDate = null;
+  config.attemptDate = localDateKey(now);
+  config.attemptCount = 1;
+  config.lastAttemptAt = now.toISOString();
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 2, 9, 29)), false);
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 2, 9, 31)), true);
+  config.attemptCount = 3;
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 2, 11)), false);
+  config.attemptCount = 1;
+  config.lastSentDate = localDateKey(now);
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 2, 11)), false);
+  config.lastSentDate = null;
+  config.time = 'invalid';
+  assert.equal(shouldSendDaily(config, now), false);
+});
+
+test('a missed schedule sends the current day on return, without replaying older days', () => {
+  const config = { ...emptyConfig(), enabled: true, sendKey, time: '09:00', lastSentDate: '2026-10-02' };
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 3, 8, 30)), false);
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 3, 10, 0)), true);
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 5, 10, 0)), true);
+});
+
+test('daily digest contains actionable assignments and does not include private course URLs', () => {
+  const now = new Date(2026, 9, 2, 9);
+  const state = {
+    courses: [{ id: 'c1', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/course?effectiveUser=private-id' }],
+    tasks: [
+      { courseId: 'c1', name: 'Assignment-03', code: 'A03', score: '0%', sourceStatus: 'open', dueAt: new Date(2026, 9, 8, 23, 59).toISOString() },
+      { courseId: 'c1', name: 'Assignment-04', score: '', sourceStatus: 'future', opensAt: new Date(2026, 9, 6).toISOString() },
+      { courseId: 'c1', name: 'Assignment-02', score: '', sourceStatus: 'past_due' },
+      { courseId: 'c1', name: 'Assignment-01', score: '100%', sourceStatus: 'open' },
+    ],
+  };
+  const digest = buildDailyDigest(state, now);
+  assert.equal(digest.count, 1);
+  assert.match(digest.title, /1 项未完成/);
+  assert.match(digest.desp, /STAT 251.*Assignment-03/);
+  assert.doesNotMatch(digest.desp, /Assignment-04|Assignment-02|Assignment-01|private-id|effectiveUser/);
+});
+
+test('the public reminder state does not expose SendKey', () => {
+  assert.equal(validateSendKey(` ${sendKey} `), sendKey);
+  assert.throws(() => validateSendKey('bad-key'));
+  const publicState = publicConfig({ ...emptyConfig(), sendKey });
+  assert.equal(publicState.hasKey, true);
+  assert.equal(JSON.stringify(publicState).includes(sendKey), false);
+});
+
+test('Server酱 request uses form fields and requires code zero', async () => {
+  let requestUrl;
+  let requestOptions;
+  const fakeFetch = async (url, options) => {
+    requestUrl = url;
+    requestOptions = options;
+    return { ok: true, json: async () => ({ code: 0 }) };
+  };
+  assert.equal(await sendServerChan(sendKey, '测试', '作业列表', fakeFetch), true);
+  assert.equal(requestUrl, `https://sctapi.ftqq.com/${sendKey}.send`);
+  assert.equal(requestOptions.method, 'POST');
+  assert.equal(requestOptions.redirect, 'error');
+  assert.equal(requestOptions.body.get('title'), '测试');
+  assert.equal(requestOptions.body.get('desp'), '作业列表');
+  await assert.rejects(sendServerChan(sendKey, '测试', '内容', async () => ({ ok: true, json: async () => ({ code: 1024 }) })), /未接受消息/);
+  await assert.rejects(sendServerChan(sendKey, '测试', '内容', async () => {
+    throw Object.assign(new Error('fetch failed'), { cause: { code: 'EACCES' } });
+  }), /网络访问被系统或运行环境拒绝/);
+});

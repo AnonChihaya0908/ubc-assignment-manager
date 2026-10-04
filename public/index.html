@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111926">
+  <meta name="description" content="UBC作业管理工具：本地汇总 PrairieLearn 与 WeBWorK 作业及截止提醒。">
+  <title>UBC作业管理工具 1.0.0</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/ui.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
+  <div class="app-shell">
+    <nav class="app-rail" aria-label="主导航">
+      <div class="brand-mark" aria-label="UBC作业管理工具">✦</div>
+      <button id="nav-menu" class="rail-button menu-rail" type="button" aria-label="展开目录" aria-expanded="false" title="目录">☰</button>
+      <button id="nav-all" class="rail-button active" type="button" aria-label="全部作业" title="全部作业"><span class="rail-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
+      <button id="nav-prairielearn" class="rail-button" type="button" aria-label="PrairieLearn 作业" title="PrairieLearn"><span class="source-mark pl">P</span><span class="notification-dot" hidden></span></button>
+      <button id="nav-webwork" class="rail-button" type="button" aria-label="WeBWorK 作业" title="WeBWorK"><span class="source-mark ww">W</span><span class="notification-dot" hidden></span></button>
+      <button id="nav-settings" class="rail-button settings-rail" type="button" aria-label="设置" title="设置"><span class="settings-glyph" aria-hidden="true">⚙</span></button>
+    </nav>
+
+    <aside class="folder-pane" aria-label="目录">
+      <div id="work-navigation" class="folder-content">
+        <div class="pane-heading"><h2>作业</h2></div>
+        <button id="all-folder" class="folder-link active" type="button"><span>全部作业</span><span id="all-count" class="folder-count"></span></button>
+        <div class="folder-group">
+          <button id="pl-folder" class="folder-group-heading" type="button"><span>PrairieLearn</span><span class="notification-dot" hidden></span></button>
+          <div id="pl-courses" class="course-folders"></div>
+        </div>
+        <div class="folder-group">
+          <button id="ww-folder" class="folder-group-heading" type="button"><span>WeBWorK</span><span class="notification-dot" hidden></span></button>
+          <div id="ww-courses" class="course-folders"></div>
+        </div>
+      </div>
+      <div id="settings-navigation" class="folder-content" hidden>
+        <div class="pane-heading"><h2>设置</h2></div>
+        <p class="pane-label">偏好</p>
+        <button class="settings-link active" data-settings="general" type="button">常规与窗口</button>
+        <button class="settings-link" data-settings="reminders" type="button">提醒与同步</button>
+        <button class="settings-link" data-settings="courses" type="button">课程与登录</button>
+        <button class="settings-link" data-settings="data" type="button">数据与退出</button>
+      </div>
+      <div class="sync-dock">
+        <span id="sync-status">尚未同步</span>
+        <button id="sync" class="sync-button" type="button">立即同步</button>
+      </div>
+    </aside>
+
+    <main id="main-content" class="content">
+      <div id="message" class="message" role="status" aria-live="polite" hidden></div>
+
+      <section id="work-page" class="page">
+        <header class="page-header">
+          <p id="work-breadcrumb" class="breadcrumb">作业 / 全部作业</p>
+          <h1 id="work-heading">你的作业</h1>
+          <p id="work-summary" class="page-summary">按平台查看截止时间和完成状态。</p>
+        </header>
+        <nav id="task-tabs" class="tabs" aria-label="作业状态">
+          <button class="tab active" data-tab="pending" type="button">待完成 <span id="pending-tab-count">0</span></button>
+          <button class="tab" data-tab="future" type="button">将开放 <span id="future-tab-count">0</span></button>
+          <button class="tab" data-tab="history" type="button">已过日期 <span id="history-tab-count">0</span></button>
+          <button class="tab" data-tab="done" type="button">已完成 <span id="done-tab-count">0</span></button>
+        </nav>
+        <div id="task-groups" class="task-groups"></div>
+      </section>
+
+      <section id="settings-page" class="page" hidden>
+        <header class="page-header">
+          <p id="settings-breadcrumb" class="breadcrumb">设置 / 常规与窗口</p>
+          <h1 id="settings-heading">常规与窗口</h1>
+          <p id="settings-summary" class="page-summary">窗口、提醒和课程连接都在这里管理。</p>
+        </header>
+
+        <div id="settings-general" class="settings-panel">
+          <section class="setting-block">
+            <h2>窗口布局</h2>
+            <div class="setting-row"><div><h3>默认横向宽屏窗口</h3><p>从应用程序打开时使用 1360 × 820 的初始尺寸。窗口仍可手动调整。</p></div><span class="setting-value">已启用</span></div>
+            <div class="setting-row"><div><h3>应用版本</h3><p>UBC作业管理工具</p></div><span class="setting-value">1.0.0</span></div>
+            <div class="setting-row"><div><h3>主界面</h3><p>打开应用后显示全部作业，左侧目录按平台和课程展开。</p></div><span class="setting-value">全部作业</span></div>
+          </section>
+          <section class="setting-block">
+            <h2>未完成标记</h2>
+            <div class="setting-row"><div><h3>网站图标与目录红点</h3><p>有已开放且未完成的作业时显示。尚未开放和 WeBWorK 标记已截止的作业不触发。</p></div><span class="red-dot-example" aria-label="红点示例"></span></div>
+          </section>
+        </div>
+
+        <div id="settings-reminders" class="settings-panel" hidden>
+          <section class="setting-block">
+            <h2>截止提醒</h2>
+            <div class="setting-row"><div><h3>提醒时间</h3><p>对有明确截止时间且未完成的作业发送 Windows 提醒。</p></div><span class="setting-value">24 小时、3 小时前</span></div>
+            <div class="setting-row"><div><h3>日期来源</h3><p>WeBWorK 的开放时间只用于展示；页面公布 Due 后才按截止时间提醒。</p></div><span class="setting-value">课程页面</span></div>
+          </section>
+          <section class="setting-block">
+            <h2>自动同步</h2>
+            <div class="setting-row"><div><h3>刷新间隔</h3><p>完成首次同步并保持专用 Edge 登录窗口打开后，每 30 分钟尝试刷新。</p></div><span class="setting-value">30 分钟</span></div>
+            <div class="setting-row"><div><h3>立即刷新</h3><p>左下角的“立即同步”会依次更新全部课程。</p></div><span class="setting-value">全部课程</span></div>
+          </section>
+          <section class="setting-block">
+            <h2>个人微信每日提醒</h2>
+            <p class="setting-intro">使用 <a href="https://sct.ftqq.com/docs/getting-started/sendkey/" target="_blank" rel="noopener noreferrer">Server酱 Turbo</a> 向你的个人微信发送一条每日作业汇总。作业名称和日期会经过该服务；电脑关机或应用退出时无法发送。</p>
+            <form id="wechat-form" class="wechat-form">
+              <label for="wechat-key">SCT SendKey</label>
+              <input id="wechat-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴以 SCT 开头的 SendKey">
+              <p id="wechat-key-status" class="form-note">尚未配置密钥</p>
+              <label for="wechat-time">每天发送时间（电脑当地时间）</label>
+              <input id="wechat-time" type="time" value="09:00" required>
+              <label class="check-row" for="wechat-enabled"><input id="wechat-enabled" type="checkbox"><span>启用每日微信提醒</span></label>
+              <p class="form-note">汇总已开放且未完成的作业。尚未开放的 WeBWorK 作业不会被当作截止提醒。如果今天的时间已过，启用后会发送一次今日汇总。</p>
+              <div class="wechat-actions"><button class="primary-button" type="submit">保存设置</button><button id="wechat-test" class="secondary-button" type="button">发送测试消息</button><button id="wechat-clear" class="text-button" type="button">清除密钥</button></div>
+            </form>
+            <p id="wechat-status" class="wechat-status" role="status" aria-live="polite"></p>
+          </section>
+        </div>
+
+        <div id="settings-courses" class="settings-panel" hidden>
+          <section class="setting-block">
+            <h2>添加课程</h2>
+            <p class="setting-intro">支持 PrairieLearn 的 Assessments 页面和 UBC WeBWorK 课程首页。</p>
+            <form id="add-course" class="add-course-form">
+              <label for="course-url">课程网址</label>
+              <div class="input-action"><input id="course-url" type="url" placeholder="https://..." required><button class="primary-button" type="submit">添加课程</button></div>
+            </form>
+          </section>
+          <section class="setting-block">
+            <h2>已添加课程</h2>
+            <div id="course-list" class="settings-course-list"></div>
+          </section>
+          <section class="setting-block">
+            <h2>登录与手动导入</h2>
+            <p class="setting-intro">登录窗口使用独立 Edge 资料。登录课程后返回应用，点击左下角“立即同步”。</p>
+            <label for="settings-course-select">选择课程</label>
+            <div class="input-action"><select id="settings-course-select"></select><button id="open-browser" class="secondary-button" type="button">打开登录窗口</button></div>
+            <details class="paste-panel"><summary>PrairieLearn 页面无法同步？粘贴作业表格</summary><p>在已登录的浏览器中复制 PrairieLearn 作业表格，粘贴到下方导入。WeBWorK 请使用登录窗口同步。</p><label for="paste-data">作业表格文字</label><textarea id="paste-data" rows="5"></textarea><button id="import-text" class="secondary-button" type="button">导入所选课程</button></details>
+          </section>
+        </div>
+
+        <div id="settings-data" class="settings-panel" hidden>
+          <section class="setting-block">
+            <h2>本地数据</h2>
+            <p class="setting-intro">作业清单与专用 Edge 登录资料保存在电脑上的应用目录中。关闭网页不会停止后台提醒。</p>
+            <div class="setting-row"><div><h3>退出应用</h3><p>停止后台同步和 Windows 提醒。下次可双击 UBC作业管理工具.exe 重新打开。</p></div><button id="quit" class="danger-button" type="button">退出应用</button></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="deadline-dialog"><form method="dialog" id="deadline-form"><h2>修改提醒日期</h2><p id="deadline-task-name"></p><label for="deadline-input">电脑当地时间</label><input id="deadline-input" type="datetime-local"><div class="dialog-actions"><button type="button" id="clear-deadline" class="text-button">恢复网页日期</button><button type="button" id="cancel-deadline" class="secondary-button">取消</button><button class="primary-button" value="save">保存</button></div></form></dialog>
+</body>
+</html>

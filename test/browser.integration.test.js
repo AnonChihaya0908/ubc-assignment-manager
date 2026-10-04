@@ -1,0 +1,98 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const http = require('node:http');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
+const { edgePath, cdp, EXTRACT_PAGE, EXTRACT_WEBWORK_PAGE } = require('../lib/browser');
+const { parseWebworkText } = require('../lib/webwork');
+
+const fixture = `<!doctype html><title>PrairieLearn</title>
+<nav><a href="/pl/course_instance/231184/assessments">CPSC 310, 2026W1</a></nav>
+<table><thead><tr><th>Label</th><th>Title</th><th>Available credit</th><th>Score</th></tr></thead>
+<tbody><tr><th colspan="4" data-testid="assessment-group-heading">Lab Assignments</th></tr>
+<tr><td><span data-testid="assessment-set-badge">LAB03</span></td><td><a href="/pl/course_instance/231184/assessment_instance/3/">Refactoring and Testability</a></td>
+<td>100% until 23:59, Thu, Oct 8</td><td><div class="progress-bar">0%</div></td></tr>
+<tr><td><span data-testid="assessment-set-badge">LAB04</span></td><td><a href="/pl/course_instance/231184/assessment_instance/4/">DIP, LSP &amp; Testability</a></td>
+<td>100% until 23:59, Thu, Oct 15</td><td>Not started</td></tr></tbody></table>`;
+
+const webworkFixture = `<!doctype html><title>WeBWorK</title><h1>STAT_V 251 101 2026W1 Introductory Probability and Statistics</h1>
+<h2>Open Assignments</h2><div><a href="/webwork2/course/Assignment-03">Assignment-03</a><p>Open. Due October 8, 2026, 11:59:00 PM PDT.</p></div>
+<h2>Future Assignments</h2><div>Assignment-04<p>Will open on October 6, 2026, 12:00:00 AM PDT.</p></div>
+<h2>Past Due Assignments</h2><div>Assignment-02<p>Answers available for review.</p></div>`;
+
+test('Edge reads assignment rows from a rendered student-style table', { timeout: 30000 }, async () => {
+  const httpServer = http.createServer((request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(request.url.startsWith('/webwork2/') ? webworkFixture : fixture);
+  });
+  await new Promise(resolve => httpServer.listen(0, '127.0.0.1', resolve));
+  const pageUrl = `http://127.0.0.1:${httpServer.address().port}/pl/course_instance/231184/assessments`;
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'pl-edge-fixture-'));
+  const profile = path.join(temporary, 'profile');
+  let child;
+  let debugPort;
+  try {
+    child = spawn(edgePath(), ['--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
+      '--remote-debugging-port=0', '--remote-allow-origins=http://127.0.0.1', `--user-data-dir=${profile}`, pageUrl], { stdio: 'ignore' });
+    const portFile = path.join(profile, 'DevToolsActivePort');
+    for (let i = 0; i < 80; i++) {
+      if (fs.existsSync(portFile)) {
+        debugPort = Number(fs.readFileSync(portFile, 'utf8').split(/\r?\n/)[0]);
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    assert.ok(debugPort, 'Edge debugging port should be ready');
+    const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
+    const target = targets.find(item => item.url.startsWith(pageUrl));
+    assert.ok(target, 'fixture page should be open');
+    await cdp(target.webSocketDebuggerUrl, 'Runtime.enable');
+    let result;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const evaluation = await cdp(target.webSocketDebuggerUrl, 'Runtime.evaluate', { expression: EXTRACT_PAGE, returnByValue: true });
+      result = evaluation.result.value;
+      if (result?.rows?.length === 2) break;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    assert.equal(result.courseTitle, 'CPSC 310, 2026W1');
+    assert.equal(result.rows.length, 2);
+    assert.equal(result.rows[0].code, 'LAB03');
+    assert.equal(result.rows[0].creditText, '100% until 23:59, Thu, Oct 8');
+    assert.equal(result.rows[1].score, 'Not started');
+    const webworkUrl = `http://127.0.0.1:${httpServer.address().port}/webwork2/course`;
+    const opened = await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(webworkUrl)}`, { method: 'PUT' });
+    const webworkTarget = await opened.json();
+    let webwork;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const evaluation = await cdp(webworkTarget.webSocketDebuggerUrl, 'Runtime.evaluate', { expression: EXTRACT_WEBWORK_PAGE, returnByValue: true });
+      webwork = evaluation.result.value;
+      if (webwork?.hasSections && webwork.bodyText.includes('Assignment-03')) break;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+    assert.equal(webwork.hasSections, true);
+    const webworkRows = parseWebworkText(webwork.bodyText, webwork.links, webworkUrl);
+    assert.deepEqual(webworkRows.map(row => row.section), ['open', 'future', 'past_due']);
+    assert.equal(webworkRows[0].dueText, 'October 8, 2026, 11:59:00 PM PDT.');
+    assert.equal(webworkRows[1].openText, 'October 6, 2026, 12:00:00 AM PDT.');
+  } finally {
+    if (debugPort) {
+      try {
+        const version = await (await fetch(`http://127.0.0.1:${debugPort}/json/version`)).json();
+        await cdp(version.webSocketDebuggerUrl, 'Browser.close');
+      } catch {}
+    }
+    if (child) {
+      child.kill();
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    httpServer.closeAllConnections();
+    await new Promise(resolve => httpServer.close(resolve));
+    // The temporary folder is created directly under the system temp directory above.
+    if (path.dirname(temporary) === os.tmpdir() && path.basename(temporary).startsWith('pl-edge-fixture-')) {
+      try { fs.rmSync(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 }); }
+      catch (error) { if (error.code !== 'EPERM') throw error; }
+    }
+  }
+});
