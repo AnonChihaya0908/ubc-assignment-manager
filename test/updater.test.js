@@ -10,7 +10,7 @@ const { createUpdater, newerThan, safeRelease } = require('../lib/updater');
 
 const release = {
   tagName: 'v1.2.0', name: '1.2.0', body: '修复同步问题', isDraft: false, isPrerelease: false,
-  assets: [{ name: 'UBC作业管理工具-1.2.0.zip' }, { name: 'UBC作业管理工具-1.2.0.zip.sha256' }],
+  assets: [{ name: 'ubc-assignment-manager-1.2.0-windows.zip' }, { name: 'ubc-assignment-manager-1.2.0-windows.zip.sha256' }],
 };
 
 test('only a newer stable release with the matching Windows package and checksum is offered', () => {
@@ -50,7 +50,7 @@ test('verified archive is handed to the detached installer, invalid checksum blo
     const directory = args[args.indexOf('--dir') + 1];
     const bytes = Buffer.from('test package bytes');
     fs.writeFileSync(path.join(directory, filename), filename.endsWith('.sha256')
-      ? `${valid ? crypto.createHash('sha256').update(bytes).digest('hex') : '0'.repeat(64)}  UBC作业管理工具-1.2.0.zip`
+      ? `${valid ? crypto.createHash('sha256').update(bytes).digest('hex') : '0'.repeat(64)}  ubc-assignment-manager-1.2.0-windows.zip`
       : bytes);
     return { stdout: '' };
   };
@@ -101,7 +101,7 @@ test('Windows installer restores the old program and user data when the new app 
       fs.mkdirSync(path.join(app, '.local-data'));
       fs.writeFileSync(path.join(app, '.local-data', 'private.txt'), 'preserve me');
       fs.mkdirSync(stage, { recursive: true });
-      const archive = path.join(stage, 'UBC作业管理工具-1.2.0.zip');
+      const archive = path.join(stage, 'ubc-assignment-manager-1.2.0-windows.zip');
       const packer = path.join(temporary, 'pack.ps1');
       fs.writeFileSync(packer, 'param([string]$SourceDir,[string]$Archive)\nCompress-Archive -LiteralPath $SourceDir -DestinationPath $Archive -Force\n');
       const packed = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', packer,

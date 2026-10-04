@@ -33,7 +33,7 @@ foreach ($name in @("$productName.exe",'app.js','notify.ps1','README.md','packag
 Copy-Item -Path (Join-Path $appRoot 'lib\*') -Destination (Join-Path $packageDir 'lib') -Recurse
 Copy-Item -Path (Join-Path $appRoot 'public\*') -Destination (Join-Path $packageDir 'public') -Recurse
 Copy-Item -LiteralPath $bundledNode -Destination (Join-Path $packageDir 'runtime\node.exe')
-$archive = Join-Path $releaseRoot "$productName-$version.zip"
+$archive = Join-Path $releaseRoot "ubc-assignment-manager-$version-windows.zip"
 Compress-Archive -LiteralPath $packageDir -DestinationPath $archive -Force
 $sha = [Security.Cryptography.SHA256]::Create()
 $stream = [IO.File]::OpenRead($archive)
