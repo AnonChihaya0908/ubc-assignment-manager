@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   emptyConfig, publicConfig, validateSendKey, localDateKey, shouldSendDaily,
-  buildDailyDigest, sendServerChan,
+  buildDailyDigest, sendServerChan, normalizeLeadHours, inQuietHours, nextDailyAt, appendHistory,
 } = require('../lib/wechat');
 
 const sendKey = 'SCTabcdefghijklmnop';
@@ -41,6 +41,19 @@ test('a missed schedule sends the current day on return, without replaying older
   assert.equal(shouldSendDaily(config, new Date(2026, 9, 5, 10, 0)), true);
 });
 
+test('quiet hours defer the current-day digest and expose the next local schedule', () => {
+  const config = { ...emptyConfig(), enabled: true, sendKey, time: '23:00', quietEnabled: true, quietStart: '22:00', quietEnd: '08:00' };
+  const late = new Date(2026, 9, 2, 23, 30);
+  assert.equal(inQuietHours(config, late), true);
+  assert.equal(shouldSendDaily(config, late), false);
+  assert.equal(nextDailyAt(config, late).getHours(), 8);
+  assert.equal(nextDailyAt(config, late).getDate(), 3);
+  assert.equal(shouldSendDaily(config, new Date(2026, 9, 3, 8, 1)), true);
+  config.remindersPaused = true;
+  assert.equal(nextDailyAt(config, late), null);
+  assert.deepEqual(normalizeLeadHours([3, 24, 3, 0, 400]), [24, 3]);
+});
+
 test('daily digest contains actionable assignments and does not include private course URLs', () => {
   const now = new Date(2026, 9, 2, 9);
   const state = {
@@ -65,6 +78,9 @@ test('daily digest contains actionable assignments and does not include private 
   assert.match(digest.desp, /【100% 待确认】STAT 251.*Assignment-00/);
   assert.match(digest.desp, /【100% 待确认】STAT 251.*Assignment-01/);
   assert.doesNotMatch(digest.desp, /Assignment-04|private-id|effectiveUser/);
+  const filtered = buildDailyDigest(state, now, { disabledCourseIds: ['c1'] });
+  assert.equal(filtered.count, 0);
+  assert.doesNotMatch(filtered.desp, /Assignment-03/);
 });
 
 test('the public reminder state does not expose SendKey', () => {
@@ -73,6 +89,11 @@ test('the public reminder state does not expose SendKey', () => {
   const publicState = publicConfig({ ...emptyConfig(), sendKey });
   assert.equal(publicState.hasKey, true);
   assert.equal(JSON.stringify(publicState).includes(sendKey), false);
+  const config = { ...emptyConfig(), sendKey };
+  appendHistory(config, { type: 'test', result: 'failed', detail: `request ${sendKey} failed` });
+  config.history[0].sendKey = sendKey;
+  assert.equal(JSON.stringify(publicConfig(config)).includes(sendKey), false);
+  assert.match(publicConfig(config).history[0].detail, /密钥已隐藏/);
 });
 
 test('Server酱 request uses form fields and requires code zero', async () => {

@@ -120,9 +120,18 @@
         <div id="settings-reminders" class="settings-panel" hidden>
           <section class="setting-block">
             <h2>截止提醒</h2>
-            <div class="setting-row"><div><h3>提醒时间</h3><p>对有明确截止时间且未完成的作业发送 Windows 提醒。</p></div><span class="setting-value">24 小时、3 小时前</span></div>
+            <form id="reminder-form" class="wechat-form">
+              <label for="reminder-leads">Windows 提前提醒（小时，用逗号分隔）</label>
+              <input id="reminder-leads" type="text" inputmode="decimal" value="24, 3" required>
+              <p class="form-note">可设置 0.25 到 336 小时，最多 6 个时间点。例如 48, 24, 3。</p>
+              <label class="check-row" for="quiet-enabled"><input id="quiet-enabled" type="checkbox"><span>启用免打扰时段</span></label>
+              <div class="time-pair"><label for="quiet-start">开始<input id="quiet-start" type="time" value="22:00"></label><label for="quiet-end">结束<input id="quiet-end" type="time" value="08:00"></label></div>
+              <p class="form-note">免打扰期间不会弹出 Windows 通知或发送每日微信汇总；应用恢复或时段结束后只补发当天尚未成功的汇总，不补发往日消息。</p>
+              <button class="primary-button" type="submit">保存提醒规则</button>
+            </form>
             <div class="setting-row"><div><h3>日期来源</h3><p>WeBWorK 的开放时间只用于展示；页面公布 Due 后才按截止时间提醒。</p></div><span class="setting-value">课程页面</span></div>
             <div class="setting-row"><div><h3>暂停全部提醒</h3><p>暂停 Windows 截止提醒和每日微信汇总；课程自动同步仍会继续。</p></div><label class="check-row compact" for="reminders-paused"><input id="reminders-paused" type="checkbox"><span>暂停提醒</span></label></div>
+            <h3>按课程控制</h3><p class="setting-intro">关闭后，该课程不会进入 Windows 截止通知或微信每日汇总。</p><div id="reminder-course-list" class="reminder-course-list"></div>
           </section>
           <section class="setting-block">
             <h2>自动同步</h2>
@@ -144,6 +153,12 @@
               <div class="wechat-actions"><button class="primary-button" type="submit">保存设置</button><button id="wechat-test" class="secondary-button" type="button">发送测试消息</button><button id="wechat-clear" class="text-button" type="button">清除密钥</button></div>
             </form>
             <p id="wechat-status" class="wechat-status" role="status" aria-live="polite"></p>
+          </section>
+          <section class="setting-block">
+            <h2>计划与发送记录</h2>
+            <div class="setting-row"><div><h3>下一次每日汇总</h3><p id="next-reminder-detail">每日汇总未启用。</p></div><span id="next-reminder-time" class="setting-value">—</span></div>
+            <div class="setting-row"><div><h3>设备时区</h3><p>所有计划时间均按当前电脑设置解释。</p></div><span id="reminder-timezone" class="setting-value"></span></div>
+            <div id="reminder-history" class="reminder-history"><p class="form-note">尚无发送记录。</p></div>
           </section>
         </div>
 

@@ -9,7 +9,7 @@ const { effectiveDue, categoryOf } = require('./lib/deadlines');
 const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } = require('./lib/browser');
 const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
-  shouldSendDaily, buildDailyDigest, sendServerChan } = require('./lib/wechat');
+  shouldSendDaily, buildDailyDigest, sendServerChan, normalizeLeadHours, inQuietHours, appendHistory } = require('./lib/wechat');
 const { createUpdater, VERSION } = require('./lib/updater');
 const { markSyncAttempt, markSyncSuccess, markSyncFailure } = require('./lib/sync-status');
 const { startupStatus, setStartupEnabled } = require('./lib/windows-startup');
@@ -127,28 +127,32 @@ function notify(title, message) {
 }
 
 function checkReminders() {
-  if (wechatConfig.remindersPaused) return;
+  if (wechatConfig.remindersPaused || inQuietHours(wechatConfig)) return;
   const now = Date.now();
   let changed = false;
+  let configChanged = false;
+  const disabledCourses = new Set(wechatConfig.disabledCourseIds || []);
   for (const task of state.tasks) {
+    if (disabledCourses.has(task.courseId)) continue;
     if (categoryOf(task, now, state.preferences) !== 'pending' || task.deadlineKind === 'credit_window' && !task.deadlineOverride) continue;
     const due = effectiveDue(task);
     if (!due) continue;
     const remaining = new Date(due).getTime() - now;
     if (!(remaining > 0)) continue;
-    for (const [key, ms, label] of [
-      ['24h', 24 * 3600000, '24 小时内截止'],
-      ['3h', 3 * 3600000, '3 小时内截止'],
-    ]) {
+    for (const hours of normalizeLeadHours(wechatConfig.leadHours)) {
+      const key = `${hours}h`, ms = hours * 3600000, label = `${hours} 小时内截止`;
       if (remaining > ms) continue;
       const notificationKey = `${task.id}:${due}:${key}`;
       if (state.notified[notificationKey]) continue;
       state.notified[notificationKey] = new Date().toISOString();
       changed = true;
       notify(`${task.name} · ${label}`, `${task.code || task.section || '作业'} · ${new Date(due).toLocaleString('zh-CN')}`);
+      appendHistory(wechatConfig, { type: 'windows', result: 'shown', detail: `${task.name} · ${label}` });
+      configChanged = true;
     }
   }
   if (changed) saveState(state);
+  if (configChanged) saveConfig(wechatConfig);
 }
 
 async function checkDailyWechat() {
@@ -165,13 +169,16 @@ async function checkDailyWechat() {
   saveConfig(wechatConfig);
   try {
     if (await activePort()) await startAllCoursesSync();
-    const digest = buildDailyDigest(state, now);
+    const digest = buildDailyDigest(state, now, wechatConfig);
     await sendServerChan(wechatConfig.sendKey, digest.title, digest.desp);
     wechatConfig.lastSentDate = today;
     wechatConfig.lastSentAt = new Date().toISOString();
     wechatConfig.lastError = null;
+    appendHistory(wechatConfig, { type: 'daily', result: 'accepted', detail: `${wechatConfig.attemptCount > 1 ? `第 ${wechatConfig.attemptCount} 次重试后，` : ''}Server酱已接受每日汇总（${digest.count} 项）` });
   } catch (error) {
     wechatConfig.lastError = error.message || '发送失败。';
+    const retry = wechatConfig.attemptCount < 3 ? '，30 分钟后可重试' : '，今日不再自动重试';
+    appendHistory(wechatConfig, { type: 'daily', result: 'failed', detail: `第 ${wechatConfig.attemptCount} 次尝试失败${retry}：${wechatConfig.lastError}` });
     console.error(`微信每日提醒发送失败：${wechatConfig.lastError}`);
   } finally {
     saveConfig(wechatConfig);
@@ -213,8 +220,37 @@ async function handle(request, response) {
       return json(response, 200, publicState());
     }
     if (request.method === 'PATCH' && url.pathname === '/api/reminders') {
-      if (typeof body.paused !== 'boolean') throw new Error('提醒暂停状态无效。');
-      wechatConfig.remindersPaused = body.paused;
+      let changed = false;
+      if (Object.hasOwn(body, 'paused')) {
+        if (typeof body.paused !== 'boolean') throw new Error('提醒暂停状态无效。');
+        wechatConfig.remindersPaused = body.paused;
+        changed = true;
+      }
+      if (Object.hasOwn(body, 'leadHours')) {
+        if (!Array.isArray(body.leadHours) || body.leadHours.some(value => !Number.isFinite(Number(value)) || Number(value) < 0.25 || Number(value) > 336)) throw new Error('提前提醒时间应为 0.25 到 336 小时。');
+        wechatConfig.leadHours = normalizeLeadHours(body.leadHours);
+        changed = true;
+      }
+      for (const field of ['quietStart', 'quietEnd']) {
+        if (Object.hasOwn(body, field)) {
+          if (typeof body[field] !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(body[field])) throw new Error('免打扰时间无效。');
+          wechatConfig[field] = body[field];
+          changed = true;
+        }
+      }
+      if (Object.hasOwn(body, 'quietEnabled')) {
+        if (typeof body.quietEnabled !== 'boolean') throw new Error('免打扰设置无效。');
+        wechatConfig.quietEnabled = body.quietEnabled;
+        changed = true;
+      }
+      if (Object.hasOwn(body, 'courseId')) {
+        if (!state.courses.some(course => course.id === body.courseId) || typeof body.enabled !== 'boolean') throw new Error('课程提醒设置无效。');
+        const disabled = new Set(wechatConfig.disabledCourseIds || []);
+        if (body.enabled) disabled.delete(body.courseId); else disabled.add(body.courseId);
+        wechatConfig.disabledCourseIds = [...disabled];
+        changed = true;
+      }
+      if (!changed) throw new Error('没有可保存的提醒设置。');
       saveConfig(wechatConfig);
       return json(response, 200, publicState());
     }
@@ -259,10 +295,12 @@ async function handle(request, response) {
         await sendServerChan(wechatConfig.sendKey, 'UBC作业管理工具测试', '已成功连接个人微信提醒。每日作业汇总会按设置的电脑当地时间发送。');
         wechatConfig.lastTestAt = new Date().toISOString();
         wechatConfig.lastError = null;
+        appendHistory(wechatConfig, { type: 'test', result: 'accepted', detail: 'Server酱已接受测试消息，请在微信中确认实际接收。' });
         saveConfig(wechatConfig);
-        return json(response, 200, { message: '测试消息已发送，请查看微信。', state: publicState() });
+        return json(response, 200, { message: 'Server酱已接受测试消息，请在微信中确认实际接收。', state: publicState() });
       } catch (error) {
         wechatConfig.lastError = error.message || '发送失败。';
+        appendHistory(wechatConfig, { type: 'test', result: 'failed', detail: wechatConfig.lastError });
         saveConfig(wechatConfig);
         throw error;
       } finally { sendingWechat = false; }
