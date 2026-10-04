@@ -4,6 +4,7 @@ const { parseDisplayedDeadline, completionStatus, isComplete } = require('../lib
 const { emptyState, normalizeCourseUrl, mergeRows, mergeWebworkRows } = require('../lib/store');
 const { parseCopiedTable } = require('../lib/paste');
 const { parseWebworkText, parseWebworkDate, parseWebworkProgress } = require('../lib/webwork');
+const { categoryOf, needsAttention } = require('../public/task-status');
 
 test('CPSC 310 screenshot deadline is parsed in the course year', () => {
   const result = parseDisplayedDeadline('100% until 23:59, Thu, Oct 8', 'CPSC 310, 2026W1', new Date(2026, 9, 2));
@@ -20,6 +21,26 @@ test('late credit windows are not treated as on-time due dates', () => {
   const result = parseDisplayedDeadline('80% until 18:05, Fri, Oct 16', 'CPSC 310, 2026W1');
   assert.equal(result.deadlineKind, 'credit_window');
   assert.equal(result.creditPercent, 80);
+});
+
+test('shared task status covers both platforms, dates, and manual overrides', () => {
+  const now = new Date('2026-10-04T12:00:00Z').getTime();
+  const pending = { dueAt: '2026-10-05T12:00:00Z', sourceComplete: false };
+  const overdue = { dueAt: '2026-10-03T12:00:00Z', sourceComplete: false };
+  const undated = { dueAt: null, sourceComplete: null };
+  const future = { sourceStatus: 'future', opensAt: '2026-10-06T12:00:00Z' };
+  const pastWebwork = { sourceStatus: 'past_due', sourceComplete: false };
+  assert.equal(categoryOf(pending, now), 'pending');
+  assert.equal(categoryOf(overdue, now), 'history');
+  assert.equal(categoryOf(undated, now), 'pending');
+  assert.equal(categoryOf(future, now), 'future');
+  assert.equal(categoryOf(pastWebwork, now), 'history');
+  assert.equal(needsAttention(overdue, now), true);
+  assert.equal(needsAttention(pastWebwork, now), true);
+  overdue.doneOverride = true;
+  assert.equal(categoryOf(overdue, now), 'done');
+  pastWebwork.deadlineOverride = '2026-10-06T12:00:00Z';
+  assert.equal(categoryOf(pastWebwork, now), 'pending');
 });
 
 test('missing deadlines remain undated and student overrides remain after sync', () => {

@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizeCourseUrl, coursePlatform, mergeRows, mergeWebworkRows } = require('./lib/store');
-const { effectiveDue, isComplete } = require('./lib/deadlines');
+const { effectiveDue, categoryOf } = require('./lib/deadlines');
 const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } = require('./lib/browser');
 const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
@@ -95,7 +95,7 @@ function checkReminders() {
   const now = Date.now();
   let changed = false;
   for (const task of state.tasks) {
-    if (isComplete(task) || task.sourceStatus === 'past_due' && !task.deadlineOverride || task.deadlineKind === 'credit_window' && !task.deadlineOverride) continue;
+    if (categoryOf(task, now) !== 'pending' || task.deadlineKind === 'credit_window' && !task.deadlineOverride) continue;
     const due = effectiveDue(task);
     if (!due) continue;
     const remaining = new Date(due).getTime() - now;
@@ -153,6 +153,7 @@ async function handle(request, response) {
   const url = new URL(request.url, `http://${request.headers.host}`);
   if (request.method === 'GET' && url.pathname === '/') return serveFile(response, 'index.html', 'text/html; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/style.css') return serveFile(response, 'style.css', 'text/css; charset=utf-8');
+  if (request.method === 'GET' && url.pathname === '/task-status.js') return serveFile(response, 'task-status.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/ui.js') return serveFile(response, 'ui.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, publicState());
   if (request.method === 'GET' && url.pathname === '/api/update') return json(response, 200, updater.status());
