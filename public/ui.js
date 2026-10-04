@@ -421,6 +421,11 @@ function renderSettings() {
   document.title = `UBC作业管理工具 ${state.version || '1.1.2'}`;
   document.querySelector('.toolbar-version').textContent = state.version || '1.1.2';
   renderUpdateStatus();
+  const startup = state.startup || { supported: false, enabled: false, error: '无法读取开机启动状态。' };
+  $('startup-enabled').checked = Boolean(startup.enabled);
+  $('startup-enabled').disabled = !startup.supported;
+  $('startup-status').textContent = startup.error || (startup.enabled ? '已为当前 Windows 账户启用。' : '当前未启用。');
+  $('startup-status').classList.toggle('error', Boolean(startup.error));
   $('settings-breadcrumb').textContent = `设置 / ${settingNames[settingsPanel]}`;
   $('settings-heading').textContent = settingNames[settingsPanel];
   $('settings-summary').textContent = settingsPanel === 'courses' ? '添加课程，管理登录窗口和手动导入。' :
@@ -488,6 +493,7 @@ function renderSettings() {
     $('course-list').append(row);
   }
   const wechat = state.wechat || { enabled: false, time: '09:00', hasKey: false };
+  $('reminders-paused').checked = Boolean(wechat.remindersPaused);
   if (!wechatFormDirty) {
     $('wechat-time').value = wechat.time || '09:00';
     $('wechat-enabled').checked = Boolean(wechat.enabled);
@@ -502,6 +508,7 @@ function renderSettings() {
   if (wechat.enabled && wechat.startDate && localDateInput(new Date().toISOString()).slice(0, 10) < wechat.startDate) {
     status.push(`首次发送不早于 ${wechat.startDate} ${wechat.time}（电脑当地时间）`);
   }
+  if (wechat.remindersPaused) status.unshift('全部提醒已暂停。');
   if (!status.length) status.push(wechat.enabled ? '已启用，等待下次发送时间。' : '每日提醒尚未启用。');
   $('wechat-status').textContent = status.join(' · ');
   $('wechat-status').classList.toggle('error', Boolean(wechat.lastError));
@@ -588,8 +595,8 @@ function render() {
   const plCount = state.courses.filter(course => coursePlatform(course) === 'prairielearn').length;
   const wwCount = state.courses.filter(course => coursePlatform(course) === 'webwork').length;
   $('footer-sources').textContent = `PrairieLearn ${plCount} 门课程 · WeBWorK ${wwCount} 门课程`;
-  $('footer-reminder').textContent = state.wechat?.lastError ? '每日提醒发送失败' : state.wechat?.enabled ? '每日提醒已启用' : '每日提醒未启用';
-  $('footer-reminder').classList.toggle('error', Boolean(state.wechat?.lastError));
+  $('footer-reminder').textContent = state.wechat?.remindersPaused ? '提醒已暂停' : state.wechat?.lastError ? '每日提醒发送失败' : state.wechat?.enabled ? '每日提醒已启用' : '每日提醒未启用';
+  $('footer-reminder').classList.toggle('error', Boolean(state.wechat?.lastError && !state.wechat?.remindersPaused));
   $('footer-timezone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
@@ -724,6 +731,30 @@ for (const id of ['wechat-key', 'wechat-time', 'wechat-enabled']) {
   $(id).addEventListener('input', () => { wechatFormDirty = true; });
   $(id).addEventListener('change', () => { wechatFormDirty = true; });
 }
+$('startup-enabled').addEventListener('change', async event => {
+  const enabled = event.target.checked;
+  event.target.disabled = true;
+  try {
+    state = await api('/api/startup', 'PATCH', { enabled });
+    render();
+    message(enabled ? '已启用登录 Windows 后自动启动。' : '已关闭登录 Windows 后自动启动。');
+  } catch (error) {
+    event.target.checked = !enabled;
+    message(error.message, true);
+  } finally { event.target.disabled = !state?.startup?.supported; }
+});
+$('reminders-paused').addEventListener('change', async event => {
+  const paused = event.target.checked;
+  event.target.disabled = true;
+  try {
+    state = await api('/api/reminders', 'PATCH', { paused });
+    render();
+    message(paused ? '全部提醒已暂停，课程同步会继续。' : '提醒已恢复。');
+  } catch (error) {
+    event.target.checked = !paused;
+    message(error.message, true);
+  } finally { event.target.disabled = false; }
+});
 $('wechat-form').addEventListener('submit', async event => {
   event.preventDefault();
   const button = $('wechat-form').querySelector('button[type="submit"]');

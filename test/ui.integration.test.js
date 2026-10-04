@@ -18,7 +18,9 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   ];
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
-  const fixtureState = { version: '1.1.2', courses, syncing: false, wechat: { enabled: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
+  const fixtureState = { version: '1.1.2', courses, syncing: false,
+    startup: { supported: true, enabled: false, configured: false, error: null },
+    wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
     makeTask('a', 'pl:1', 'LAB04', { dueAt: future(10), score: '100%' }),
     makeTask('b', 'ww:1', 'Assignment-03', { sourceStatus: 'open', dueAt: future(8), score: '40%',
       sourceComplete: false, problemCount: 6, completedProblemCount: 2 }),
@@ -42,6 +44,27 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     if (request.url === '/api/sync-all' && request.method === 'POST') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ results: courses.map(course => ({ courseId: course.id, ok: true, count: 2 })), state: fixtureState }));
+      return;
+    }
+    if (request.url === '/api/startup' && request.method === 'PATCH') {
+      let body = '';
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        fixtureState.startup.enabled = JSON.parse(body).enabled;
+        fixtureState.startup.configured = fixtureState.startup.enabled;
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify(fixtureState));
+      });
+      return;
+    }
+    if (request.url === '/api/reminders' && request.method === 'PATCH') {
+      let body = '';
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        fixtureState.wechat.remindersPaused = JSON.parse(body).paused;
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify(fixtureState));
+      });
       return;
     }
     if (request.url === '/api/task' && request.method === 'PATCH') {
@@ -169,12 +192,30 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#ww-folder .notification-dot').hidden"), true);
     await evaluate("document.querySelector('#nav-settings').click()");
     assert.equal(await evaluate("document.querySelector('#settings-page').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#startup-status').textContent.includes('当前未启用')"), true);
+    await evaluate("document.querySelector('#startup-enabled').click()");
+    for (let i = 0; i < 20; i++) {
+      if (fixtureState.startup.enabled) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.startup.enabled, true);
     if (process.env.UI_SETTINGS_PREVIEW_PATH) {
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
       fs.writeFileSync(process.env.UI_SETTINGS_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
     }
     await evaluate("document.querySelector('[data-settings=reminders]').click()");
     assert.equal(await evaluate("document.querySelector('#settings-reminders').hidden"), false);
+    await evaluate("document.querySelector('#reminders-paused').click()");
+    for (let i = 0; i < 20; i++) {
+      if (fixtureState.wechat.remindersPaused) break;
+      await sleep(100);
+    }
+    assert.equal(await evaluate("document.querySelector('#footer-reminder').textContent"), '提醒已暂停');
+    await evaluate("document.querySelector('#reminders-paused').click()");
+    for (let i = 0; i < 20; i++) {
+      if (!fixtureState.wechat.remindersPaused) break;
+      await sleep(100);
+    }
     await evaluate("(() => { const key = document.querySelector('#wechat-key'); key.value = 'SCTabcdefghijklmnop'; key.dispatchEvent(new Event('input', { bubbles: true })); const time = document.querySelector('#wechat-time'); time.value = '10:15'; time.dispatchEvent(new Event('input', { bubbles: true })); const enabled = document.querySelector('#wechat-enabled'); enabled.checked = true; enabled.dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('#wechat-form button[type=submit]').click(); })()");
     for (let i = 0; i < 20; i++) {
       if (await evaluate("document.querySelector('#wechat-key-status').textContent.includes('已保存在本机')")) break;

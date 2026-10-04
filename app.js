@@ -10,19 +10,23 @@ const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
   shouldSendDaily, buildDailyDigest, sendServerChan } = require('./lib/wechat');
 const { createUpdater, VERSION } = require('./lib/updater');
 const { markSyncAttempt, markSyncSuccess, markSyncFailure } = require('./lib/sync-status');
+const { startupStatus, setStartupEnabled } = require('./lib/windows-startup');
 
 let state = loadState();
 let wechatConfig = loadConfig();
 const syncingCourseIds = new Set();
+let syncAllPromise = null;
 let sendingWechat = false;
 let autoSyncEnabled = state.courses.some(course => course.lastSyncedAt);
 let server;
+let trayProcess = null;
+let startup = startupStatus();
 const updater = createUpdater();
 
 function publicState() {
   return { version: VERSION, courses: state.courses, tasks: state.tasks, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
-    wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
+    startup, wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
 }
 
 function json(response, status, body) {
@@ -104,6 +108,13 @@ async function syncAllCourses() {
   return results;
 }
 
+function startAllCoursesSync() {
+  if (!syncAllPromise) {
+    syncAllPromise = syncAllCourses().finally(() => { syncAllPromise = null; });
+  }
+  return syncAllPromise;
+}
+
 function notify(title, message) {
   if (process.platform !== 'win32') return;
   const child = spawn('powershell.exe', [
@@ -114,6 +125,7 @@ function notify(title, message) {
 }
 
 function checkReminders() {
+  if (wechatConfig.remindersPaused) return;
   const now = Date.now();
   let changed = false;
   for (const task of state.tasks) {
@@ -150,7 +162,7 @@ async function checkDailyWechat() {
   wechatConfig.lastAttemptAt = now.toISOString();
   saveConfig(wechatConfig);
   try {
-    if (await activePort()) await syncAllCourses();
+    if (await activePort()) await startAllCoursesSync();
     const digest = buildDailyDigest(state, now);
     await sendServerChan(wechatConfig.sendKey, digest.title, digest.desp);
     wechatConfig.lastSentDate = today;
@@ -191,8 +203,18 @@ async function handle(request, response) {
     if (request.method === 'POST' && url.pathname === '/api/update/install') {
       const result = await updater.install();
       json(response, 200, result);
-      setTimeout(() => server.close(() => process.exit(0)), 300);
+      setTimeout(() => { if (trayProcess) trayProcess.kill(); server.close(() => process.exit(0)); }, 300);
       return;
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/startup') {
+      startup = setStartupEnabled(body.enabled);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/reminders') {
+      if (typeof body.paused !== 'boolean') throw new Error('提醒暂停状态无效。');
+      wechatConfig.remindersPaused = body.paused;
+      saveConfig(wechatConfig);
+      return json(response, 200, publicState());
     }
     if (request.method === 'PATCH' && url.pathname === '/api/wechat') {
       const next = { ...wechatConfig };
@@ -254,8 +276,17 @@ async function handle(request, response) {
       return json(response, 200, { message: `已同步 ${count} 项作业。`, state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/sync-all') {
-      const results = await syncAllCourses();
+      const results = await startAllCoursesSync();
       return json(response, 200, { results, state: publicState() });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/sync-all/start') {
+      const alreadyRunning = Boolean(syncAllPromise);
+      startAllCoursesSync().catch(error => console.error(`同步失败：${error.message}`));
+      return json(response, 202, { message: alreadyRunning ? '同步已在进行。' : '已开始同步课程。', state: publicState() });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/window/open') {
+      openDashboard(true);
+      return json(response, 200, { message: '主窗口已打开。' });
     }
     if (request.method === 'POST' && url.pathname === '/api/import-text') {
       const course = state.courses.find(item => item.id === body.courseId);
@@ -285,7 +316,7 @@ async function handle(request, response) {
     }
     if (request.method === 'POST' && url.pathname === '/api/shutdown') {
       json(response, 200, { message: '应用已退出。' });
-      setTimeout(() => server.close(() => process.exit(0)), 100);
+      setTimeout(() => { if (trayProcess) trayProcess.kill(); server.close(() => process.exit(0)); }, 100);
       return;
     }
     return json(response, 404, { error: '未找到。' });
@@ -321,8 +352,8 @@ function dashboardWindowArguments() {
   } catch { /* Keep the 16:9 default when screen information is unavailable. */ }
   return args;
 }
-function openDashboard() {
-  if (!process.argv.includes('--no-open')) {
+function openDashboard(force = false) {
+  if (force || !process.argv.includes('--no-open')) {
     // Keep Edge visible and independent of the short-lived duplicate launcher.
     const browser = spawn(edgePath(), ['--no-first-run', '--no-default-browser-check', `--app=${address}`, ...dashboardWindowArguments()], {
       windowsHide: false, stdio: 'ignore', detached: true,
@@ -330,6 +361,16 @@ function openDashboard() {
     browser.on('error', error => console.error(`无法打开应用窗口：${error.message}`));
     browser.unref();
   }
+}
+
+function startTray() {
+  if (process.platform !== 'win32' || process.argv.includes('--no-tray') || trayProcess) return;
+  trayProcess = spawn('powershell.exe', [
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-STA',
+    '-File', path.join(__dirname, 'tray.ps1'), '-Port', '43873',
+  ], { windowsHide: true, stdio: 'ignore' });
+  trayProcess.on('error', error => console.error(`系统托盘启动失败：${error.message}`));
+  trayProcess.on('exit', () => { trayProcess = null; });
 }
 
 server.on('error', async error => {
@@ -347,6 +388,8 @@ server.on('error', async error => {
 
 server.listen(43873, '127.0.0.1', () => {
   console.log(`UBC作业管理工具已启动：${address}`);
+  startup = startupStatus();
+  startTray();
   openDashboard();
   updater.check().catch(error => console.error(`更新检查失败：${error.message}`));
 });
@@ -356,7 +399,7 @@ setInterval(() => { checkDailyWechat().catch(error => console.error(`微信提�
 setInterval(async () => {
   if (!autoSyncEnabled || syncingCourseIds.size) return;
   if (!(await activePort())) return;
-  const results = await syncAllCourses();
+  const results = await startAllCoursesSync();
   for (const result of results.filter(item => !item.ok)) {
     const course = state.courses.find(item => item.id === result.courseId);
     console.error(`自动同步失败：${course?.name || result.courseId}: ${result.error}`);
