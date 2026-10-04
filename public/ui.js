@@ -51,7 +51,7 @@ function coursePlatform(course) {
 function courseFor(task) { return state.courses.find(course => course.id === task.courseId); }
 function isDone(task) {
   return task.doneOverride === null || task.doneOverride === undefined
-    ? /^100(?:\.0+)?%$/.test((task.score || '').trim())
+    ? task.sourceComplete === true || /^100(?:\.0+)?%$/.test((task.score || '').trim())
     : task.doneOverride;
 }
 function dueOf(task) { return task.deadlineOverride || task.dueAt || null; }
@@ -63,6 +63,13 @@ function categoryOf(task, now = Date.now()) {
   if (task.sourceStatus === 'past_due' && !task.deadlineOverride) return 'history';
   const due = dueOf(task);
   return due && new Date(due).getTime() < now ? 'history' : 'pending';
+}
+
+function statusName(task) {
+  const category = categoryOf(task);
+  if (category === 'history' && task.sourceStatus === 'past_due') return '已截止';
+  if (category === 'pending' && task.sourceStatus === 'open') return '完成中';
+  return tabNames[category];
 }
 
 function formatDate(iso) {
@@ -213,7 +220,7 @@ function taskRow(task) {
   if (!dateInfo.value) date.classList.add('unknown');
 
   const category = categoryOf(task);
-  const status = node('span', `status-label ${category === 'history' ? 'late' : category}`, category === 'history' && task.sourceStatus === 'past_due' ? '已截止' : tabNames[category]);
+  const status = node('span', `status-label ${category === 'history' ? 'late' : category}`, statusName(task));
   const actions = node('div', 'row-actions');
   const edit = node('button', '', '改日期');
   edit.type = 'button';
@@ -279,7 +286,10 @@ function renderInspector() {
   const addDetail = (label, value) => { details.append(node('dt', '', label), node('dd', '', value)); };
   const dateInfo = rowDate(task);
   addDetail('来源', platformNames[platform]);
-  addDetail('状态', categoryOf(task) === 'history' && task.sourceStatus === 'past_due' ? '已截止' : tabNames[categoryOf(task)]);
+  addDetail('状态', statusName(task));
+  if (Number.isInteger(task.problemCount) && task.problemCount > 0) {
+    addDetail('题目完成', `${task.completedProblemCount || 0} / ${task.problemCount}`);
+  }
   if (task.section) addDetail('分类', task.section);
   if (task.sourceStatus === 'future' && task.opensAt) addDetail('开放时间', formatDate(task.opensAt));
   addDetail(dateInfo.label, dateInfo.value ? formatDate(dateInfo.value) : dateInfo.text || '暂无日期');

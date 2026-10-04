@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { parseDisplayedDeadline, isComplete } = require('../lib/deadlines');
 const { emptyState, normalizeCourseUrl, mergeRows, mergeWebworkRows } = require('../lib/store');
 const { parseCopiedTable } = require('../lib/paste');
-const { parseWebworkText, parseWebworkDate } = require('../lib/webwork');
+const { parseWebworkText, parseWebworkDate, parseWebworkProgress } = require('../lib/webwork');
 
 test('CPSC 310 screenshot deadline is parsed in the course year', () => {
   const result = parseDisplayedDeadline('100% until 23:59, Thu, Oct 8', 'CPSC 310, 2026W1', new Date(2026, 9, 2));
@@ -64,6 +64,61 @@ test('WeBWorK due dates and release dates remain distinct', () => {
   mergeWebworkRows(state, course.id, { courseTitle: 'STAT 251', rows });
   assert.equal(byName('Assignment-03').doneOverride, true);
   assert.equal(parseWebworkDate('October 32, 2026, 11:59:00 PM PDT'), null);
+});
+
+test('WeBWorK completion requires every problem to reach 100%', () => {
+  const headers = ['Name', 'Attempts', 'Remaining', 'Worth', 'Status'];
+  const complete = parseWebworkProgress([{ headers, rows: [
+    ['Problem 1', '1', '7', '2', '100%'],
+    ['Problem 2', '1', '9', '3', '100%'],
+  ] }]);
+  assert.deepEqual(complete, {
+    score: '100%', sourceComplete: true, problemCount: 2, completedProblemCount: 2,
+  });
+
+  const inProgress = parseWebworkProgress([{ headers, rows: [
+    ['Problem 1', '1', '7', '2', '50%'],
+    ['Problem 2', '1', '9', '3', '100%'],
+  ] }]);
+  assert.deepEqual(inProgress, {
+    score: '80%', sourceComplete: false, problemCount: 2, completedProblemCount: 1,
+  });
+
+  const notStarted = parseWebworkProgress([{ headers, rows: [
+    ['Problem 1', '0', '8', '2', '0%'],
+  ] }]);
+  assert.equal(notStarted.score, '0%');
+  assert.equal(notStarted.sourceComplete, false);
+  assert.throws(() => parseWebworkProgress([{ headers, rows: [['Problem 1', '0', '8', '2', 'Not available']] }]));
+});
+
+test('WeBWorK progress is merged without losing student overrides', () => {
+  const state = emptyState();
+  const course = normalizeCourseUrl('https://webwork.elearning.ubc.ca/webwork2/example');
+  state.courses.push({ ...course, name: 'STAT 251', lastSyncedAt: null });
+  const page = { courseTitle: 'STAT 251', rows: [{
+    name: 'Assignment-03', code: 'Assignment-03', section: 'open', url: `${course.url}/Assignment-03`,
+    dueText: 'October 8, 2026, 11:59:00 PM PDT.', score: '100%', sourceComplete: true,
+    problemCount: 6, completedProblemCount: 6,
+  }] };
+  mergeWebworkRows(state, course.id, page);
+  const task = state.tasks.find(item => item.courseId === course.id);
+  assert.equal(task.score, '100%');
+  assert.equal(task.sourceComplete, true);
+  assert.equal(task.problemCount, 6);
+  assert.equal(isComplete(task), true);
+  task.doneOverride = false;
+  mergeWebworkRows(state, course.id, page);
+  assert.equal(task.doneOverride, false);
+  assert.equal(isComplete(task), false);
+  task.doneOverride = null;
+  mergeWebworkRows(state, course.id, { courseTitle: 'STAT 251', rows: [{
+    name: 'Assignment-03', code: 'Assignment-03', section: 'past_due', url: `${course.url}/Assignment-03`,
+  }] });
+  assert.equal(task.sourceStatus, 'past_due');
+  assert.equal(task.score, '100%');
+  assert.equal(task.sourceComplete, true);
+  assert.equal(isComplete(task), true);
 });
 
 test('copied student table can populate the local dashboard', () => {

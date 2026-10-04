@@ -19,7 +19,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
   const fixtureState = { version: '1.1.2', courses, syncing: false, wechat: { enabled: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
     makeTask('a', 'pl:1', 'LAB04', { dueAt: future(10) }),
-    makeTask('b', 'ww:1', 'Assignment-03', { sourceStatus: 'open', dueAt: future(8) }),
+    makeTask('b', 'ww:1', 'Assignment-03', { sourceStatus: 'open', dueAt: future(8), score: '40%',
+      sourceComplete: false, problemCount: 6, completedProblemCount: 2 }),
     makeTask('c', 'ww:1', 'Assignment-04', { sourceStatus: 'future', opensAt: future(3) }),
     makeTask('d', 'ww:1', 'Assignment-02', { sourceStatus: 'past_due' }),
     makeTask('e', 'pl:1', 'LAB03', { score: '75%', doneOverride: true }),
@@ -141,6 +142,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     await evaluate("document.querySelector('#nav-webwork').click()");
     assert.equal(await evaluate("document.querySelector('#work-heading').textContent"), 'WeBWorK');
     assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 1);
+    assert.equal(await evaluate("document.querySelector('.assignment-row .status-label').textContent"), '完成中');
+    assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('题目完成2 / 6')"), true);
     await evaluate("document.querySelector('#inspector-content .inspector-actions button:last-child').click()");
     for (let i = 0; i < 20; i++) {
       if (await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden")) break;
