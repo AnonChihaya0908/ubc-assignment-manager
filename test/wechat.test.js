@@ -51,11 +51,12 @@ test('daily digest contains actionable assignments and does not include private 
     ],
   };
   const digest = buildDailyDigest(state, now);
-  assert.equal(digest.count, 2);
-  assert.match(digest.title, /2 项未完成/);
+  assert.equal(digest.count, 3);
+  assert.match(digest.title, /3 项需处理/);
   assert.match(digest.desp, /STAT 251.*Assignment-03/);
   assert.match(digest.desp, /STAT 251.*Assignment-00/);
-  assert.doesNotMatch(digest.desp, /Assignment-04|Assignment-02|Assignment-01|private-id|effectiveUser/);
+  assert.match(digest.desp, /STAT 251.*Assignment-02.*网页标记已截止/);
+  assert.doesNotMatch(digest.desp, /Assignment-04|Assignment-01|private-id|effectiveUser/);
 });
 
 test('the public reminder state does not expose SendKey', () => {

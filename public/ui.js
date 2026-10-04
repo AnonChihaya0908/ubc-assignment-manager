@@ -13,6 +13,7 @@ let updateStatus = { kind: 'checking', currentVersion: '1.1.2' };
 let promptedUpdate = null;
 
 const $ = id => document.getElementById(id);
+const { completionStatus, isComplete: isDone, effectiveDue: dueOf, categoryOf, needsAttention } = window.TaskStatus;
 const platformNames = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK' };
 const settingNames = { general: '常规与窗口', reminders: '提醒与同步', courses: '课程与登录', data: '数据与退出' };
 const tabNames = { pending: '待完成', future: '将开放', history: '已过日期', done: '已完成' };
@@ -50,26 +51,10 @@ function coursePlatform(course) {
 
 function courseFor(task) { return state.courses.find(course => course.id === task.courseId); }
 function completionInfo(task) {
-  if (task.doneOverride === true || task.doneOverride === false) {
-    return { complete: task.doneOverride, label: task.doneOverride ? '已完成' : '未完成', source: '用户手动设置' };
-  }
-  if (task.sourceComplete === true || task.sourceComplete === false) {
-    return { complete: task.sourceComplete, label: task.sourceComplete ? '已完成' : '未完成', source: '课程网站状态' };
-  }
-  return { complete: null, label: '未知', source: '网站未提供可靠状态' };
-}
-function isDone(task) {
-  return completionInfo(task).complete === true;
-}
-function dueOf(task) { return task.deadlineOverride || task.dueAt || null; }
-function actionable(task) { return !isDone(task) && task.sourceStatus !== 'future' && task.sourceStatus !== 'past_due'; }
-
-function categoryOf(task, now = Date.now()) {
-  if (isDone(task)) return 'done';
-  if (task.sourceStatus === 'future' && !task.deadlineOverride) return 'future';
-  if (task.sourceStatus === 'past_due' && !task.deadlineOverride) return 'history';
-  const due = dueOf(task);
-  return due && new Date(due).getTime() < now ? 'history' : 'pending';
+  const status = completionStatus(task);
+  if (status.source === 'manual') return { ...status, label: status.complete ? '已完成' : '未完成', source: '用户手动设置' };
+  if (status.source === 'website') return { ...status, label: status.complete ? '已完成' : '未完成', source: '课程网站状态' };
+  return { ...status, label: '未知', source: '网站未提供可靠状态' };
 }
 
 function statusName(task) {
@@ -123,15 +108,15 @@ function visibleTasks() {
 function setDot(element, show) { element.hidden = !show; }
 
 function renderFolders() {
-  const allPending = state.tasks.filter(task => categoryOf(task) === 'pending').length;
+  const allPending = state.tasks.filter(task => needsAttention(task)).length;
   $('all-count').textContent = allPending || '';
   $('all-folder').classList.toggle('active', selectedScope === 'all');
   $('nav-all').classList.toggle('active', !location.hash.startsWith('#settings') && selectedScope === 'all');
   for (const platform of ['prairielearn', 'webwork']) {
     const courses = state.courses.filter(course => coursePlatform(course) === platform);
     const tasks = state.tasks.filter(task => coursePlatform(courseFor(task)) === platform);
-    const hasPending = tasks.some(actionable);
-    $(`${platform === 'webwork' ? 'ww' : 'pl'}-count`).textContent = tasks.filter(actionable).length || '';
+    const hasPending = tasks.some(task => needsAttention(task));
+    $(`${platform === 'webwork' ? 'ww' : 'pl'}-count`).textContent = tasks.filter(task => needsAttention(task)).length || '';
     const rail = $(platform === 'webwork' ? 'nav-webwork' : 'nav-prairielearn');
     const group = $(platform === 'webwork' ? 'ww-folder' : 'pl-folder');
     setDot(rail.querySelector('.notification-dot'), hasPending);
@@ -149,7 +134,7 @@ function renderFolders() {
       button.append(node('span', `source-mark ${platform === 'webwork' ? 'ww' : 'pl'}`, platform === 'webwork' ? 'W' : 'PL'));
       button.append(node('span', 'course-name', shortCourseName(course)));
       const dot = node('span', 'notification-dot');
-      const pendingCount = state.tasks.filter(task => task.courseId === course.id && actionable(task)).length;
+      const pendingCount = state.tasks.filter(task => task.courseId === course.id && needsAttention(task)).length;
       dot.hidden = pendingCount === 0;
       button.append(dot);
       button.append(node('span', 'course-count', pendingCount || ''));
@@ -376,8 +361,8 @@ function renderWork() {
   }
   const tasks = visibleTasks();
   $('today-label').textContent = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
-  const pendingCount = tasks.filter(task => categoryOf(task) === 'pending').length;
-  $('pending-badge').querySelector('span:last-child').textContent = `${pendingCount} 项待完成`;
+  const pendingCount = tasks.filter(task => needsAttention(task)).length;
+  $('pending-badge').querySelector('span:last-child').textContent = `${pendingCount} 项需处理`;
   $('pending-badge').querySelector('.notification-dot').hidden = pendingCount === 0;
   $('overview-pending').textContent = pendingCount;
   $('overview-done').textContent = tasks.filter(task => categoryOf(task) === 'done').length;

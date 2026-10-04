@@ -7,6 +7,7 @@
   <meta name="description" content="UBC作业管理工具：本地汇总 PrairieLearn 与 WeBWorK 作业及截止提醒。">
   <title>UBC作业管理工具 1.1.2</title>
   <link rel="stylesheet" href="/style.css">
+  <script src="/task-status.js" defer></script>
   <script src="/ui.js" defer></script>
 </head>
 <body>
@@ -64,7 +65,7 @@
       <section id="work-page" class="page">
         <header class="page-header">
           <div class="page-title"><p id="work-breadcrumb" class="breadcrumb">作业 / 全部作业</p><h1 id="work-heading">作业概览</h1><p id="work-summary" class="page-summary">按平台查看截止时间和完成状态。</p></div>
-          <div class="page-meta"><span id="today-label"></span><span id="pending-badge" class="pending-badge"><span class="notification-dot"></span><span>0 项待完成</span></span></div>
+          <div class="page-meta"><span id="today-label"></span><span id="pending-badge" class="pending-badge"><span class="notification-dot"></span><span>0 项需处理</span></span></div>
         </header>
         <nav id="task-tabs" class="tabs" aria-label="作业状态">
           <button class="tab active" data-tab="pending" type="button">待完成 <span id="pending-tab-count">0</span></button>
@@ -72,7 +73,7 @@
           <button class="tab" data-tab="history" type="button">已过日期 <span id="history-tab-count">0</span></button>
           <button class="tab" data-tab="done" type="button">已完成 <span id="done-tab-count">0</span></button>
         </nav>
-        <div id="work-overview" class="work-overview"><div class="overview-tile urgent-tile"><strong id="overview-pending">0</strong><span>待完成作业</span></div><div class="overview-tile"><strong id="overview-nearest">—</strong><span>距离最近截止时间</span></div><div class="overview-tile"><strong id="overview-done">0</strong><span>已完成作业</span></div></div>
+        <div id="work-overview" class="work-overview"><div class="overview-tile urgent-tile"><strong id="overview-pending">0</strong><span>需处理作业</span></div><div class="overview-tile"><strong id="overview-nearest">—</strong><span>距离最近截止时间</span></div><div class="overview-tile"><strong id="overview-done">0</strong><span>已完成作业</span></div></div>
         <div id="task-groups" class="task-groups"></div>
       </section>
       <aside id="task-inspector" class="task-inspector" aria-label="作业详情"><div class="inspector-heading">作业详情</div><div id="inspector-content" class="inspector-content"></div></aside>
@@ -101,7 +102,7 @@
           </section>
           <section class="setting-block">
             <h2>未完成标记</h2>
-            <div class="setting-row"><div><h3>网站图标与目录红点</h3><p>有已开放且未完成的作业时显示。尚未开放和 WeBWorK 标记已截止的作业不触发。</p></div><span class="red-dot-example" aria-label="红点示例"></span></div>
+            <div class="setting-row"><div><h3>网站图标与目录红点</h3><p>有待完成或已过日期但仍未完成的作业时显示。可在“待完成”和“已过日期”页找到对应项目；尚未开放和已完成作业不触发。</p></div><span class="red-dot-example" aria-label="红点示例"></span></div>
             <div class="setting-row"><div><h3>成绩与完成状态</h3><p>成绩只用于展示。WeBWorK 可按逐题状态判断完成；网站没有可靠状态时显示“待确认”，可在作业详情中手动设置并随时恢复网站判断。</p></div><span class="setting-value">相互独立</span></div>
           </section>
         </div>

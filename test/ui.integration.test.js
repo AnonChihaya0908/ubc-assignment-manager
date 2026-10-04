@@ -61,7 +61,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       });
       return;
     }
-    const files = { '/': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'], '/ui.js': ['ui.js', 'text/javascript'] };
+    const files = { '/': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'],
+      '/task-status.js': ['task-status.js', 'text/javascript'], '/ui.js': ['ui.js', 'text/javascript'] };
     const target = files[request.url];
     if (!target) { response.writeHead(404); response.end(); return; }
     response.writeHead(200, { 'Content-Type': target[1] });
@@ -128,7 +129,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#history-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), false);
     assert.equal(await evaluate("document.querySelector('#nav-prairielearn .notification-dot').hidden"), false);
-    assert.equal(await evaluate("document.querySelector('#overview-pending').textContent"), '2');
+    assert.equal(await evaluate("document.querySelector('#overview-pending').textContent"), '3');
+    assert.equal(await evaluate("document.querySelector('#pending-badge').textContent.includes('3 项需处理')"), true);
     assert.equal(await evaluate("document.querySelector('#overview-done').textContent"), '1');
     await evaluate("document.querySelector('[data-task-id=\"a\"]').click()");
     assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('完成状态未知')"), true);
@@ -148,12 +150,16 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('.assignment-row .status-label').textContent"), '完成中');
     assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('题目完成2 / 6')"), true);
     await evaluate("document.querySelector('#inspector-content .inspector-actions button:last-child').click()");
+    assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), false);
+    assert.equal(await evaluate("[...document.querySelectorAll('#inspector-content .inspector-actions button')].some(button => button.textContent === '恢复网站判断')"), true);
+    await evaluate("document.querySelector('[data-tab=history]').click()");
+    assert.equal(await evaluate("document.querySelector('.assignment-row').dataset.taskId"), 'd');
+    await evaluate("document.querySelector('#inspector-content .inspector-actions button:nth-child(2)').click()");
     for (let i = 0; i < 20; i++) {
       if (await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden")) break;
       await sleep(100);
     }
     assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), true);
-    assert.equal(await evaluate("[...document.querySelectorAll('#inspector-content .inspector-actions button')].some(button => button.textContent === '恢复网站判断')"), true);
     assert.equal(await evaluate("document.querySelector('#ww-folder .notification-dot').hidden"), true);
     await evaluate("document.querySelector('#nav-settings').click()");
     assert.equal(await evaluate("document.querySelector('#settings-page').hidden"), false);
