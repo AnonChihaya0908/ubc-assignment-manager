@@ -1,7 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { parseDisplayedDeadline, completionStatus, isComplete } = require('../lib/deadlines');
-const { emptyState, normalizeCourseUrl, mergeRows, mergeWebworkRows } = require('../lib/store');
+const { emptyState, loadState, normalizeCourseUrl, mergeRows, mergeWebworkRows } = require('../lib/store');
 const { parseCopiedTable } = require('../lib/paste');
 const { parseWebworkText, parseWebworkDate, parseWebworkProgress } = require('../lib/webwork');
 const { categoryOf, needsAttention } = require('../public/task-status');
@@ -50,6 +53,17 @@ test('shared task status covers both platforms, dates, and manual overrides', ()
   assert.equal(categoryOf(fullScore, now, manualMode), 'pending');
   fullScore.doneOverride = true;
   assert.deepEqual(completionStatus(fullScore, manualMode), { complete: true, source: 'manual' });
+});
+
+test('existing saved data defaults to automatic full-score completion', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-assignment-state-'));
+  const file = path.join(directory, 'data.json');
+  try {
+    fs.writeFileSync(file, JSON.stringify({ version: 1, courses: [], tasks: [], notified: {} }));
+    assert.deepEqual(loadState(file).preferences, { requireManualCompletion: false });
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('course sync status classifies failures, preserves success time, and detects stale data', () => {
