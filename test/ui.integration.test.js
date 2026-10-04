@@ -279,6 +279,10 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelectorAll('.settings-course').length"), 2);
     assert.equal(await evaluate("document.querySelector('.settings-course').textContent.includes('需要重新登录')"), true);
     assert.equal(await evaluate("document.querySelector('.settings-course').textContent.includes('保留')"), true);
+    await evaluate("document.querySelector('[data-settings=data]').click()");
+    assert.equal(await evaluate("document.querySelector('#settings-data').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#settings-data').textContent.includes('查询参数会移除')"), true);
+    assert.equal(await evaluate("document.querySelector('#backup-import').disabled"), true);
     await resizeViewport(680, 800);
     await evaluate("document.querySelector('#nav-menu').click()");
     assert.equal(await evaluate("document.querySelector('.folder-pane').classList.contains('open')"), true);

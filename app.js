@@ -13,6 +13,7 @@ const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
 const { createUpdater, VERSION } = require('./lib/updater');
 const { markSyncAttempt, markSyncSuccess, markSyncFailure } = require('./lib/sync-status');
 const { startupStatus, setStartupEnabled } = require('./lib/windows-startup');
+const { createBackup, validateBackup, writeRestorePoint, applyBackup } = require('./lib/backup');
 
 let state = loadState();
 let wechatConfig = loadConfig();
@@ -42,12 +43,12 @@ function json(response, status, body) {
   response.end(content);
 }
 
-function readBody(request) {
+function readBody(request, limit = 65536) {
   return new Promise((resolve, reject) => {
     let data = '';
     request.on('data', chunk => {
       data += chunk;
-      if (data.length > 65536) {
+      if (data.length > limit) {
         reject(new Error('请求内容过大。'));
         request.destroy();
       }
@@ -205,7 +206,7 @@ async function handle(request, response) {
   if (request.headers['content-type']?.split(';')[0] !== 'application/json') return json(response, 415, { error: '需要 JSON 请求。' });
 
   try {
-    const body = await readBody(request);
+    const body = await readBody(request, url.pathname === '/api/backup/import' ? 5 * 1024 * 1024 : 65536);
     if (request.method === 'POST' && url.pathname === '/api/update/check') {
       return json(response, 200, await updater.check(true));
     }
@@ -214,6 +215,29 @@ async function handle(request, response) {
       json(response, 200, result);
       setTimeout(() => { if (trayProcess) trayProcess.kill(); server.close(() => process.exit(0)); }, 300);
       return;
+    }
+    if (request.method === 'POST' && url.pathname === '/api/backup/export') {
+      return json(response, 200, createBackup(state, wechatConfig));
+    }
+    if (request.method === 'POST' && url.pathname === '/api/backup/import') {
+      const validated = validateBackup(body.backup);
+      writeRestorePoint(state, wechatConfig);
+      const imported = applyBackup(validated, wechatConfig);
+      const previousState = state, previousConfig = wechatConfig;
+      try {
+        saveConfig(imported.config);
+        saveState(imported.state);
+      } catch (error) {
+        try { saveConfig(previousConfig); saveState(previousState); } catch { }
+        throw error;
+      }
+      state = imported.state;
+      wechatConfig = imported.config;
+      autoSyncEnabled = false;
+      return json(response, 200, {
+        message: `已恢复 ${validated.summary.courses} 门课程和 ${validated.summary.tasks} 项作业。请重新登录课程${validated.reminders.dailyWasEnabled ? '并重新启用每日微信汇总' : ''}。`,
+        restorePointCreated: true, state: publicState(),
+      });
     }
     if (request.method === 'PATCH' && url.pathname === '/api/startup') {
       startup = setStartupEnabled(body.enabled);
