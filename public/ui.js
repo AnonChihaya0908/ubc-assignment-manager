@@ -8,7 +8,6 @@ let wechatFormDirty = false;
 let selectedTaskId = null;
 let searchTerm = '';
 let inspectorTasks = [];
-let lastSyncError = null;
 let updateStatus = { kind: 'checking', currentVersion: '1.1.2' };
 let promptedUpdate = null;
 
@@ -17,6 +16,8 @@ const { completionStatus, isComplete: isDone, effectiveDue: dueOf, categoryOf, n
 const platformNames = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK' };
 const settingNames = { general: '常规与窗口', reminders: '提醒与同步', courses: '课程与登录', data: '数据与退出' };
 const tabNames = { pending: '待完成', future: '将开放', history: '已过日期', done: '已完成' };
+const syncErrorNames = { login: '需要重新登录', network: '网络连接失败', parse: '页面解析失败', page: '页面不匹配', unknown: '同步失败' };
+const staleAfterMs = 6 * 60 * 60 * 1000;
 
 async function api(path, method = 'GET', body) {
   const response = await fetch(path, {
@@ -90,6 +91,20 @@ function shortCourseName(course) {
   return name.length > 30 ? `${name.slice(0, 29)}…` : name;
 }
 
+function courseSyncStatus(course, now = Date.now()) {
+  if (state.syncingCourseIds?.includes(course.id)) return { kind: 'syncing', text: '正在同步…' };
+  const syncedAt = Date.parse(course.lastSyncedAt || '');
+  const stale = !Number.isFinite(syncedAt) || now - syncedAt > staleAfterMs;
+  if (course.lastSyncError) {
+    const label = syncErrorNames[course.lastSyncErrorKind] || syncErrorNames.unknown;
+    const cached = Number.isFinite(syncedAt) ? `；保留 ${formatDate(course.lastSyncedAt)} 的数据` : '；尚无可用缓存';
+    return { kind: 'error', text: `${label}：${course.lastSyncError}${cached}` };
+  }
+  if (!Number.isFinite(syncedAt)) return { kind: 'never', text: '尚未成功同步' };
+  if (stale) return { kind: 'stale', text: `数据可能过旧 · 上次同步 ${formatDate(course.lastSyncedAt)}` };
+  return { kind: 'fresh', text: `上次同步 ${formatDate(course.lastSyncedAt)}` };
+}
+
 function visibleTasks() {
   let tasks = state.tasks;
   if (selectedScope.startsWith('platform:')) {
@@ -130,6 +145,9 @@ function renderFolders() {
       const button = node('button', 'course-folder');
       button.type = 'button';
       button.title = course.name;
+      const syncStatus = courseSyncStatus(course);
+      button.title = `${course.name} · ${syncStatus.text}`;
+      button.classList.toggle('sync-warning', syncStatus.kind === 'error' || syncStatus.kind === 'stale' || syncStatus.kind === 'never');
       button.classList.toggle('active', selectedScope === `course:${course.id}`);
       button.append(node('span', `source-mark ${platform === 'webwork' ? 'ww' : 'pl'}`, platform === 'webwork' ? 'W' : 'PL'));
       button.append(node('span', 'course-name', shortCourseName(course)));
@@ -352,7 +370,7 @@ function renderWork() {
   } else if (course) {
     $('work-breadcrumb').textContent = `作业 / ${platformNames[coursePlatform(course)]} / ${shortCourseName(course)}`;
     $('work-heading').textContent = shortCourseName(course);
-    $('work-summary').textContent = course.name;
+    $('work-summary').textContent = `${course.name} · ${courseSyncStatus(course).text}`;
   } else {
     const platform = selectedScope.slice('platform:'.length);
     $('work-breadcrumb').textContent = `作业 / ${platformNames[platform]}`;
@@ -426,7 +444,33 @@ function renderSettings() {
     const row = node('div', 'settings-course');
     const description = node('div', 'settings-course-main');
     description.append(node('strong', '', course.name));
-    description.append(node('small', '', `${platformNames[coursePlatform(course)]} · ${course.lastSyncedAt ? `上次同步 ${formatDate(course.lastSyncedAt)}` : '尚未同步'}`));
+    const syncStatus = courseSyncStatus(course);
+    const syncLine = node('small', `course-sync-status ${syncStatus.kind}`, `${platformNames[coursePlatform(course)]} · ${syncStatus.text}`);
+    description.append(syncLine);
+    const actions = node('div', 'settings-course-actions');
+    const login = node('button', 'course-action', course.lastSyncErrorKind === 'login' ? '重新登录' : '打开登录');
+    login.type = 'button';
+    login.addEventListener('click', async () => {
+      try {
+        await api('/api/open-browser', 'POST', { courseId: course.id });
+        message('登录窗口已打开。完成登录后点击“重试同步”。');
+      } catch (error) { message(error.message, true); }
+    });
+    const retry = node('button', 'course-action', '重试同步');
+    retry.type = 'button';
+    retry.disabled = syncStatus.kind === 'syncing';
+    retry.addEventListener('click', async () => {
+      retry.disabled = true;
+      try {
+        const result = await api('/api/sync', 'POST', { courseId: course.id });
+        state = result.state;
+        message(result.message);
+      } catch (error) {
+        state = await api('/api/state');
+        message(error.message, true);
+      }
+      render();
+    });
     const remove = node('button', '', '移除');
     remove.type = 'button';
     remove.setAttribute('aria-label', `移除 ${course.name}`);
@@ -439,7 +483,8 @@ function renderSettings() {
         render();
       } catch (error) { message(error.message, true); }
     });
-    row.append(description, remove);
+    actions.append(login, retry, remove);
+    row.append(description, actions);
     $('course-list').append(row);
   }
   const wechat = state.wechat || { enabled: false, time: '09:00', hasKey: false };
@@ -533,11 +578,13 @@ function render() {
   renderWork();
   renderSettings();
   const last = state.courses.map(course => course.lastSyncedAt).filter(Boolean).sort().at(-1);
-  $('sync-status').textContent = last ? `上次同步：${formatDate(last)}` : '尚未同步';
+  const failures = state.courses.filter(course => course.lastSyncError).length;
+  const stale = state.courses.filter(course => ['stale', 'never'].includes(courseSyncStatus(course).kind)).length;
+  $('sync-status').textContent = state.syncing ? '正在同步' : failures ? `${failures} 门课程同步失败` : stale ? `${stale} 门课程数据需要更新` : last ? `上次同步：${formatDate(last)}` : '尚未同步';
   $('sync').disabled = state.syncing || !state.courses.length;
-  $('footer-sync').textContent = state.syncing ? '正在同步' : lastSyncError ? '同步失败' : last ? `上次同步 ${formatDate(last)}` : '尚未同步';
-  $('footer-sync').title = lastSyncError || '';
-  $('footer-sync').classList.toggle('error', Boolean(lastSyncError));
+  $('footer-sync').textContent = state.syncing ? '正在同步' : failures ? `${failures} 门同步失败` : stale ? `${stale} 门数据可能过旧` : last ? `上次同步 ${formatDate(last)}` : '尚未同步';
+  $('footer-sync').title = state.courses.filter(course => course.lastSyncError).map(course => `${shortCourseName(course)}：${course.lastSyncError}`).join('；');
+  $('footer-sync').classList.toggle('error', failures > 0);
   const plCount = state.courses.filter(course => coursePlatform(course) === 'prairielearn').length;
   const wwCount = state.courses.filter(course => coursePlatform(course) === 'webwork').length;
   $('footer-sources').textContent = `PrairieLearn ${plCount} 门课程 · WeBWorK ${wwCount} 门课程`;
@@ -629,19 +676,12 @@ $('sync').addEventListener('click', async () => {
   const button = $('sync');
   button.disabled = true;
   button.textContent = '正在同步…';
-  lastSyncError = null;
-  let total = 0;
-  const errors = [];
   try {
-    for (const course of [...state.courses]) {
-      try {
-        const result = await api('/api/sync', 'POST', { courseId: course.id });
-        state = result.state;
-        total += state.tasks.filter(task => task.courseId === course.id).length;
-      } catch (error) { errors.push(`${shortCourseName(course)}：${error.message}`); }
-    }
-    lastSyncError = errors.length ? errors.join('；') : null;
-    message(`${total ? `已读取 ${total} 项。` : ''}${errors.length ? `同步失败：${lastSyncError}` : '同步完成。'}`, errors.length > 0);
+    const result = await api('/api/sync-all', 'POST', {});
+    state = result.state;
+    const total = result.results.filter(item => item.ok).reduce((sum, item) => sum + item.count, 0);
+    const errors = result.results.filter(item => !item.ok);
+    message(`${total ? `已读取 ${total} 项。` : ''}${errors.length ? `${errors.length} 门课程同步失败，请在课程设置中查看。` : '同步完成。'}`, errors.length > 0);
     render();
   } finally {
     button.textContent = '立即同步';

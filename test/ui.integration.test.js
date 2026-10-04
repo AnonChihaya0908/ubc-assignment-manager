@@ -12,7 +12,8 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 test('desktop navigation separates sources, settings, and clears red dots after completion', { timeout: 30000 }, async () => {
   const future = days => new Date(Date.now() + days * 86400000).toISOString();
   const courses = [
-    { id: 'pl:1', platform: 'prairielearn', name: 'CPSC 310 · 2026W1', url: 'https://us.prairielearn.com/pl/course_instance/1/assessments', lastSyncedAt: new Date().toISOString() },
+    { id: 'pl:1', platform: 'prairielearn', name: 'CPSC 310 · 2026W1', url: 'https://us.prairielearn.com/pl/course_instance/1/assessments',
+      lastSyncedAt: new Date().toISOString(), lastSyncError: '专用 Edge 窗口尚未登录', lastSyncErrorKind: 'login' },
     { id: 'ww:1', platform: 'webwork', name: 'STAT_V 251 101 2026W1 Introductory Probability and Statistics', url: 'https://webwork.elearning.ubc.ca/webwork2/example', lastSyncedAt: new Date().toISOString() },
   ];
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
@@ -36,6 +37,11 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ kind: 'available', canInstall: true, currentVersion: '1.1.2',
         release: { version: '1.2.0', name: '1.2.0', notes: '更新说明' } }));
+      return;
+    }
+    if (request.url === '/api/sync-all' && request.method === 'POST') {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ results: courses.map(course => ({ courseId: course.id, ok: true, count: 2 })), state: fixtureState }));
       return;
     }
     if (request.url === '/api/task' && request.method === 'PATCH') {
@@ -182,6 +188,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     await evaluate("document.querySelector('[data-settings=courses]').click()");
     assert.equal(await evaluate("document.querySelector('#settings-courses').hidden"), false);
     assert.equal(await evaluate("document.querySelectorAll('.settings-course').length"), 2);
+    assert.equal(await evaluate("document.querySelector('.settings-course').textContent.includes('需要重新登录')"), true);
+    assert.equal(await evaluate("document.querySelector('.settings-course').textContent.includes('保留')"), true);
     await resizeViewport(680, 800);
     await evaluate("document.querySelector('#nav-menu').click()");
     assert.equal(await evaluate("document.querySelector('.folder-pane').classList.contains('open')"), true);

@@ -5,6 +5,7 @@ const { emptyState, normalizeCourseUrl, mergeRows, mergeWebworkRows } = require(
 const { parseCopiedTable } = require('../lib/paste');
 const { parseWebworkText, parseWebworkDate, parseWebworkProgress } = require('../lib/webwork');
 const { categoryOf, needsAttention } = require('../public/task-status');
+const { classifySyncError, markSyncFailure, markSyncSuccess, courseDataStatus } = require('../lib/sync-status');
 
 test('CPSC 310 screenshot deadline is parsed in the course year', () => {
   const result = parseDisplayedDeadline('100% until 23:59, Thu, Oct 8', 'CPSC 310, 2026W1', new Date(2026, 9, 2));
@@ -41,6 +42,23 @@ test('shared task status covers both platforms, dates, and manual overrides', ()
   assert.equal(categoryOf(overdue, now), 'done');
   pastWebwork.deadlineOverride = '2026-10-06T12:00:00Z';
   assert.equal(categoryOf(pastWebwork, now), 'pending');
+});
+
+test('course sync status classifies failures, preserves success time, and detects stale data', () => {
+  assert.equal(classifySyncError(new Error('专用 Edge 窗口尚未登录')), 'login');
+  assert.equal(classifySyncError(Object.assign(new Error('fetch failed'), { code: 'ECONNRESET' })), 'network');
+  assert.equal(classifySyncError(new Error('没有识别到作业表格')), 'parse');
+  const course = { lastSyncedAt: '2026-10-04T01:00:00.000Z' };
+  markSyncFailure(course, new Error('专用 Edge 窗口尚未登录'), new Date('2026-10-04T02:00:00.000Z'));
+  assert.equal(course.lastSyncedAt, '2026-10-04T01:00:00.000Z');
+  assert.equal(course.lastSyncErrorKind, 'login');
+  markSyncFailure(course, new Error('failed https://example.test/?effectiveUser=private-id&x=1'), new Date('2026-10-04T02:00:00.000Z'));
+  assert.doesNotMatch(course.lastSyncError, /private-id/);
+  assert.equal(courseDataStatus(course, new Date('2026-10-04T03:00:00.000Z').getTime()).kind, 'error');
+  markSyncSuccess(course, new Date('2026-10-04T03:00:00.000Z'));
+  assert.equal(course.lastSyncError, null);
+  assert.equal(courseDataStatus(course, new Date('2026-10-04T04:00:00.000Z').getTime()).kind, 'fresh');
+  assert.equal(courseDataStatus(course, new Date('2026-10-04T10:00:01.000Z').getTime()).kind, 'stale');
 });
 
 test('missing deadlines remain undated and student overrides remain after sync', () => {
