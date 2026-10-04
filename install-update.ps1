@@ -19,7 +19,7 @@ $resultPath = Join-Path $updatesRoot 'last-update.json'
 $backup = Join-Path $stageRoot 'backup'
 $extracted = Join-Path $stageRoot 'extracted'
 $folders = @('lib', 'public', 'runtime')
-$files = @("$product.exe", 'app.js', 'notify.ps1', 'README.md', 'package.json', 'install-update.ps1')
+$files = @("$product.exe", "卸载 $product.exe", 'app.js', 'notify.ps1', 'tray.ps1', 'README.md', 'package.json', 'install-update.ps1')
 $oldMoved = $false
 $newLaunched = $false
 

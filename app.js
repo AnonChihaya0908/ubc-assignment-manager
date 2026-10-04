@@ -2,6 +2,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
+const { migrateLegacyData } = require('./lib/paths');
+migrateLegacyData();
 const { loadState, saveState, normalizeCourseUrl, coursePlatform, mergeRows, mergeWebworkRows } = require('./lib/store');
 const { effectiveDue, categoryOf } = require('./lib/deadlines');
 const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } = require('./lib/browser');
