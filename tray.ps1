@@ -1,4 +1,4 @@
-param([int]$Port = 43873)
+﻿param([int]$Port = 43873)
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
