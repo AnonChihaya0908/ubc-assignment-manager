@@ -44,6 +44,7 @@ test('a missed schedule sends the current day on return, without replaying older
 test('daily digest contains actionable assignments and does not include private course URLs', () => {
   const now = new Date(2026, 9, 2, 9);
   const state = {
+    preferences: { requireManualCompletion: true },
     courses: [{ id: 'c1', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/course?effectiveUser=private-id',
       lastSyncedAt: new Date(2026, 9, 1, 8).toISOString(), lastSyncError: 'network failed', lastSyncErrorKind: 'network' }],
     tasks: [
@@ -55,13 +56,15 @@ test('daily digest contains actionable assignments and does not include private 
     ],
   };
   const digest = buildDailyDigest(state, now);
-  assert.equal(digest.count, 3);
-  assert.match(digest.title, /3 项需处理/);
+  assert.equal(digest.count, 4);
+  assert.match(digest.title, /4 项需处理/);
   assert.match(digest.desp, /STAT 251.*Assignment-03/);
   assert.match(digest.desp, /STAT 251.*Assignment-00/);
   assert.match(digest.desp, /STAT 251.*Assignment-02.*网页标记已截止/);
   assert.match(digest.desp, /数据状态.*STAT 251.*最近刷新失败（网络连接失败）/s);
-  assert.doesNotMatch(digest.desp, /Assignment-04|Assignment-01|private-id|effectiveUser/);
+  assert.match(digest.desp, /【100% 待确认】STAT 251.*Assignment-00/);
+  assert.match(digest.desp, /【100% 待确认】STAT 251.*Assignment-01/);
+  assert.doesNotMatch(digest.desp, /Assignment-04|private-id|effectiveUser/);
 });
 
 test('the public reminder state does not expose SendKey', () => {

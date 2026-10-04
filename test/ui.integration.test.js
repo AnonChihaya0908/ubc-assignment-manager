@@ -19,6 +19,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
   const fixtureState = { version: '1.1.2', courses, syncing: false,
+    preferences: { requireManualCompletion: false },
     startup: { supported: true, enabled: false, configured: false, error: null },
     wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
     makeTask('a', 'pl:1', 'LAB04', { dueAt: future(10), score: '100%' }),
@@ -52,6 +53,16 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       request.on('end', () => {
         fixtureState.startup.enabled = JSON.parse(body).enabled;
         fixtureState.startup.configured = fixtureState.startup.enabled;
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify(fixtureState));
+      });
+      return;
+    }
+    if (request.url === '/api/preferences' && request.method === 'PATCH') {
+      let body = '';
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        fixtureState.preferences.requireManualCompletion = JSON.parse(body).requireManualCompletion;
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(fixtureState));
       });
@@ -141,10 +152,10 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       assert.fail(`Browser viewport did not resize to ${width}x${height}; actual ${actual.width}x${actual.height}; initial bounds ${JSON.stringify(windowInfo.bounds)}`);
     };
     for (let i = 0; i < 40; i++) {
-      if (await evaluate("document.querySelector('#pending-tab-count')?.textContent === '2'")) break;
+      if (await evaluate("document.querySelector('#pending-tab-count')?.textContent === '1'")) break;
       await sleep(250);
     }
-    assert.equal(await evaluate("document.querySelector('#pending-tab-count').textContent"), '2');
+    assert.equal(await evaluate("document.querySelector('#pending-tab-count').textContent"), '1');
     for (let i = 0; i < 20; i++) {
       if (await evaluate("document.querySelector('#update-dialog').open")) break;
       await sleep(100);
@@ -157,12 +168,13 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#future-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#history-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), false);
-    assert.equal(await evaluate("document.querySelector('#nav-prairielearn .notification-dot').hidden"), false);
-    assert.equal(await evaluate("document.querySelector('#overview-pending').textContent"), '3');
-    assert.equal(await evaluate("document.querySelector('#pending-badge').textContent.includes('3 项需处理')"), true);
-    assert.equal(await evaluate("document.querySelector('#overview-done').textContent"), '1');
+    assert.equal(await evaluate("document.querySelector('#nav-prairielearn .notification-dot').hidden"), true);
+    assert.equal(await evaluate("document.querySelector('#overview-pending').textContent"), '2');
+    assert.equal(await evaluate("document.querySelector('#pending-badge').textContent.includes('2 项需处理')"), true);
+    assert.equal(await evaluate("document.querySelector('#overview-done').textContent"), '2');
     await evaluate("document.querySelector('[data-task-id=\"a\"]').click()");
-    assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('完成状态未知')"), true);
+    assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('完成状态已完成')"), true);
+    assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('成绩达到 100%')"), true);
     assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('成绩100%')"), true);
     assert.equal(await evaluate("document.querySelector('.score-bar[aria-label=\"成绩 75%\"]') !== null"), true);
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.window-toolbar')).backgroundImage.includes('radial-gradient')"), true);
@@ -199,6 +211,13 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       await sleep(100);
     }
     assert.equal(fixtureState.startup.enabled, true);
+    assert.equal(await evaluate("document.querySelector('#require-manual-completion').checked"), false);
+    await evaluate("document.querySelector('#require-manual-completion').click()");
+    for (let i = 0; i < 20; i++) {
+      if (fixtureState.preferences.requireManualCompletion) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.preferences.requireManualCompletion, true);
     if (process.env.UI_SETTINGS_PREVIEW_PATH) {
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
       fs.writeFileSync(process.env.UI_SETTINGS_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
@@ -235,6 +254,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     await evaluate("document.querySelector('#nav-menu').click()");
     assert.equal(await evaluate("document.querySelector('.folder-pane').classList.contains('open')"), true);
     await evaluate("document.querySelector('#nav-all').click()");
+    assert.equal(await evaluate("document.querySelector('.assignment-row').dataset.taskId"), 'a');
+    assert.equal(await evaluate("document.querySelector('.assignment-row .status-label').textContent"), '待确认');
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.row-actions')).display"), 'flex');
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
     assert.equal(await evaluate("document.querySelector('#work-page').scrollWidth <= document.querySelector('#work-page').clientWidth"), true);

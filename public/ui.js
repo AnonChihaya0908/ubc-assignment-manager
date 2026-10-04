@@ -12,7 +12,13 @@ let updateStatus = { kind: 'checking', currentVersion: '1.1.2' };
 let promptedUpdate = null;
 
 const $ = id => document.getElementById(id);
-const { completionStatus, isComplete: isDone, effectiveDue: dueOf, categoryOf, needsAttention } = window.TaskStatus;
+const taskStatus = window.TaskStatus;
+const dueOf = taskStatus.effectiveDue;
+function completionOptions() { return state?.preferences || {}; }
+function completionStatus(task) { return taskStatus.completionStatus(task, completionOptions()); }
+function isDone(task) { return taskStatus.isComplete(task, completionOptions()); }
+function categoryOf(task, now = Date.now()) { return taskStatus.categoryOf(task, now, completionOptions()); }
+function needsAttention(task, now = Date.now()) { return taskStatus.needsAttention(task, now, completionOptions()); }
 const platformNames = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK' };
 const settingNames = { general: '常规与窗口', reminders: '提醒与同步', courses: '课程与登录', data: '数据与退出' };
 const tabNames = { pending: '待完成', future: '将开放', history: '已过日期', done: '已完成' };
@@ -54,6 +60,8 @@ function courseFor(task) { return state.courses.find(course => course.id === tas
 function completionInfo(task) {
   const status = completionStatus(task);
   if (status.source === 'manual') return { ...status, label: status.complete ? '已完成' : '未完成', source: '用户手动设置' };
+  if (status.source === 'score') return { ...status, label: '已完成', source: '成绩达到 100%' };
+  if (status.source === 'confirmation_required') return { ...status, label: '待确认', source: '成绩达到 100%，等待手动确认' };
   if (status.source === 'website') return { ...status, label: status.complete ? '已完成' : '未完成', source: '课程网站状态' };
   return { ...status, label: '未知', source: '网站未提供可靠状态' };
 }
@@ -61,6 +69,7 @@ function completionInfo(task) {
 function statusName(task) {
   const category = categoryOf(task);
   if (category === 'history' && task.sourceStatus === 'past_due') return '已截止';
+  if (category === 'pending' && completionStatus(task).source === 'confirmation_required') return '待确认';
   if (category === 'pending' && task.sourceStatus === 'open' && task.sourceComplete === false) return '完成中';
   if (category === 'pending' && completionInfo(task).complete === null) return '待确认';
   if (category === 'pending' && task.doneOverride === false) return '未完成';
@@ -279,6 +288,11 @@ function taskSection(title, tasks, recent = false) {
 
 function sortTasks(tasks) {
   return tasks.sort((a, b) => {
+    if (selectedTab === 'pending') {
+      const firstNeedsConfirmation = completionStatus(a).source === 'confirmation_required';
+      const secondNeedsConfirmation = completionStatus(b).source === 'confirmation_required';
+      if (firstNeedsConfirmation !== secondNeedsConfirmation) return firstNeedsConfirmation ? -1 : 1;
+    }
     const first = selectedTab === 'future' ? a.opensAt : dueOf(a);
     const second = selectedTab === 'future' ? b.opensAt : dueOf(b);
     if (first && second) return selectedTab === 'history' ? new Date(second) - new Date(first) : new Date(first) - new Date(second);
@@ -317,8 +331,10 @@ function renderInspector() {
   addDetail(dateInfo.label, dateInfo.value ? formatDate(dateInfo.value) : dateInfo.text || '暂无日期');
   addDetail('成绩', task.score || '暂无成绩');
   container.append(details);
-  if (completion.complete === null) {
-    container.append(node('p', 'inspector-hint', '课程网站没有提供可靠的完成结论。成绩仅用于展示，请根据实际提交情况手动确认。'));
+  if (completion.source === 'confirmation_required') {
+    container.append(node('p', 'inspector-hint', '成绩已达到 100%。当前启用了手动确认模式，请确认后将作业标为完成。'));
+  } else if (completion.complete === null) {
+    container.append(node('p', 'inspector-hint', '课程网站没有提供可靠的完成结论，请根据实际提交情况手动确认。'));
   }
   const due = dueOf(task);
   if (due && !isDone(task)) {
@@ -426,6 +442,7 @@ function renderSettings() {
   $('startup-enabled').disabled = !startup.supported;
   $('startup-status').textContent = startup.error || (startup.enabled ? '已为当前 Windows 账户启用。' : '当前未启用。');
   $('startup-status').classList.toggle('error', Boolean(startup.error));
+  $('require-manual-completion').checked = Boolean(state.preferences?.requireManualCompletion);
   $('settings-breadcrumb').textContent = `设置 / ${settingNames[settingsPanel]}`;
   $('settings-heading').textContent = settingNames[settingsPanel];
   $('settings-summary').textContent = settingsPanel === 'courses' ? '添加课程，管理登录窗口和手动导入。' :
@@ -742,6 +759,18 @@ $('startup-enabled').addEventListener('change', async event => {
     event.target.checked = !enabled;
     message(error.message, true);
   } finally { event.target.disabled = !state?.startup?.supported; }
+});
+$('require-manual-completion').addEventListener('change', async event => {
+  const requireManualCompletion = event.target.checked;
+  event.target.disabled = true;
+  try {
+    state = await api('/api/preferences', 'PATCH', { requireManualCompletion });
+    render();
+    message(requireManualCompletion ? '已启用手动确认，100% 作业会置顶等待确认。' : '已恢复自动判断，100% 作业会自动完成。');
+  } catch (error) {
+    event.target.checked = !requireManualCompletion;
+    message(error.message, true);
+  } finally { event.target.disabled = false; }
 });
 $('reminders-paused').addEventListener('change', async event => {
   const paused = event.target.checked;

@@ -42,6 +42,14 @@ test('shared task status covers both platforms, dates, and manual overrides', ()
   assert.equal(categoryOf(overdue, now), 'done');
   pastWebwork.deadlineOverride = '2026-10-06T12:00:00Z';
   assert.equal(categoryOf(pastWebwork, now), 'pending');
+  const fullScore = { score: '100%', dueAt: '2026-10-03T12:00:00Z', sourceComplete: null };
+  assert.deepEqual(completionStatus(fullScore), { complete: true, source: 'score' });
+  assert.equal(categoryOf(fullScore, now), 'done');
+  const manualMode = { requireManualCompletion: true };
+  assert.deepEqual(completionStatus(fullScore, manualMode), { complete: null, source: 'confirmation_required' });
+  assert.equal(categoryOf(fullScore, now, manualMode), 'pending');
+  fullScore.doneOverride = true;
+  assert.deepEqual(completionStatus(fullScore, manualMode), { complete: true, source: 'manual' });
 });
 
 test('course sync status classifies failures, preserves success time, and detects stale data', () => {
@@ -70,8 +78,8 @@ test('missing deadlines remain undated and student overrides remain after sync',
   mergeRows(state, state.courses[0].id, { courseTitle: 'CPSC 310, 2026W1', rows });
   assert.equal(state.tasks.length, 2);
   assert.equal(state.tasks[1].dueAt, null);
-  assert.equal(isComplete(state.tasks[1]), false);
-  assert.deepEqual(completionStatus(state.tasks[1]), { complete: null, source: 'unknown' });
+  assert.equal(isComplete(state.tasks[1]), true);
+  assert.deepEqual(completionStatus(state.tasks[1]), { complete: true, source: 'score' });
   state.tasks[1].doneOverride = true;
   assert.equal(isComplete(state.tasks[1]), true);
   state.tasks[0].doneOverride = true;

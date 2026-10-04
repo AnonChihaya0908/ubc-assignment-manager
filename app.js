@@ -26,7 +26,7 @@ const updater = createUpdater();
 function publicState() {
   return { version: VERSION, courses: state.courses, tasks: state.tasks, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
-    startup, wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
+    preferences: state.preferences, startup, wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
 }
 
 function json(response, status, body) {
@@ -129,7 +129,7 @@ function checkReminders() {
   const now = Date.now();
   let changed = false;
   for (const task of state.tasks) {
-    if (categoryOf(task, now) !== 'pending' || task.deadlineKind === 'credit_window' && !task.deadlineOverride) continue;
+    if (categoryOf(task, now, state.preferences) !== 'pending' || task.deadlineKind === 'credit_window' && !task.deadlineOverride) continue;
     const due = effectiveDue(task);
     if (!due) continue;
     const remaining = new Date(due).getTime() - now;
@@ -214,6 +214,12 @@ async function handle(request, response) {
       if (typeof body.paused !== 'boolean') throw new Error('提醒暂停状态无效。');
       wechatConfig.remindersPaused = body.paused;
       saveConfig(wechatConfig);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/preferences') {
+      if (typeof body.requireManualCompletion !== 'boolean') throw new Error('完成确认设置无效。');
+      state.preferences.requireManualCompletion = body.requireManualCompletion;
+      saveState(state);
       return json(response, 200, publicState());
     }
     if (request.method === 'PATCH' && url.pathname === '/api/wechat') {
