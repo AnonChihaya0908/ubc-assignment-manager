@@ -10,6 +10,7 @@ let searchTerm = '';
 let inspectorTasks = [];
 let updateStatus = { kind: 'checking', currentVersion: '1.1.2' };
 let promptedUpdate = null;
+let onboardingActive = false;
 
 const $ = id => document.getElementById(id);
 const taskStatus = window.TaskStatus;
@@ -415,13 +416,22 @@ function renderWork() {
   if (!inspectorTasks.some(task => task.id === selectedTaskId)) selectedTaskId = inspectorTasks[0]?.id || null;
   if (!shown.length) {
     const empty = node('div', 'empty-state');
-    const title = !state.courses.length ? '还没有课程' : selectedTab === 'pending' && state.tasks.length === 0 ? '还没有同步作业' : `暂无${tabNames[selectedTab]}的作业`;
+    const hasSuccessfulSync = state.courses.some(item => item.lastSyncedAt);
+    const title = !state.courses.length ? '还没有课程' : !hasSuccessfulSync ? '还没有完成首次同步' : state.tasks.length === 0 ? '同步完成，但没有发现可见作业' : `暂无${tabNames[selectedTab]}的作业`;
     empty.append(node('h2', '', title));
-    empty.append(node('p', '', !state.courses.length ? '到设置中添加 PrairieLearn 或 WeBWorK 课程。' : state.tasks.length === 0 ? '到设置中打开课程登录窗口，然后点击左下角的立即同步。' : '可以在左侧切换课程，或查看其他作业状态。'));
-    if (!state.courses.length || state.tasks.length === 0) {
-      const action = node('button', 'primary-button', '前往课程设置');
+    const description = !state.courses.length ? '添加 PrairieLearn Assessments 页面或 UBC WeBWorK 课程首页，即可开始。' :
+      !hasSuccessfulSync ? '请打开专用 Edge 登录窗口，完成学校登录并停留在作业列表页，然后返回应用同步。' :
+      state.tasks.length === 0 ? '连接已经成功，但课程页面目前没有可见作业。可检查页面内容和登录状态后再次同步。' :
+      '可以在左侧切换课程，或查看其他作业状态。';
+    empty.append(node('p', '', description));
+    if (!state.courses.length || !hasSuccessfulSync || state.tasks.length === 0) {
+      const action = node('button', 'primary-button', !state.courses.length ? '开始添加课程' : !hasSuccessfulSync ? '前往登录与同步' : '重新同步');
       action.type = 'button';
-      action.addEventListener('click', () => navigateSettings('courses'));
+      action.addEventListener('click', () => {
+        if (!state.courses.length) openOnboarding();
+        else if (!hasSuccessfulSync) navigateSettings('courses');
+        else $('sync').click();
+      });
       empty.append(action);
     }
     groups.append(empty);
@@ -430,6 +440,43 @@ function renderWork() {
   }
   if (recentDone.length) groups.append(taskSection('最近完成', recentDone, true));
   renderSelection();
+}
+
+function onboardingCourse() {
+  return state.courses.find(course => !course.lastSyncedAt) || state.courses[0];
+}
+
+function renderOnboarding() {
+  const dialog = $('onboarding-dialog');
+  if (!onboardingActive && !state.preferences?.onboardingDismissed && state.courses.length === 0) {
+    onboardingActive = true;
+    if (!dialog.open) dialog.showModal();
+  }
+  if (!onboardingActive) return;
+  if (!dialog.open) dialog.showModal();
+  const course = onboardingCourse();
+  const hasSync = state.courses.some(item => item.lastSyncedAt);
+  const step = !course ? 1 : hasSync ? 3 : 2;
+  $('onboarding-step-label').textContent = `第 ${step} 步，共 3 步`;
+  $('onboarding-add').hidden = step !== 1;
+  $('onboarding-login').hidden = step !== 2;
+  $('onboarding-finish-panel').hidden = step !== 3;
+  if (course) $('onboarding-login-text').textContent = `下一步连接 ${course.name}。先打开登录窗口，再回到这里同步作业。`;
+  if (step === 3) $('onboarding-finish-text').textContent = state.tasks.length ? `已读取 ${state.tasks.length} 项作业，你可以在主界面查看截止时间和成绩。` : '课程连接已经成功，但当前页面没有发现可见作业。你可以完成引导，并在课程发布作业后重新同步。';
+}
+
+function openOnboarding() {
+  onboardingActive = true;
+  $('onboarding-error').textContent = '';
+  renderOnboarding();
+}
+
+async function dismissOnboarding(targetPanel = null) {
+  state = await api('/api/preferences', 'PATCH', { onboardingDismissed: true });
+  onboardingActive = false;
+  if ($('onboarding-dialog').open) $('onboarding-dialog').close();
+  if (targetPanel) navigateSettings(targetPanel);
+  else render();
 }
 
 function renderSettings() {
@@ -601,6 +648,7 @@ function render() {
   renderFolders();
   renderWork();
   renderSettings();
+  renderOnboarding();
   const last = state.courses.map(course => course.lastSyncedAt).filter(Boolean).sort().at(-1);
   const failures = state.courses.filter(course => course.lastSyncError).length;
   const stale = state.courses.filter(course => ['stale', 'never'].includes(courseSyncStatus(course).kind)).length;
@@ -666,6 +714,49 @@ $('check-update').addEventListener('click', () => checkUpdate(true));
 $('install-update').addEventListener('click', installUpdate);
 $('update-now').addEventListener('click', installUpdate);
 $('update-later').addEventListener('click', () => $('update-dialog').close());
+$('restart-onboarding').addEventListener('click', async () => {
+  try {
+    state = await api('/api/preferences', 'PATCH', { onboardingDismissed: false });
+    openOnboarding();
+  } catch (error) { message(error.message, true); }
+});
+$('onboarding-add-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  try {
+    state = await api('/api/course', 'POST', { url: $('onboarding-course-url').value });
+    $('onboarding-course-url').value = '';
+    $('onboarding-error').textContent = '';
+    render();
+  } catch (error) { $('onboarding-error').textContent = error.message; }
+});
+$('onboarding-skip').addEventListener('click', () => dismissOnboarding().catch(error => message(error.message, true)));
+$('onboarding-open-login').addEventListener('click', async () => {
+  const course = onboardingCourse();
+  if (!course) return;
+  try {
+    const result = await api('/api/open-browser', 'POST', { courseId: course.id });
+    $('onboarding-error').textContent = result.message;
+  } catch (error) { $('onboarding-error').textContent = error.message; }
+});
+$('onboarding-sync').addEventListener('click', async event => {
+  const course = onboardingCourse();
+  if (!course) return;
+  event.target.disabled = true;
+  event.target.textContent = '正在同步…';
+  $('onboarding-error').textContent = '';
+  try {
+    const result = await api('/api/sync', 'POST', { courseId: course.id });
+    state = result.state;
+    render();
+  } catch (error) {
+    $('onboarding-error').textContent = `${error.message} 请确认专用窗口已登录并停留在作业列表页，然后重试。`;
+  } finally {
+    event.target.disabled = false;
+    event.target.textContent = '我已登录，立即同步';
+  }
+});
+$('onboarding-complete').addEventListener('click', () => dismissOnboarding().catch(error => message(error.message, true)));
+$('onboarding-reminders').addEventListener('click', () => dismissOnboarding('reminders').catch(error => message(error.message, true)));
 $('all-folder').addEventListener('click', () => navigateWork('all'));
 $('pl-folder').addEventListener('click', () => navigateWork('platform:prairielearn'));
 $('ww-folder').addEventListener('click', () => navigateWork('platform:webwork'));

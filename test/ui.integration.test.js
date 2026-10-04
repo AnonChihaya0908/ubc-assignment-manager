@@ -19,7 +19,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
   const fixtureState = { version: '1.1.2', courses, syncing: false,
-    preferences: { requireManualCompletion: false },
+    preferences: { requireManualCompletion: false, onboardingDismissed: true },
     startup: { supported: true, enabled: false, configured: false, error: null },
     wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
     makeTask('a', 'pl:1', 'LAB04', { dueAt: future(10), score: '100%' }),
@@ -62,7 +62,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       let body = '';
       request.on('data', chunk => { body += chunk; });
       request.on('end', () => {
-        fixtureState.preferences.requireManualCompletion = JSON.parse(body).requireManualCompletion;
+        Object.assign(fixtureState.preferences, JSON.parse(body));
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(fixtureState));
       });
@@ -218,6 +218,20 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       await sleep(100);
     }
     assert.equal(fixtureState.preferences.requireManualCompletion, true);
+    await evaluate("document.querySelector('#restart-onboarding').click()");
+    for (let i = 0; i < 20; i++) {
+      if (await evaluate("document.querySelector('#onboarding-dialog').open")) break;
+      await sleep(100);
+    }
+    assert.equal(await evaluate("document.querySelector('#onboarding-dialog').open"), true);
+    assert.equal(await evaluate("document.querySelector('#onboarding-finish-panel').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#onboarding-finish-text').textContent.includes('5 项作业')"), true);
+    await evaluate("document.querySelector('#onboarding-complete').click()");
+    for (let i = 0; i < 20; i++) {
+      if (!await evaluate("document.querySelector('#onboarding-dialog').open")) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.preferences.onboardingDismissed, true);
     if (process.env.UI_SETTINGS_PREVIEW_PATH) {
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
       fs.writeFileSync(process.env.UI_SETTINGS_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));

@@ -99,6 +99,10 @@
             <div class="setting-row"><div><h3>关闭与退出</h3><p>关闭主窗口只会隐藏窗口，课程同步与提醒继续运行。请使用系统托盘或“数据与退出”页面退出应用。</p></div><span class="setting-value">托盘运行</span></div>
           </section>
           <section class="setting-block">
+            <h2>首次使用引导</h2>
+            <div class="setting-row"><div><h3>重新查看设置步骤</h3><p>重新打开添加课程、专用登录窗口和首次同步说明。现有课程与作业不会被修改。</p></div><button id="restart-onboarding" class="secondary-button" type="button">打开引导</button></div>
+          </section>
+          <section class="setting-block">
             <h2>软件更新</h2>
             <p id="update-status" class="setting-intro" role="status" aria-live="polite">正在检查 GitHub 更新…</p>
             <p id="update-notes" class="update-notes" hidden></p>
@@ -178,6 +182,24 @@
   </div>
 
   <dialog id="update-dialog"><h2>发现新版本</h2><p id="update-dialog-text"></p><div class="dialog-actions"><button id="update-later" class="secondary-button" type="button">稍后</button><button id="update-now" class="primary-button" type="button">立即更新并重启</button></div></dialog>
+  <dialog id="onboarding-dialog" class="onboarding-dialog">
+    <div class="onboarding-progress"><span>首次设置</span><strong id="onboarding-step-label">第 1 步，共 3 步</strong></div>
+    <section id="onboarding-add">
+      <h2>添加你的课程</h2>
+      <p>粘贴学生作业列表网址。应用支持 PrairieLearn Assessments 页面和 UBC WeBWorK 课程首页。</p>
+      <form id="onboarding-add-form"><label for="onboarding-course-url">课程网址</label><input id="onboarding-course-url" type="url" required placeholder="https://us.prairielearn.com/pl/course_instance/…/assessments"><p class="form-note">PrairieLearn 示例：…/pl/course_instance/数字/assessments<br>WeBWorK 示例：webwork.elearning.ubc.ca/webwork2/课程名</p><div class="dialog-actions"><button id="onboarding-skip" class="text-button" type="button">稍后设置</button><button class="primary-button" type="submit">添加课程</button></div></form>
+    </section>
+    <section id="onboarding-login" hidden>
+      <h2>在专用 Edge 窗口登录</h2>
+      <p id="onboarding-login-text"></p><p class="form-note">这个窗口使用独立的本地登录资料，不会继承日常浏览器的登录状态。完成学校登录并停留在作业列表页，再返回这里同步。</p>
+      <p id="onboarding-error" class="form-note error" role="alert"></p>
+      <div class="dialog-actions"><button id="onboarding-open-login" class="secondary-button" type="button">打开登录窗口</button><button id="onboarding-sync" class="primary-button" type="button">我已登录，立即同步</button></div>
+    </section>
+    <section id="onboarding-finish-panel" hidden>
+      <h2>首次同步完成</h2><p id="onboarding-finish-text"></p><p>Windows 截止提醒可以直接使用；个人微信每日汇总是可选功能，稍后也能在设置中配置。</p>
+      <div class="dialog-actions"><button id="onboarding-complete" class="secondary-button" type="button">完成，稍后配置微信</button><button id="onboarding-reminders" class="primary-button" type="button">前往提醒设置</button></div>
+    </section>
+  </dialog>
   <dialog id="deadline-dialog"><form method="dialog" id="deadline-form"><h2>修改提醒日期</h2><p id="deadline-task-name"></p><label for="deadline-input">电脑当地时间</label><input id="deadline-input" type="datetime-local"><div class="dialog-actions"><button type="button" id="clear-deadline" class="text-button">恢复网页日期</button><button type="button" id="cancel-deadline" class="secondary-button">取消</button><button class="primary-button" value="save">保存</button></div></form></dialog>
 </body>
 </html>

@@ -217,8 +217,18 @@ async function handle(request, response) {
       return json(response, 200, publicState());
     }
     if (request.method === 'PATCH' && url.pathname === '/api/preferences') {
-      if (typeof body.requireManualCompletion !== 'boolean') throw new Error('完成确认设置无效。');
-      state.preferences.requireManualCompletion = body.requireManualCompletion;
+      let changed = false;
+      if (Object.hasOwn(body, 'requireManualCompletion')) {
+        if (typeof body.requireManualCompletion !== 'boolean') throw new Error('完成确认设置无效。');
+        state.preferences.requireManualCompletion = body.requireManualCompletion;
+        changed = true;
+      }
+      if (Object.hasOwn(body, 'onboardingDismissed')) {
+        if (typeof body.onboardingDismissed !== 'boolean') throw new Error('首次使用引导状态无效。');
+        state.preferences.onboardingDismissed = body.onboardingDismissed;
+        changed = true;
+      }
+      if (!changed) throw new Error('没有可保存的设置。');
       saveState(state);
       return json(response, 200, publicState());
     }
