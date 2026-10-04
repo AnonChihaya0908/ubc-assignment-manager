@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UBC 作业管理工具 · JetBrains 局部磨砂设计稿</title>
+  <style>
+    :root { --top:#2b2d30; --rail:#242529; --side:#242529; --main:#1e1f22; --panel:#25262a; --panel2:#292b30; --line:#3a3c42; --text:#dfe1e5; --muted:#9b9da6; --quiet:#777a84; --blue:#579dff; --bluewash:#263a55; --red:#f0525f; --green:#6fb58b; --amber:#d6ac6e; }
+    * { box-sizing:border-box; }
+    html, body { margin:0; width:1600px; height:900px; overflow:hidden; background:var(--main); color:var(--text); font:14px/1.42 "Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif; }
+    button { font:inherit; cursor:default; }
+    svg { flex:none; display:block; }
+    .app { width:1600px; height:900px; display:grid; grid-template-columns:54px 278px 1fr; grid-template-rows:50px 1fr 27px; }
+    .titlebar { grid-column:1 / 4; display:flex; align-items:center; gap:14px; padding:0 17px; background:var(--top); border-bottom:1px solid #36383d; }
+    .appmark { width:24px; height:24px; display:grid; place-items:center; background:var(--blue); border-radius:5px; color:#111820; font-size:14px; font-weight:800; letter-spacing:-1px; }
+    .appname { font-weight:650; font-size:14px; letter-spacing:.2px; white-space:nowrap; }
+    .version { color:var(--quiet); font-size:11px; margin-left:1px; }
+    .title-divider { width:1px; height:19px; background:#4b4d53; margin:0 3px; }
+    .toolbar-section { color:#b7bac3; display:flex; align-items:center; gap:8px; font-size:12px; }
+    .toolbar-section svg { color:#969aa5; }
+    .title-spacer { flex:1; }
+    .search-top { width:273px; height:29px; display:flex; align-items:center; gap:9px; padding:0 11px; color:#9fa2ab; background:#232529; border:1px solid #41434a; border-radius:6px; font-size:12px; }
+    .shortcut { margin-left:auto; color:#777b85; font-size:11px; }
+    .title-icon { width:31px; height:31px; display:grid; place-items:center; color:#aeb2bd; border-radius:6px; }
+    .avatar { width:26px; height:26px; display:grid; place-items:center; border-radius:50%; color:#eaf3ff; background:#425c78; font-size:11px; font-weight:700; }
+    .window-controls { display:flex; align-items:center; gap:26px; padding:0 2px 0 9px; color:#b2b5bd; font:19px/1 "Segoe UI Symbol",sans-serif; }
+    .window-controls span:nth-child(2) { font-size:14px; }
+    .rail { grid-column:1; grid-row:2; background:var(--rail); border-right:1px solid #383a40; display:flex; align-items:center; flex-direction:column; gap:5px; padding-top:12px; }
+    .rail-btn { width:40px; height:40px; display:grid; place-items:center; border-radius:7px; color:#989ba5; position:relative; }
+    .rail-btn.selected { color:#c5ddff; background:#344259; }
+    .rail-btn.selected:before { content:""; position:absolute; left:-7px; top:9px; width:3px; height:22px; background:var(--blue); border-radius:3px; }
+    .rail-gap { flex:1; }
+    .rail-bottom { margin-bottom:10px; }
+    .sidebar { grid-column:2; grid-row:2; background:var(--side); border-right:1px solid #3b3d43; display:flex; flex-direction:column; min-height:0; }
+    .sidebar-head { height:58px; display:flex; align-items:center; justify-content:space-between; padding:0 17px; border-bottom:1px solid #383a40; font-size:14px; font-weight:650; }
+    .sidebar-head span:last-child { color:#9295a0; font-size:19px; font-weight:400; letter-spacing:1px; }
+    .quick { padding:15px 11px 19px; border-bottom:1px solid #36383d; }
+    .navitem { height:37px; display:flex; align-items:center; gap:12px; padding:0 12px; color:#bdc0c7; border-radius:6px; font-size:13px; }
+    .navitem.active { background:#35445b; color:#dfeaff; font-weight:600; }
+    .navitem svg { color:#9ca0aa; }
+    .navitem.active svg { color:#87baff; }
+    .navitem .number { margin-left:auto; color:#bcd9ff; font-size:11px; font-weight:600; }
+    .section-label { color:#7f828c; font-size:11px; letter-spacing:.4px; padding:18px 18px 8px; font-weight:700; }
+    .tree { padding:0 8px; }
+    .tree-group,.tree-course { height:37px; display:flex; align-items:center; gap:9px; padding:0 10px; border-radius:6px; white-space:nowrap; }
+    .tree-group { font-weight:650; font-size:13px; }
+    .tree-course { padding-left:35px; color:#b9bcc5; font-size:12.5px; }
+    .tree-course.selected { background:#303c4f; color:#dbeaff; }
+    .chev { color:#868a94; font-size:16px; transform:rotate(90deg); width:10px; line-height:1; }
+    .source { width:21px; height:21px; display:grid; place-items:center; border-radius:5px; font-size:11px; font-weight:800; }
+    .source.pl { background:#29517c; color:#b5d8ff; }
+    .source.ww { background:#465a46; color:#d9edcf; }
+    .dot { width:7px; height:7px; border-radius:50%; background:var(--red); flex:none; }
+    .trailing { margin-left:auto; color:#858a95; font-size:11px; }
+    .sidebar-filler { flex:1; }
+    .sync-wrap { border-top:1px solid #393b41; padding:12px 13px 11px; }
+    .sync-button { height:36px; width:100%; display:flex; align-items:center; justify-content:center; gap:10px; border:1px solid #466a97; background:#2b4563; border-radius:6px; color:#d8eaff; font-weight:650; font-size:12px; }
+    .sync-meta { padding-top:8px; text-align:center; font-size:11px; color:#848893; }
+    .workspace { grid-column:3; grid-row:2; min-width:0; display:flex; flex-direction:column; background:var(--main); }
+    .work-head { height:100px; padding:17px 25px 0 27px; border-bottom:1px solid #34363b; display:flex; align-items:flex-start; gap:20px; }
+    .work-head h1 { margin:0; font-size:23px; letter-spacing:-.5px; font-weight:650; line-height:1.35; }
+    .subhead { margin-top:6px; color:#989ca6; font-size:12px; }
+    .head-spacer { flex:1; }
+    .date-stamp { color:#b6bac4; font-size:12px; padding:7px 0; }
+    .head-pill { margin-top:1px; height:29px; padding:0 11px; display:flex; align-items:center; gap:6px; border:1px solid #45474e; border-radius:5px; font-size:11px; color:#b9bdc7; }
+    .head-pill .dot { width:6px; height:6px; }
+    .tabs { height:43px; display:flex; align-items:stretch; gap:2px; padding-left:20px; border-bottom:1px solid #383a40; background:#242529; flex:none; }
+    .tab { min-width:116px; display:grid; place-items:center; padding:0 16px; font-size:12px; color:#a9acb5; position:relative; }
+    .tab.active { color:#dbeaff; background:#2b2d32; font-weight:650; }
+    .tab.active:after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--blue); }
+    .work-body { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 330px; }
+    .task-area { min-width:0; padding:21px 27px; overflow:hidden; }
+    .overview { display:flex; gap:11px; margin-bottom:25px; }
+    .overview-card { height:80px; flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; padding:0 17px; border:1px solid #3a3c42; border-radius:7px; background:#26282c; }
+    .overview-card:first-child { border-color:#5d4146; background:#30282b; }
+    .overview-card strong { font-size:23px; font-weight:650; line-height:1.15; }
+    .overview-card:first-child strong { color:#ff6973; }
+    .overview-card small { color:#9b9ea8; font-size:11px; margin-top:6px; }
+    .list-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+    .list-head h2 { margin:0; font-size:12px; font-weight:650; letter-spacing:.25px; color:#c6c8ce; }
+    .list-head span { font-size:11px; color:#80848e; }
+    .task-table { border:1px solid #3b3d43; border-radius:7px; overflow:hidden; background:#232428; }
+    .table-head { height:34px; display:grid; align-items:center; grid-template-columns:minmax(240px,1fr) 115px 104px 137px; padding:0 17px 0 20px; color:#858994; background:#292b2f; font-size:11px; border-bottom:1px solid #3b3d43; }
+    .table-head span:last-child { text-align:right; }
+    .task-row { height:73px; display:grid; align-items:center; grid-template-columns:minmax(240px,1fr) 115px 104px 137px; padding:0 17px 0 20px; border-bottom:1px solid #36383d; }
+    .task-row:last-child { border-bottom:0; }
+    .task-row.current { background:#2d394b; box-shadow:inset 3px 0 var(--blue); }
+    .task-info { min-width:0; display:flex; align-items:center; gap:13px; }
+    .task-icon { width:32px; height:32px; border:1px solid #4d5b67; color:#a5c9ee; border-radius:6px; display:grid; place-items:center; font-size:13px; font-weight:750; background:#2f3a46; }
+    .task-icon.ww { border-color:#506453; color:#c0dfba; background:#354638; }
+    .task-name { font-weight:600; font-size:13px; color:#dfe2e8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .task-detail { font-size:11px; color:#9599a3; margin-top:5px; }
+    .task-detail .dot { width:5px; height:5px; display:inline-block; vertical-align:2px; margin-right:4px; }
+    .due { font-size:12px; color:#e2e4e8; }
+    .due em { font-style:normal; display:block; color:#9da0aa; font-size:11px; margin-top:3px; }
+    .status { font-size:11px; font-weight:650; }
+    .status.open { color:#eac08a; }
+    .status.soon { color:#ff7880; }
+    .status.future { color:#b4b8c3; }
+    .score { width:105px; height:18px; border-radius:4px; border:1px solid #454951; background:#303339; position:relative; justify-self:end; overflow:hidden; }
+    .score .fill { position:absolute; inset:0 auto 0 0; background:#5f9b74; }
+    .score span { position:relative; display:block; height:100%; width:100%; text-align:center; color:#f2f6f3; font-size:10px; font-weight:700; line-height:16px; }
+    .score.empty { border-color:#5a4d44; background:#403730; }
+    .score.empty span { color:#d9c8b9; }
+    .complete-title { margin-top:27px; }
+    .complete .task-row { height:58px; opacity:.83; }
+    .complete .task-icon { width:27px; height:27px; font-size:11px; }
+    .complete .task-name { font-size:12px; }
+    .complete .task-detail { margin-top:3px; }
+    .inspector { border-left:1px solid #3b3d43; background:#242529; display:flex; flex-direction:column; min-width:0; }
+    .inspect-head { height:47px; padding:0 19px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #3a3c42; color:#cbd0d8; font-weight:650; font-size:12px; }
+    .inspect-head span:last-child { font-size:19px; color:#848893; font-weight:400; }
+    .inspect-body { padding:24px 20px; }
+    .inspect-icon { width:43px; height:43px; display:grid; place-items:center; background:#344537; border:1px solid #59715e; border-radius:8px; font-weight:800; color:#c5e6c0; font-size:18px; }
+    .inspect-body h2 { margin:15px 0 5px; font-size:19px; line-height:1.25; font-weight:650; }
+    .inspect-sub { color:#a0a4ae; font-size:12px; }
+    .rule { height:1px; background:#3a3c42; margin:21px 0; }
+    .meta { display:grid; grid-template-columns:64px 1fr; row-gap:17px; font-size:12px; }
+    .meta dt { color:#858993; }
+    .meta dd { margin:0; color:#d2d5dd; }
+    .due-banner { margin-top:20px; padding:13px; border:1px solid #5a4740; border-radius:6px; background:#39302d; color:#e8c1aa; font-size:11px; line-height:1.6; }
+    .action { margin-top:19px; height:35px; width:100%; border:1px solid #5b89c2; border-radius:6px; background:#345982; color:#eff6ff; font-size:12px; font-weight:650; }
+    .inspect-note { margin-top:10px; color:#777c87; font-size:11px; line-height:1.55; }
+    .statusbar { grid-column:1 / 4; grid-row:3; background:#2b2d30; border-top:1px solid #3d3f45; padding:0 12px; display:flex; align-items:center; gap:18px; color:#9ea2ac; font-size:10.5px; }
+    .statusbar .ready { color:#84bf91; }
+    .statusbar .spacer { flex:1; }
+    .statusbar .blue { color:#7fb2f5; }
+  </style>
+<style>
+:root { --top:#2b2d31; --rail:#2b2c31; --side:#202124; --main:#1e1f22; --panel:#292a2e; --panel2:#2b2c30; --line:#3b3d42; --text:#e2e3e6; --muted:#a3a6af; --quiet:#858993; --blue:#7aa4f9; --bluewash:#34383f; --red:#ed6570; --green:#6fb58b; --amber:#d6ac6e; }
+html,body { background:#1e1f22; }
+.titlebar {
+  background:
+    radial-gradient(ellipse 340px 95px at 154px 16px,rgba(95,112,201,.36) 0%,rgba(89,102,161,.18) 38%,rgba(66,72,96,.07) 65%,transparent 95%),
+    rgba(43,45,50,.91);
+  -webkit-backdrop-filter:blur(25px) saturate(120%); backdrop-filter:blur(25px) saturate(120%);
+  border-bottom:1px solid rgba(225,229,244,.085); box-shadow:inset 0 1px rgba(255,255,255,.035);
+  gap:11px;
+}
+.productmark { width:22px; height:22px; flex:none; border-radius:4px; background:#353841; border:1px solid #575c67; color:#dfe3ed; display:grid; place-items:center; font-size:11px; font-weight:800; }
+.menu-mark { width:31px; height:30px; margin-left:18px; margin-right:9px; color:#aeb3bc; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; }
+.menu-mark span { width:19px; height:1.5px; border-radius:2px; background:currentColor; }
+.appmark { width:28px; height:28px; border-radius:5px; background:linear-gradient(140deg,#7c83f3,#576ae6); box-shadow:0 0 14px 2px rgba(94,103,238,.3),inset 0 1px rgba(255,255,255,.3); color:#fff; font-size:12px; font-weight:650; letter-spacing:0; }
+.appname { color:#e4e5ea; font-size:14px; font-weight:500; }
+.title-divider { background:#55575f; }
+.search-top { background:rgba(29,30,33,.64); border-color:#4a4c52; }
+.avatar { background:#4c596c; }
+.rail {
+  background:
+    radial-gradient(ellipse 110px 200px at 49px 18px,rgba(87,101,172,.24),rgba(72,80,120,.11) 51%,transparent 84%),
+    linear-gradient(180deg,rgba(43,45,54,.89),rgba(41,42,46,.96) 36%,#292a2e 100%);
+  -webkit-backdrop-filter:blur(24px) saturate(115%); backdrop-filter:blur(24px) saturate(115%);
+  border-right:1px solid #383a3f;
+}
+.rail-btn { color:#9fa3ac; }
+.rail-btn.selected { background:#4a4c54; color:#d6d8de; }
+.rail-btn.selected:before { background:#7b8fce; }
+.sidebar { background:#202124; border-right:1px solid #393b40; }
+.sidebar-head { border-color:#37393e; }
+.quick { border-color:#36383d; }
+.navitem.active { background:#3a3c42; color:#e3e5ea; }
+.navitem.active svg,.navitem .number { color:#b8becb; }
+.tree-course.selected { background:#3a3c42; color:#e2e4e9; }
+.tree-group { color:#d9dbe1; }
+.source.pl,.task-icon { background:#343b44; border-color:#4a5662; color:#c7d5e5; }
+.source.ww,.task-icon.ww,.inspect-icon { background:#3a403c; border-color:#59635b; color:#c6d8c7; }
+.workspace { background:#1e1f22; }
+.work-head { background:#1e1f22; border-color:#36383d; }
+.head-pill { border-color:#44464c; background:#292a2e; }
+.tabs { background:#242529; }
+.tab.active { background:#2b2c30; color:#e3e5e9; }
+.tab.active:after { background:#8a9cc4; }
+.overview-card { background:#292a2e; border-color:#3e4046; box-shadow:none; }
+.overview-card:first-child { background:#302b2e; border-color:#554147; }
+.task-table { background:#25262a; border-color:#3c3e44; box-shadow:none; }
+.table-head { background:#2b2c30; }
+.task-row.current { background:#34363b; box-shadow:inset 2px 0 #8597b8; }
+.inspector { background:#222326; border-color:#3c3e43; box-shadow:none; }
+.inspect-head { background:#26272a; }
+.due-banner { background:#38302d; }
+.action { background:#45474d; border-color:#696d76; color:#f1f2f4; }
+.sync-button { background:#414349; border-color:#60636b; color:#f1f2f4; box-shadow:inset 0 1px rgba(255,255,255,.06); }
+.statusbar { background:#2b2c30; }
+@media (prefers-reduced-transparency:reduce) { .titlebar { -webkit-backdrop-filter:none; backdrop-filter:none; background:#303139; } .rail { -webkit-backdrop-filter:none; backdrop-filter:none; background:#2b2c31; } }
+</style>
+</head>
+<body>
+<svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.2"/><rect x="14" y="3" width="7" height="7" rx="1.2"/><rect x="3" y="14" width="7" height="7" rx="1.2"/><rect x="14" y="14" width="7" height="7" rx="1.2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6.5a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 15h3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="8" cy="18" r="2"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M10 3h4l.5 2.2 1.9.8 2-.9 2.8 2.8-.9 2 .8 1.9L23 12v4l-2.2.5-.8 1.9.9 2-2.8 2.8-2-.9-1.9.8L14 25h-4l-.5-2.2-1.9-.8-2 .9-2.8-2.8.9-2-.8-1.9L1 16v-4l2.2-.5.8-1.9-.9-2L5.9 4.8l2 .9 1.9-.8z" transform="translate(0 -1) scale(.92)"/></symbol>
+  <symbol id="i-sync" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M5.5 10A7 7 0 0 1 18 7l2 5M4 12l2 5a7 7 0 0 0 12.5-3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 9h18c0-1-3-2-3-9M10 21h4"/></symbol>
+</svg>
+<div class="app">
+  <header class="titlebar">
+    <div class="productmark">U</div><div class="menu-mark"><span></span><span></span><span></span></div><div class="appmark">PL</div><div class="appname">UBC 作业管理工具</div><span class="version">1.0.0</span><span class="title-divider"></span>
+    <div class="toolbar-section"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7"><use href="#i-folder"/></svg>我的课程 <span style="color:#8e929c">⌄</span></div>
+    <div class="title-spacer"></div>
+    <div class="search-top"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-search"/></svg>搜索作业、课程<span class="shortcut">Ctrl K</span></div>
+    <div class="title-icon"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><use href="#i-bell"/></svg></div>
+    <div class="avatar">ZY</div><div class="window-controls"><span>−</span><span>□</span><span>×</span></div>
+  </header>
+  <nav class="rail" aria-label="主导航">
+    <div class="rail-btn selected"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.55"><use href="#i-grid"/></svg></div>
+    <div class="rail-btn"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.55"><use href="#i-calendar"/></svg></div>
+    <div class="rail-btn"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.55"><use href="#i-check"/></svg></div>
+    <div class="rail-gap"></div>
+    <div class="rail-btn rail-bottom"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.5"><use href="#i-gear"/></svg></div>
+  </nav>
+  <aside class="sidebar">
+    <div class="sidebar-head"><span>课程与来源</span><span>···</span></div>
+    <div class="quick">
+      <div class="navitem active"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6"><use href="#i-grid"/></svg>全部作业<span class="number">3</span></div>
+      <div class="navitem"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6"><use href="#i-calendar"/></svg>日历视图</div>
+      <div class="navitem"><svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6"><use href="#i-check"/></svg>已完成</div>
+    </div>
+    <div class="section-label">作业目录</div>
+    <div class="tree">
+      <div class="tree-group"><span class="chev">›</span><span class="source pl">PL</span>PrairieLearn<span class="dot"></span><span class="trailing">2</span></div>
+      <div class="tree-course"><span class="dot"></span>CPSC 310<span class="trailing">2</span></div>
+      <div class="tree-course">CPSC 317</div>
+      <div class="tree-group" style="margin-top:10px"><span class="chev">›</span><span class="source ww">W</span>WeBWorK<span class="dot"></span><span class="trailing">1</span></div>
+      <div class="tree-course selected"><span class="dot"></span>STAT 251<span class="trailing">1</span></div>
+    </div>
+    <div class="sidebar-filler"></div>
+    <div class="sync-wrap"><button class="sync-button"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><use href="#i-sync"/></svg>立即同步</button><div class="sync-meta">上次同步：今天 09:42 · 所有来源正常</div></div>
+  </aside>
+  <main class="workspace">
+    <div class="work-head"><div><h1>作业概览</h1><div class="subhead">将两个平台的待办和成绩汇总到同一工作区</div></div><div class="head-spacer"></div><div class="date-stamp">2026 年 10 月 3 日 · 周六</div><div class="head-pill"><span class="dot"></span>3 项待完成</div></div>
+    <div class="tabs"><div class="tab active">待完成</div><div class="tab">全部作业</div><div class="tab">成绩</div></div>
+    <div class="work-body">
+      <section class="task-area">
+        <div class="overview"><div class="overview-card"><strong>3</strong><small>待完成作业</small></div><div class="overview-card"><strong style="color:#e7e9ed">5 天</strong><small>距离最近截止时间</small></div><div class="overview-card"><strong style="color:#e7e9ed">2</strong><small>已完成作业</small></div></div>
+        <div class="list-head"><h2>即将截止</h2><span>按截止时间排序</span></div>
+        <div class="task-table">
+          <div class="table-head"><span>作业</span><span>截止时间</span><span>状态</span><span>成绩</span></div>
+          <div class="task-row current"><div class="task-info"><div class="task-icon ww">W</div><div><div class="task-name">Assignment-03</div><div class="task-detail"><span class="dot"></span>STAT 251 · WeBWorK</div></div></div><div class="due">10 月 8 日<em>周四 · 23:59</em></div><div class="status soon">待完成</div><div class="score empty"><span>暂无成绩</span></div></div>
+          <div class="task-row"><div class="task-info"><div class="task-icon">PL</div><div><div class="task-name">LAB04 · DIP, LSP &amp; Testability</div><div class="task-detail"><span class="dot"></span>CPSC 310 · PrairieLearn</div></div></div><div class="due">10 月 15 日<em>周四 · 23:59</em></div><div class="status open">未开始</div><div class="score empty"><span>暂无成绩</span></div></div>
+          <div class="task-row"><div class="task-info"><div class="task-icon">PL</div><div><div class="task-name">DELIV2 · Refactor and Implement IN</div><div class="task-detail"><span class="dot"></span>CPSC 310 · PrairieLearn</div></div></div><div class="due">10 月 16 日<em>周五 · 18:05</em></div><div class="status open">进行中</div><div class="score"><div class="fill" style="width:0%"></div><span>0%</span></div></div>
+        </div>
+        <div class="list-head complete-title"><h2>最近完成</h2><span>查看全部 →</span></div>
+        <div class="task-table complete">
+          <div class="task-row"><div class="task-info"><div class="task-icon">PL</div><div><div class="task-name">LAB03 · Refactoring and Testability</div><div class="task-detail">CPSC 310 · PrairieLearn</div></div></div><div class="due" style="color:#a4a8b0">已完成</div><div class="status" style="color:#79bc8b">已提交</div><div class="score"><div class="fill" style="width:100%"></div><span>100%</span></div></div>
+          <div class="task-row"><div class="task-info"><div class="task-icon">PL</div><div><div class="task-name">DELIV1 · Design Analysis</div><div class="task-detail">CPSC 310 · PrairieLearn</div></div></div><div class="due" style="color:#a4a8b0">已完成</div><div class="status" style="color:#79bc8b">已提交</div><div class="score"><div class="fill" style="width:75%"></div><span>75%</span></div></div>
+        </div>
+      </section>
+      <aside class="inspector"><div class="inspect-head"><span>作业详情</span><span>···</span></div><div class="inspect-body"><div class="inspect-icon">W</div><h2>Assignment-03</h2><div class="inspect-sub">STAT 251 · Introductory Probability and Statistics</div><div class="rule"></div><dl class="meta"><dt>来源</dt><dd>WeBWorK</dd><dt>状态</dt><dd><span class="dot" style="display:inline-block;margin-right:7px"></span>待完成</dd><dt>开放时间</dt><dd>已开放</dd><dt>截止时间</dt><dd>10 月 8 日，周四 23:59</dd><dt>成绩</dt><dd>暂无成绩</dd></dl><div class="due-banner">距离截止还有 5 天。完成后可在这里查看成绩，截止信息将随平台同步更新。</div><button class="action">在 WeBWorK 中打开 ↗</button><div class="inspect-note">设计稿使用示例数据。实际状态以同步后的课程页面为准。</div></div></aside>
+    </div>
+  </main>
+  <footer class="statusbar"><span class="ready">●</span><span>同步就绪</span><span>PrairieLearn 2 门课程</span><span>WeBWorK 1 门课程</span><span class="spacer"></span><span>设备时间：America/Los_Angeles</span><span class="blue">设置</span></footer>
+</div>
+</body>
+</html>
