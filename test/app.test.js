@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseDisplayedDeadline, isComplete } = require('../lib/deadlines');
+const { parseDisplayedDeadline, completionStatus, isComplete } = require('../lib/deadlines');
 const { emptyState, normalizeCourseUrl, mergeRows, mergeWebworkRows } = require('../lib/store');
 const { parseCopiedTable } = require('../lib/paste');
 const { parseWebworkText, parseWebworkDate, parseWebworkProgress } = require('../lib/webwork');
@@ -31,12 +31,17 @@ test('missing deadlines remain undated and student overrides remain after sync',
   mergeRows(state, state.courses[0].id, { courseTitle: 'CPSC 310, 2026W1', rows });
   assert.equal(state.tasks.length, 2);
   assert.equal(state.tasks[1].dueAt, null);
+  assert.equal(isComplete(state.tasks[1]), false);
+  assert.deepEqual(completionStatus(state.tasks[1]), { complete: null, source: 'unknown' });
+  state.tasks[1].doneOverride = true;
   assert.equal(isComplete(state.tasks[1]), true);
   state.tasks[0].doneOverride = true;
   state.tasks[0].deadlineOverride = new Date(2026, 9, 9, 23, 59).toISOString();
   mergeRows(state, state.courses[0].id, { courseTitle: 'CPSC 310, 2026W1', rows });
   assert.equal(state.tasks[0].doneOverride, true);
   assert.equal(state.tasks[0].deadlineOverride, new Date(2026, 9, 9, 23, 59).toISOString());
+  assert.equal(state.tasks[1].doneOverride, true);
+  assert.equal(isComplete(state.tasks[1]), true);
 });
 
 test('course URLs are limited to supported student course pages', () => {
@@ -107,6 +112,7 @@ test('WeBWorK progress is merged without losing student overrides', () => {
   assert.equal(task.sourceComplete, true);
   assert.equal(task.problemCount, 6);
   assert.equal(isComplete(task), true);
+  assert.deepEqual(completionStatus(task), { complete: true, source: 'website' });
   task.doneOverride = false;
   mergeWebworkRows(state, course.id, page);
   assert.equal(task.doneOverride, false);
