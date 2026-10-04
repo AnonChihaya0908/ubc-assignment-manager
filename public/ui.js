@@ -5,6 +5,7 @@ let settingsPanel = 'general';
 let settingsCourseId = null;
 let editingTaskId = null;
 let wechatFormDirty = false;
+let reminderFormDirty = false;
 let selectedTaskId = null;
 let searchTerm = '';
 let inspectorTasks = [];
@@ -558,6 +559,35 @@ function renderSettings() {
   }
   const wechat = state.wechat || { enabled: false, time: '09:00', hasKey: false };
   $('reminders-paused').checked = Boolean(wechat.remindersPaused);
+  if (!reminderFormDirty) {
+    $('reminder-leads').value = (wechat.leadHours || [24, 3]).join(', ');
+    $('quiet-enabled').checked = Boolean(wechat.quietEnabled);
+    $('quiet-start').value = wechat.quietStart || '22:00';
+    $('quiet-end').value = wechat.quietEnd || '08:00';
+  }
+  const disabledCourseIds = new Set(wechat.disabledCourseIds || []);
+  const reminderCourses = $('reminder-course-list');
+  reminderCourses.replaceChildren();
+  if (!state.courses.length) reminderCourses.append(node('p', 'form-note', '添加课程后可在这里分别控制提醒。'));
+  for (const course of state.courses) {
+    const label = node('label', 'check-row');
+    const name = node('span', '', `${platformNames[coursePlatform(course)]} · ${shortCourseName(course)}`);
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = !disabledCourseIds.has(course.id);
+    checkbox.setAttribute('aria-label', `${course.name} 提醒`);
+    checkbox.addEventListener('change', async () => {
+      checkbox.disabled = true;
+      try {
+        state = await api('/api/reminders', 'PATCH', { courseId: course.id, enabled: checkbox.checked });
+        render();
+        message(checkbox.checked ? `已启用 ${shortCourseName(course)} 的提醒。` : `已关闭 ${shortCourseName(course)} 的提醒。`);
+      } catch (error) { checkbox.checked = !checkbox.checked; message(error.message, true); }
+      finally { checkbox.disabled = false; }
+    });
+    label.append(name, checkbox);
+    reminderCourses.append(label);
+  }
   if (!wechatFormDirty) {
     $('wechat-time').value = wechat.time || '09:00';
     $('wechat-enabled').checked = Boolean(wechat.enabled);
@@ -576,6 +606,21 @@ function renderSettings() {
   if (!status.length) status.push(wechat.enabled ? '已启用，等待下次发送时间。' : '每日提醒尚未启用。');
   $('wechat-status').textContent = status.join(' · ');
   $('wechat-status').classList.toggle('error', Boolean(wechat.lastError));
+  $('next-reminder-time').textContent = wechat.nextSendAt ? formatDate(wechat.nextSendAt) : '—';
+  $('next-reminder-detail').textContent = wechat.remindersPaused ? '提醒已暂停；恢复后若仍是当天且计划时间已过，会发送当天尚未成功的汇总。' :
+    !wechat.enabled ? '每日微信汇总尚未启用。' : !wechat.hasKey ? '请先保存 Server酱 SendKey。' :
+    wechat.quietEnabled ? `免打扰 ${wechat.quietStart}–${wechat.quietEnd}；时段内的当天汇总将在结束后补发。` : '计划按电脑当地时间执行。';
+  $('reminder-timezone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const history = $('reminder-history');
+  history.replaceChildren();
+  const typeNames = { daily: '自动汇总', test: '手动测试', windows: 'Windows 通知' };
+  const resultNames = { accepted: '服务已接受', failed: '发送失败', shown: '已交给系统显示' };
+  if (!wechat.history?.length) history.append(node('p', 'form-note', '尚无发送记录。'));
+  for (const record of (wechat.history || []).slice(0, 12)) {
+    const row = node('div', `reminder-record ${record.result}`);
+    row.append(node('span', '', formatDate(record.at)), node('strong', '', `${typeNames[record.type] || record.type} · ${resultNames[record.result] || record.result}`), node('span', '', record.detail || ''));
+    history.append(row);
+  }
 }
 
 function renderUpdateStatus() {
@@ -839,6 +884,26 @@ for (const id of ['wechat-key', 'wechat-time', 'wechat-enabled']) {
   $(id).addEventListener('input', () => { wechatFormDirty = true; });
   $(id).addEventListener('change', () => { wechatFormDirty = true; });
 }
+for (const id of ['reminder-leads', 'quiet-enabled', 'quiet-start', 'quiet-end']) {
+  $(id).addEventListener('input', () => { reminderFormDirty = true; });
+  $(id).addEventListener('change', () => { reminderFormDirty = true; });
+}
+$('reminder-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const leadHours = $('reminder-leads').value.split(/[,，\s]+/).filter(Boolean).map(Number);
+  if (!leadHours.length || leadHours.some(value => !Number.isFinite(value))) { message('请输入有效的提前小时数。', true); return; }
+  const button = event.target.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    state = await api('/api/reminders', 'PATCH', {
+      leadHours, quietEnabled: $('quiet-enabled').checked, quietStart: $('quiet-start').value, quietEnd: $('quiet-end').value,
+    });
+    reminderFormDirty = false;
+    render();
+    message('提醒规则已保存，下次发送时间已更新。');
+  } catch (error) { message(error.message, true); }
+  finally { button.disabled = false; }
+});
 $('startup-enabled').addEventListener('change', async event => {
   const enabled = event.target.checked;
   event.target.disabled = true;

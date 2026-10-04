@@ -21,7 +21,9 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   const fixtureState = { version: '1.1.2', courses, syncing: false,
     preferences: { requireManualCompletion: false, onboardingDismissed: true },
     startup: { supported: true, enabled: false, configured: false, error: null },
-    wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
+    wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null,
+      leadHours: [24, 3], quietEnabled: false, quietStart: '22:00', quietEnd: '08:00', disabledCourseIds: [], nextSendAt: null,
+      history: [{ at: new Date().toISOString(), type: 'test', result: 'accepted', detail: 'Server酱已接受测试消息' }] }, tasks: [
     makeTask('a', 'pl:1', 'LAB04', { dueAt: future(10), score: '100%' }),
     makeTask('b', 'ww:1', 'Assignment-03', { sourceStatus: 'open', dueAt: future(8), score: '40%',
       sourceComplete: false, problemCount: 6, completedProblemCount: 2 }),
@@ -72,7 +74,12 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       let body = '';
       request.on('data', chunk => { body += chunk; });
       request.on('end', () => {
-        fixtureState.wechat.remindersPaused = JSON.parse(body).paused;
+        const update = JSON.parse(body);
+        if (update.courseId) {
+          const disabled = new Set(fixtureState.wechat.disabledCourseIds);
+          if (update.enabled) disabled.delete(update.courseId); else disabled.add(update.courseId);
+          fixtureState.wechat.disabledCourseIds = [...disabled];
+        } else Object.assign(fixtureState.wechat, update.paused === undefined ? update : { remindersPaused: update.paused });
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(fixtureState));
       });
@@ -238,6 +245,14 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     }
     await evaluate("document.querySelector('[data-settings=reminders]').click()");
     assert.equal(await evaluate("document.querySelector('#settings-reminders').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#reminder-history').textContent.includes('服务已接受')"), true);
+    await evaluate("(() => { const leads = document.querySelector('#reminder-leads'); leads.value = '48, 6'; leads.dispatchEvent(new Event('input', { bubbles: true })); const quiet = document.querySelector('#quiet-enabled'); quiet.checked = true; quiet.dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('#reminder-form button[type=submit]').click(); })()");
+    for (let i = 0; i < 20; i++) {
+      if (fixtureState.wechat.quietEnabled) break;
+      await sleep(100);
+    }
+    assert.deepEqual(fixtureState.wechat.leadHours, [48, 6]);
+    assert.equal(fixtureState.wechat.quietEnabled, true);
     await evaluate("document.querySelector('#reminders-paused').click()");
     for (let i = 0; i < 20; i++) {
       if (fixtureState.wechat.remindersPaused) break;

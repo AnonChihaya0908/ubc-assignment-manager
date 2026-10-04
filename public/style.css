@@ -191,6 +191,14 @@ a { color:inherit; }
 .wechat-actions { display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin:8px 0 12px; }
 .wechat-status { min-height:20px; margin:5px 0 18px; color:var(--muted); font-size:12px; }
 .wechat-status.error { color:#f1a3ac; }
+.time-pair { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.time-pair label input { display:block; width:100%; margin-top:7px; }
+.reminder-course-list { display:grid; gap:7px; margin:10px 0 18px; }
+.reminder-course-list .check-row { justify-content:space-between; margin:0; padding:9px 11px; border:1px solid var(--border); border-radius:6px; background:#242529; }
+.reminder-history { display:grid; gap:7px; margin:8px 0 18px; }
+.reminder-record { display:grid; grid-template-columns:90px 120px minmax(0,1fr); gap:10px; padding:9px 10px; border-bottom:1px solid var(--border); color:var(--muted); font-size:11px; }
+.reminder-record strong { color:var(--text); font-weight:600; }
+.reminder-record.failed strong { color:#f1a3ac; }
 .add-course-form { padding-bottom:21px; }
 label { display:block; margin:0 0 8px; color:#d1d3da; font-size:12px; font-weight:600; }
 input,select,textarea { min-height:38px; padding:8px 11px; border:1px solid #62656d; border-radius:6px; outline:0; background:#1c1d20; color:var(--text); }
