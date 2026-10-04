@@ -18,7 +18,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
   const fixtureState = { version: '1.1.2', courses, syncing: false, wechat: { enabled: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
-    makeTask('a', 'pl:1', 'LAB04', { dueAt: future(10) }),
+    makeTask('a', 'pl:1', 'LAB04', { dueAt: future(10), score: '100%' }),
     makeTask('b', 'ww:1', 'Assignment-03', { sourceStatus: 'open', dueAt: future(8), score: '40%',
       sourceComplete: false, problemCount: 6, completedProblemCount: 2 }),
     makeTask('c', 'ww:1', 'Assignment-04', { sourceStatus: 'future', opensAt: future(3) }),
@@ -130,6 +130,9 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#nav-prairielearn .notification-dot').hidden"), false);
     assert.equal(await evaluate("document.querySelector('#overview-pending').textContent"), '2');
     assert.equal(await evaluate("document.querySelector('#overview-done').textContent"), '1');
+    await evaluate("document.querySelector('[data-task-id=\"a\"]').click()");
+    assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('完成状态未知')"), true);
+    assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('成绩100%')"), true);
     assert.equal(await evaluate("document.querySelector('.score-bar[aria-label=\"成绩 75%\"]') !== null"), true);
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.window-toolbar')).backgroundImage.includes('radial-gradient')"), true);
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.content')).backgroundImage === 'none'"), true);
@@ -150,6 +153,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       await sleep(100);
     }
     assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), true);
+    assert.equal(await evaluate("[...document.querySelectorAll('#inspector-content .inspector-actions button')].some(button => button.textContent === '恢复网站判断')"), true);
     assert.equal(await evaluate("document.querySelector('#ww-folder .notification-dot').hidden"), true);
     await evaluate("document.querySelector('#nav-settings').click()");
     assert.equal(await evaluate("document.querySelector('#settings-page').hidden"), false);

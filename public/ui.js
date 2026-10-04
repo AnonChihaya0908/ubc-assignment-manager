@@ -49,10 +49,17 @@ function coursePlatform(course) {
 }
 
 function courseFor(task) { return state.courses.find(course => course.id === task.courseId); }
+function completionInfo(task) {
+  if (task.doneOverride === true || task.doneOverride === false) {
+    return { complete: task.doneOverride, label: task.doneOverride ? '已完成' : '未完成', source: '用户手动设置' };
+  }
+  if (task.sourceComplete === true || task.sourceComplete === false) {
+    return { complete: task.sourceComplete, label: task.sourceComplete ? '已完成' : '未完成', source: '课程网站状态' };
+  }
+  return { complete: null, label: '未知', source: '网站未提供可靠状态' };
+}
 function isDone(task) {
-  return task.doneOverride === null || task.doneOverride === undefined
-    ? task.sourceComplete === true || /^100(?:\.0+)?%$/.test((task.score || '').trim())
-    : task.doneOverride;
+  return completionInfo(task).complete === true;
 }
 function dueOf(task) { return task.deadlineOverride || task.dueAt || null; }
 function actionable(task) { return !isDone(task) && task.sourceStatus !== 'future' && task.sourceStatus !== 'past_due'; }
@@ -68,7 +75,9 @@ function categoryOf(task, now = Date.now()) {
 function statusName(task) {
   const category = categoryOf(task);
   if (category === 'history' && task.sourceStatus === 'past_due') return '已截止';
-  if (category === 'pending' && task.sourceStatus === 'open') return '完成中';
+  if (category === 'pending' && task.sourceStatus === 'open' && task.sourceComplete === false) return '完成中';
+  if (category === 'pending' && completionInfo(task).complete === null) return '待确认';
+  if (category === 'pending' && task.doneOverride === false) return '未完成';
   return tabNames[category];
 }
 
@@ -190,6 +199,13 @@ async function toggleTaskCompletion(task) {
   } catch (error) { message(error.message, true); }
 }
 
+async function restoreTaskCompletion(task) {
+  try {
+    state = await api('/api/task', 'PATCH', { id: task.id, doneOverride: null });
+    render();
+  } catch (error) { message(error.message, true); }
+}
+
 function taskRow(task) {
   const row = node('article', 'assignment-row');
   row.dataset.taskId = task.id;
@@ -225,7 +241,7 @@ function taskRow(task) {
   const edit = node('button', '', '改日期');
   edit.type = 'button';
   edit.addEventListener('click', () => editDeadline(task));
-  const toggle = node('button', '', isDone(task) ? '撤销完成' : '标为完成');
+  const toggle = node('button', '', isDone(task) ? '标为未完成' : '标为完成');
   toggle.type = 'button';
   toggle.addEventListener('click', () => toggleTaskCompletion(task));
   actions.append(edit, toggle);
@@ -286,7 +302,10 @@ function renderInspector() {
   const addDetail = (label, value) => { details.append(node('dt', '', label), node('dd', '', value)); };
   const dateInfo = rowDate(task);
   addDetail('来源', platformNames[platform]);
-  addDetail('状态', statusName(task));
+  addDetail('列表状态', statusName(task));
+  const completion = completionInfo(task);
+  addDetail('完成状态', completion.label);
+  addDetail('判断来源', completion.source);
   if (Number.isInteger(task.problemCount) && task.problemCount > 0) {
     addDetail('题目完成', `${task.completedProblemCount || 0} / ${task.problemCount}`);
   }
@@ -295,6 +314,9 @@ function renderInspector() {
   addDetail(dateInfo.label, dateInfo.value ? formatDate(dateInfo.value) : dateInfo.text || '暂无日期');
   addDetail('成绩', task.score || '暂无成绩');
   container.append(details);
+  if (completion.complete === null) {
+    container.append(node('p', 'inspector-hint', '课程网站没有提供可靠的完成结论。成绩仅用于展示，请根据实际提交情况手动确认。'));
+  }
   const due = dueOf(task);
   if (due && !isDone(task)) {
     const days = Math.ceil((new Date(due).getTime() - Date.now()) / 86400000);
@@ -314,10 +336,16 @@ function renderInspector() {
   const edit = node('button', 'secondary-button', '修改提醒日期');
   edit.type = 'button';
   edit.addEventListener('click', () => editDeadline(task));
-  const toggle = node('button', 'secondary-button', isDone(task) ? '撤销完成' : '标为完成');
+  const toggle = node('button', 'secondary-button', isDone(task) ? '标为未完成' : '标为完成');
   toggle.type = 'button';
   toggle.addEventListener('click', () => toggleTaskCompletion(task));
   actions.append(edit, toggle);
+  if (task.doneOverride === true || task.doneOverride === false) {
+    const restore = node('button', 'text-button', '恢复网站判断');
+    restore.type = 'button';
+    restore.addEventListener('click', () => restoreTaskCompletion(task));
+    actions.append(restore);
+  }
   container.append(actions);
 }
 
