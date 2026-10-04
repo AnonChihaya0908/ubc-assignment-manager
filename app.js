@@ -294,9 +294,11 @@ function dashboardWindowArguments() {
 }
 function openDashboard() {
   if (!process.argv.includes('--no-open')) {
-    const browser = spawn(edgePath(), [`--app=${address}`, ...dashboardWindowArguments()], {
-      windowsHide: true, stdio: 'ignore', detached: true,
+    // The launcher hides Node; the Edge app window must remain visible on first launch.
+    const browser = spawn(edgePath(), ['--no-first-run', '--no-default-browser-check', `--app=${address}`, ...dashboardWindowArguments()], {
+      windowsHide: false, stdio: 'ignore',
     });
+    browser.on('error', error => console.error(`无法打开应用窗口：${error.message}`));
     browser.unref();
   }
 }
