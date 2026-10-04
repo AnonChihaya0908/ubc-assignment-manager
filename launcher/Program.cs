@@ -6,8 +6,8 @@ using System.Reflection;
 
 [assembly: AssemblyTitle("UBC作业管理工具")]
 [assembly: AssemblyProduct("UBC作业管理工具")]
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 internal static class Program
 {

@@ -8,6 +8,7 @@ const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } 
 const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
   shouldSendDaily, buildDailyDigest, sendServerChan } = require('./lib/wechat');
+const { createUpdater, VERSION } = require('./lib/updater');
 
 let state = loadState();
 let wechatConfig = loadConfig();
@@ -15,9 +16,10 @@ let syncing = false;
 let sendingWechat = false;
 let autoSyncEnabled = state.courses.some(course => course.lastSyncedAt);
 let server;
+const updater = createUpdater();
 
 function publicState() {
-  return { courses: state.courses, tasks: state.tasks, syncing, autoSyncEnabled,
+  return { version: VERSION, courses: state.courses, tasks: state.tasks, syncing, autoSyncEnabled,
     wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
 }
 
@@ -153,11 +155,21 @@ async function handle(request, response) {
   if (request.method === 'GET' && url.pathname === '/style.css') return serveFile(response, 'style.css', 'text/css; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/ui.js') return serveFile(response, 'ui.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, publicState());
+  if (request.method === 'GET' && url.pathname === '/api/update') return json(response, 200, updater.status());
   if (!url.pathname.startsWith('/api/') || request.method === 'GET') return json(response, 404, { error: '未找到。' });
   if (request.headers['content-type']?.split(';')[0] !== 'application/json') return json(response, 415, { error: '需要 JSON 请求。' });
 
   try {
     const body = await readBody(request);
+    if (request.method === 'POST' && url.pathname === '/api/update/check') {
+      return json(response, 200, await updater.check(true));
+    }
+    if (request.method === 'POST' && url.pathname === '/api/update/install') {
+      const result = await updater.install();
+      json(response, 200, result);
+      setTimeout(() => server.close(() => process.exit(0)), 300);
+      return;
+    }
     if (request.method === 'PATCH' && url.pathname === '/api/wechat') {
       const next = { ...wechatConfig };
       if (Object.hasOwn(body, 'time')) {
@@ -305,6 +317,7 @@ server.on('error', async error => {
 server.listen(43873, '127.0.0.1', () => {
   console.log(`UBC作业管理工具已启动：${address}`);
   openDashboard();
+  updater.check().catch(error => console.error(`更新检查失败：${error.message}`));
 });
 
 setInterval(checkReminders, 60_000).unref();

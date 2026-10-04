@@ -9,6 +9,8 @@ let selectedTaskId = null;
 let searchTerm = '';
 let inspectorTasks = [];
 let lastSyncError = null;
+let updateStatus = { kind: 'checking', currentVersion: '1.1.0' };
+let promptedUpdate = null;
 
 const $ = id => document.getElementById(id);
 const platformNames = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK' };
@@ -374,6 +376,10 @@ function renderWork() {
 }
 
 function renderSettings() {
+  $('app-version').textContent = state.version || '1.1.0';
+  document.title = `UBC作业管理工具 ${state.version || '1.1.0'}`;
+  document.querySelector('.toolbar-version').textContent = state.version || '1.1.0';
+  renderUpdateStatus();
   $('settings-breadcrumb').textContent = `设置 / ${settingNames[settingsPanel]}`;
   $('settings-heading').textContent = settingNames[settingsPanel];
   $('settings-summary').textContent = settingsPanel === 'courses' ? '添加课程，管理登录窗口和手动导入。' :
@@ -431,6 +437,62 @@ function renderSettings() {
   if (!status.length) status.push(wechat.enabled ? '已启用，等待下次发送时间。' : '每日提醒尚未启用。');
   $('wechat-status').textContent = status.join(' · ');
   $('wechat-status').classList.toggle('error', Boolean(wechat.lastError));
+}
+
+function renderUpdateStatus() {
+  const labels = {
+    idle: '尚未检查更新。', checking: '正在检查 GitHub 更新…', current: '当前已是最新版本。',
+    available: `发现新版本 ${updateStatus.release?.version || ''}。`,
+    no_package: '暂时没有可安装的发布包。',
+    error: updateStatus.error || '更新检查失败。', installing: '正在下载安装更新包…',
+  };
+  const lastFailure = updateStatus.kind === 'available' && updateStatus.lastResult?.state === 'failed' &&
+    updateStatus.lastResult.version === updateStatus.release?.version;
+  $('update-status').textContent = lastFailure
+    ? `上次更新 ${updateStatus.lastResult.version} 失败，已恢复旧版：${updateStatus.lastResult.detail}`
+    : updateStatus.kind === 'available' && updateStatus.canInstall === false
+      ? '发现新版本。当前位于 Git 开发目录，请在独立的便携包中使用应用内更新。'
+    : labels[updateStatus.kind] || '更新状态未知。';
+  $('update-status').classList.toggle('error', updateStatus.kind === 'error' || lastFailure);
+  const available = updateStatus.kind === 'available';
+  $('install-update').hidden = !available || updateStatus.canInstall === false;
+  $('install-update').disabled = !available || updateStatus.canInstall === false;
+  $('check-update').disabled = updateStatus.kind === 'checking' || updateStatus.kind === 'installing';
+  $('update-notes').hidden = !available || !updateStatus.release?.notes;
+  $('update-notes').textContent = available ? updateStatus.release?.notes || '' : '';
+}
+
+async function checkUpdate(showMessage = false) {
+  updateStatus = { ...updateStatus, kind: 'checking' };
+  if (state) renderUpdateStatus();
+  try {
+    updateStatus = await api('/api/update/check', 'POST', {});
+    if (state) renderUpdateStatus();
+    if (updateStatus.kind === 'available' && updateStatus.canInstall !== false && promptedUpdate !== updateStatus.release.version &&
+        !(updateStatus.lastResult?.state === 'failed' && updateStatus.lastResult.version === updateStatus.release.version)) {
+      promptedUpdate = updateStatus.release.version;
+      $('update-dialog-text').textContent = `已发现 ${updateStatus.release.name}。现在更新会关闭应用，安装完成后自动重新打开；本地作业和提醒设置会保留。`;
+      $('update-dialog').showModal();
+    } else if (showMessage) message($('update-status').textContent, updateStatus.kind === 'error');
+  } catch (error) {
+    updateStatus = { kind: 'error', error: error.message };
+    if (state) renderUpdateStatus();
+    if (showMessage) message(error.message, true);
+  }
+}
+
+async function installUpdate() {
+  if ($('update-dialog').open) $('update-dialog').close();
+  updateStatus = { ...updateStatus, kind: 'installing' };
+  renderUpdateStatus();
+  try {
+    const result = await api('/api/update/install', 'POST', {});
+    message(result.message);
+  } catch (error) {
+    updateStatus = { ...updateStatus, kind: 'error', error: error.message };
+    renderUpdateStatus();
+    message(error.message, true);
+  }
 }
 
 function render() {
@@ -506,6 +568,10 @@ $('toolbar-courses').addEventListener('click', () => navigateWork('all'));
 $('nav-prairielearn').addEventListener('click', () => navigateWork('platform:prairielearn'));
 $('nav-webwork').addEventListener('click', () => navigateWork('platform:webwork'));
 $('nav-settings').addEventListener('click', () => navigateSettings(settingsPanel));
+$('check-update').addEventListener('click', () => checkUpdate(true));
+$('install-update').addEventListener('click', installUpdate);
+$('update-now').addEventListener('click', installUpdate);
+$('update-later').addEventListener('click', () => $('update-dialog').close());
 $('all-folder').addEventListener('click', () => navigateWork('all'));
 $('pl-folder').addEventListener('click', () => navigateWork('platform:prairielearn'));
 $('ww-folder').addEventListener('click', () => navigateWork('platform:webwork'));
@@ -655,5 +721,5 @@ $('quit').addEventListener('click', async () => {
   catch (error) { message(error.message, true); }
 });
 
-api('/api/state').then(result => { state = result; routeFromHash(); }).catch(error => message(error.message, true));
+api('/api/state').then(result => { state = result; routeFromHash(); checkUpdate(); }).catch(error => message(error.message, true));
 setInterval(() => api('/api/state').then(result => { state = result; render(); }).catch(() => {}), 60_000);

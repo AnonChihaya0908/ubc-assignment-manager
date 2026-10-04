@@ -5,6 +5,7 @@ $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $runtimeDir = Join-Path $appRoot 'runtime'
 $sourceNode = (Get-Command node -ErrorAction Stop).Source
 $productName = 'UBC作业管理工具'
+$version = (Get-Content -LiteralPath (Join-Path $appRoot 'package.json') -Raw | ConvertFrom-Json).version
 $outputExe = Join-Path $appRoot "$productName.exe"
 
 if (-not (Test-Path -LiteralPath $compiler)) { throw '未找到 Windows C# 编译器。' }
@@ -26,12 +27,17 @@ $packageFull = [IO.Path]::GetFullPath($packageDir)
 if (-not $packageFull.StartsWith($rootFull + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw '打包目录不在工作区内。' }
 if (Test-Path -LiteralPath $packageDir) { Remove-Item -LiteralPath $packageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $packageDir,(Join-Path $packageDir 'lib'),(Join-Path $packageDir 'public'),(Join-Path $packageDir 'runtime') -Force | Out-Null
-foreach ($name in @("$productName.exe",'app.js','notify.ps1','README.md')) {
+foreach ($name in @("$productName.exe",'app.js','notify.ps1','README.md','package.json','install-update.ps1')) {
   Copy-Item -LiteralPath (Join-Path $appRoot $name) -Destination $packageDir
 }
 Copy-Item -Path (Join-Path $appRoot 'lib\*') -Destination (Join-Path $packageDir 'lib') -Recurse
 Copy-Item -Path (Join-Path $appRoot 'public\*') -Destination (Join-Path $packageDir 'public') -Recurse
 Copy-Item -LiteralPath $bundledNode -Destination (Join-Path $packageDir 'runtime\node.exe')
-$archive = Join-Path $releaseRoot "$productName-1.0.0.zip"
+$archive = Join-Path $releaseRoot "$productName-$version.zip"
 Compress-Archive -LiteralPath $packageDir -DestinationPath $archive -Force
+$sha = [Security.Cryptography.SHA256]::Create()
+$stream = [IO.File]::OpenRead($archive)
+try { $hash = ([BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+finally { $stream.Dispose(); $sha.Dispose() }
+[IO.File]::WriteAllText("$archive.sha256", "$hash  $(Split-Path -Leaf $archive)`n", (New-Object Text.UTF8Encoding($false)))
 Write-Output "便携包：$archive"

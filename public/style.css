@@ -176,6 +176,9 @@ a { color:inherit; }
 .red-dot-example { flex:none; width:9px; height:9px; margin-right:14px; border-radius:50%; background:var(--danger); }
 .setting-intro { margin:-4px 0 18px; }
 .setting-intro a { color:#c4d2eb; text-underline-offset:3px; }
+.setting-intro.error { color:#f1a3ac; }
+.update-actions { display:flex; flex-wrap:wrap; gap:9px; margin:16px 0; }
+.update-notes { max-height:130px; overflow:auto; margin:12px 0; padding:11px 13px; border:1px solid var(--border); border-radius:6px; background:#222326; color:var(--muted); font-size:12px; line-height:1.5; white-space:pre-wrap; }
 .wechat-form { display:grid; justify-items:start; gap:8px; padding-bottom:7px; }
 .wechat-form>label:not(.check-row) { margin-top:6px; }
 .wechat-form>input[type=password] { width:min(100%,520px); }
