@@ -199,6 +199,8 @@ a { color:inherit; }
 .reminder-record { display:grid; grid-template-columns:90px 120px minmax(0,1fr); gap:10px; padding:9px 10px; border-bottom:1px solid var(--border); color:var(--muted); font-size:11px; }
 .reminder-record strong { color:var(--text); font-weight:600; }
 .reminder-record.failed strong { color:#f1a3ac; }
+.backup-import { margin:15px 0 20px; padding-top:16px; border-top:1px solid var(--border); }
+.backup-import input { width:100%; margin-bottom:9px; }
 .add-course-form { padding-bottom:21px; }
 label { display:block; margin:0 0 8px; color:#d1d3da; font-size:12px; font-weight:600; }
 input,select,textarea { min-height:38px; padding:8px 11px; border:1px solid #62656d; border-radius:6px; outline:0; background:#1c1d20; color:var(--text); }

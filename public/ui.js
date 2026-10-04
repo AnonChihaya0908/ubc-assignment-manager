@@ -12,6 +12,7 @@ let inspectorTasks = [];
 let updateStatus = { kind: 'checking', currentVersion: '1.1.2' };
 let promptedUpdate = null;
 let onboardingActive = false;
+let pendingBackup = null;
 
 const $ = id => document.getElementById(id);
 const taskStatus = window.TaskStatus;
@@ -984,6 +985,51 @@ $('clear-deadline').addEventListener('click', async () => {
     $('deadline-dialog').close();
     render();
   } catch (error) { message(error.message, true); }
+});
+$('backup-export').addEventListener('click', async () => {
+  const button = $('backup-export');
+  button.disabled = true;
+  try {
+    const backup = await api('/api/backup/export', 'POST', {});
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `UBC作业管理工具-备份-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    message(`已导出 ${backup.scope.courses} 门课程和 ${backup.scope.tasks} 项作业；凭证和个人查询参数未写入文件。`);
+  } catch (error) { message(error.message, true); }
+  finally { button.disabled = false; }
+});
+$('backup-file').addEventListener('change', async event => {
+  pendingBackup = null;
+  $('backup-import').disabled = true;
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { $('backup-summary').textContent = '文件超过 5 MB，无法导入。'; return; }
+  try {
+    const parsed = JSON.parse(await file.text());
+    if (parsed.format !== 'ubc-assignment-manager-backup' || parsed.formatVersion !== 1 || !parsed.scope) throw new Error('文件格式或版本不受支持。');
+    pendingBackup = parsed;
+    $('backup-summary').textContent = `文件包含 ${Number(parsed.scope.courses) || 0} 门课程、${Number(parsed.scope.tasks) || 0} 项作业。恢复会替换当前课程和作业，并先创建本机恢复点；SendKey、Cookie、Edge 登录资料不会从文件导入。`;
+    $('backup-import').disabled = false;
+  } catch (error) { $('backup-summary').textContent = `无法读取备份：${error.message}`; }
+});
+$('backup-import').addEventListener('click', async () => {
+  if (!pendingBackup || !confirm('确认用这份备份替换当前课程、作业和普通设置？应用会先创建本机恢复点。')) return;
+  const button = $('backup-import');
+  button.disabled = true;
+  try {
+    const result = await api('/api/backup/import', 'POST', { backup: pendingBackup });
+    state = result.state;
+    selectedScope = 'all'; selectedTaskId = null; settingsCourseId = null;
+    wechatFormDirty = false; reminderFormDirty = false;
+    pendingBackup = null; $('backup-file').value = '';
+    $('backup-summary').textContent = '恢复完成。本机已保留导入前恢复点。请重新登录课程；微信凭证未从备份导入。';
+    render();
+    message(result.message);
+  } catch (error) { message(error.message, true); }
+  finally { button.disabled = !pendingBackup; }
 });
 $('deadline-form').addEventListener('submit', async event => {
   event.preventDefault();
