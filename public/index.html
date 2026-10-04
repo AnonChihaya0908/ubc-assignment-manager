@@ -107,7 +107,7 @@
             <p id="update-status" class="setting-intro" role="status" aria-live="polite">正在检查 GitHub 更新…</p>
             <p id="update-notes" class="update-notes" hidden></p>
             <div class="update-actions"><button id="check-update" class="secondary-button" type="button">检查更新</button><button id="install-update" class="primary-button" type="button" hidden>立即更新并重启</button></div>
-            <p class="form-note">应用内更新目前通过 GitHub CLI（gh）读取公开的 Release；请在本机安装 gh，访问失败时检查其登录状态。更新会保留应用目录中的 .local-data 作业与提醒数据。</p>
+            <p class="form-note">应用内更新目前通过 GitHub CLI（gh）读取公开的 Release；请在本机安装 gh，访问失败时检查其登录状态。更新会保留当前 Windows 账户下的课程、作业与提醒数据。</p>
           </section>
           <section class="setting-block">
             <h2>未完成标记</h2>
@@ -172,7 +172,7 @@
         <div id="settings-data" class="settings-panel" hidden>
           <section class="setting-block">
             <h2>本地数据</h2>
-            <p class="setting-intro">作业清单与专用 Edge 登录资料保存在电脑上的应用目录中。关闭网页不会停止后台提醒。</p>
+            <p class="setting-intro">作业清单、提醒设置与专用 Edge 登录资料保存在当前 Windows 账户的本地应用数据目录中，覆盖升级不会删除。关闭网页不会停止后台提醒。</p>
             <div class="setting-row"><div><h3>退出应用</h3><p>停止后台同步和 Windows 提醒。下次可双击 UBC作业管理工具.exe 重新打开。</p></div><button id="quit" class="danger-button" type="button">退出应用</button></div>
           </section>
         </div>

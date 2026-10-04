@@ -25,5 +25,6 @@ launcher/publish/
 作业提醒工具.exe
 启动提醒工具.cmd
 UBC作业管理工具.exe
+卸载 UBC作业管理工具.exe
 .build-cache/
 release/
