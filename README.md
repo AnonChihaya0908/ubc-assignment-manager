@@ -1,13 +1,13 @@
 # UBC作业管理工具
 
-当前版本：**1.1.0**。
+当前版本：**1.1.1**。
 
 这是一个只在本机运行的 Windows 应用。它会用独立的 Edge 窗口打开你有权访问的 PrairieLearn 或 UBC WeBWorK 页面，读取页面上可见的作业名称和日期，集中显示并在截止前提醒。它不使用教师 API，也不需要 API token。
 
 ## 使用
 
 1. 双击 `UBC作业管理工具.exe`。无需打开 CMD，也无需单独安装 Node.js；应用在屏幕空间足够时以 1440 × 810 的 16:9 窗口打开，较小屏幕会按可用区域等比例缩小。请保留 `exe`、`runtime`、`lib`、`public` 和 `app.js` 在同一个文件夹中，不要只移动 `exe`。
-   从 GitHub 获取源码后，先运行 `npm run build:app` 生成程序、`release/ubc-assignment-manager-1.1.0-windows.zip` 及其 `.sha256` 校验文件。便携包不含当前的课程数据、Edge 登录资料或微信 SendKey；本工作目录中的 `exe` 会继续使用原有设置。
+   从 GitHub 获取源码后，先运行 `npm run build:app` 生成程序、`release/ubc-assignment-manager-1.1.1-windows.zip` 及其 `.sha256` 校验文件。便携包不含当前的课程数据、Edge 登录资料或微信 SendKey；本工作目录中的 `exe` 会继续使用原有设置。
 2. 点击左侧底部的设置图标，进入“课程与登录”，选择课程并点击“打开登录窗口”。在打开的 Edge 窗口中完成学校网站登录。这个 Edge 窗口使用专用的本地浏览器资料，不会自动继承你平时浏览器的登录状态。
 3. 回到应用，点击左下角“立即同步”。它会依次同步全部课程。初始课程已设为 CPSC 310 2026W1 的 Assessments 页面。
 4. 在左侧按 PrairieLearn、WeBWorK 或具体课程筛选；上方切换“待完成”“将开放”“已过日期”“已完成”。点击作业行可在右侧查看详情、修改提醒日期或标记完成；较窄窗口会在作业行内显示这些操作。成绩以横条和居中的百分比展示。
@@ -20,7 +20,7 @@
 
 应用打开时会检查此仓库最新的稳定版 GitHub Release；设置 → 常规与窗口也可以手动检查。发现新版本后，可选择“稍后”或“立即更新并重启”。立即更新会下载与版本号对应的 Windows 便携包及 SHA-256 校验文件，验证后关闭旧版、备份程序文件、安装新版并重新打开。如果新版无法启动，安装程序会恢复旧版。本地 `.local-data` 不参与替换，课程、完成状态、提醒配置及专用 Edge 登录资料会保留。
 
-当前 GitHub 仓库为私有仓库，因此每台使用更新功能的电脑都需要安装 GitHub CLI (`gh`)，并用有权限访问 `AnonChihaya0908/ubc-assignment-manager` 的账号登录。应用不读取或保存 GitHub token；没有登录权限时会在设置页显示错误。发布更新时须同时上传 `ubc-assignment-manager-版本-windows.zip` 和同名 `.zip.sha256`，且 Release 标签为 `v版本`，例如 `v1.1.0`。目前没有发布 Release 时，应用会显示“暂时没有可安装的发布包”。
+当前 GitHub 仓库已公开。应用内更新仍通过 GitHub CLI (`gh`) 读取 Release，因此需要在本机安装 `gh`；访问失败时请检查网络和 `gh` 的登录状态。应用不读取或保存 GitHub token。发布更新时须同时上传 `ubc-assignment-manager-版本-windows.zip` 和同名 `.zip.sha256`，且 Release 标签为 `v版本`，例如 `v1.1.1`。目前没有发布 Release 时，应用会显示“暂时没有可安装的发布包”。
 
 应用内安装只在独立解压的便携包中启用。在包含 `.git` 的开发目录运行时，应用仍会检查新版本，但不会覆盖正在开发的源码；请在开发目录外解压发布包后使用应用内更新。
 

@@ -9,7 +9,7 @@ let selectedTaskId = null;
 let searchTerm = '';
 let inspectorTasks = [];
 let lastSyncError = null;
-let updateStatus = { kind: 'checking', currentVersion: '1.1.0' };
+let updateStatus = { kind: 'checking', currentVersion: '1.1.1' };
 let promptedUpdate = null;
 
 const $ = id => document.getElementById(id);
@@ -376,9 +376,9 @@ function renderWork() {
 }
 
 function renderSettings() {
-  $('app-version').textContent = state.version || '1.1.0';
-  document.title = `UBC作业管理工具 ${state.version || '1.1.0'}`;
-  document.querySelector('.toolbar-version').textContent = state.version || '1.1.0';
+  $('app-version').textContent = state.version || '1.1.1';
+  document.title = `UBC作业管理工具 ${state.version || '1.1.1'}`;
+  document.querySelector('.toolbar-version').textContent = state.version || '1.1.1';
   renderUpdateStatus();
   $('settings-breadcrumb').textContent = `设置 / ${settingNames[settingsPanel]}`;
   $('settings-heading').textContent = settingNames[settingsPanel];
