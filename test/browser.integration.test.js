@@ -20,17 +20,23 @@ const fixture = `<!doctype html><title>PrairieLearn</title>
 const webworkFixture = `<!doctype html><title>WeBWorK</title><h1>STAT_V 251 101 2026W1 Introductory Probability and Statistics</h1>
 <h2>Open Assignments</h2><div><a href="/webwork2/course/Assignment-03">Assignment-03</a><p>Open. Due October 8, 2026, 11:59:00 PM PDT.</p></div>
 <h2>Future Assignments</h2><div>Assignment-04<p>Will open on October 6, 2026, 12:00:00 AM PDT.</p></div>
-<h2>Past Due Assignments</h2><div>Assignment-02<p>Answers available for review.</p></div>`;
+<h2>Past Due Assignments</h2><div><a href="/webwork2/course/Assignment-02">Assignment-02</a><p>Answers available for review.</p></div>`;
 
 const webworkDetailFixture = `<!doctype html><title>Assignment-03</title><table class="problem_set_table">
 <thead><tr><th>Name</th><th>Attempts</th><th>Remaining</th><th>Worth</th><th>Status</th></tr></thead>
 <tbody><tr><td>Problem 1</td><td>1</td><td>7</td><td>2</td><td>100%</td></tr>
 <tr><td>Problem 2</td><td>2</td><td>8</td><td>3</td><td>100%</td></tr></tbody></table>`;
 
+const webworkPastDetailFixture = `<!doctype html><title>Assignment-02</title><table class="problem_set_table">
+<thead><tr><th>Name</th><th>Attempts</th><th>Remaining</th><th>Worth</th><th>Status</th></tr></thead>
+<tbody><tr><td>Problem 1</td><td>1</td><td>0</td><td>2</td><td>50%</td></tr>
+<tr><td>Problem 2</td><td>1</td><td>0</td><td>3</td><td>100%</td></tr></tbody></table>`;
+
 test('Edge reads assignment rows from a rendered student-style table', { timeout: 30000 }, async () => {
   const httpServer = http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(request.url.includes('Assignment-03') ? webworkDetailFixture : request.url.startsWith('/webwork2/') ? webworkFixture : fixture);
+    response.end(request.url.includes('Assignment-03') ? webworkDetailFixture :
+      request.url.includes('Assignment-02') ? webworkPastDetailFixture : request.url.startsWith('/webwork2/') ? webworkFixture : fixture);
   });
   await new Promise(resolve => httpServer.listen(0, '127.0.0.1', resolve));
   const pageUrl = `http://127.0.0.1:${httpServer.address().port}/pl/course_instance/231184/assessments`;
@@ -81,7 +87,7 @@ test('Edge reads assignment rows from a rendered student-style table', { timeout
     assert.deepEqual(webworkRows.map(row => row.section), ['open', 'future', 'past_due']);
     assert.equal(webworkRows[0].dueText, 'October 8, 2026, 11:59:00 PM PDT.');
     assert.equal(webworkRows[1].openText, 'October 6, 2026, 12:00:00 AM PDT.');
-    const progressExpression = `(${EXTRACT_WEBWORK_PROGRESS})(${JSON.stringify([webworkRows[0].url])})`;
+    const progressExpression = `(${EXTRACT_WEBWORK_PROGRESS})(${JSON.stringify([webworkRows[0].url, webworkRows[2].url])})`;
     const progressEvaluation = await cdp(webworkTarget.webSocketDebuggerUrl, 'Runtime.evaluate', {
       expression: progressExpression, returnByValue: true, awaitPromise: true,
     });
@@ -89,6 +95,9 @@ test('Edge reads assignment rows from a rendered student-style table', { timeout
     assert.equal(progress.score, '100%');
     assert.equal(progress.sourceComplete, true);
     assert.equal(progress.problemCount, 2);
+    const pastProgress = parseWebworkProgress(progressEvaluation.result.value[1].tables);
+    assert.equal(pastProgress.score, '80%');
+    assert.equal(pastProgress.sourceComplete, false);
   } finally {
     if (debugPort) {
       try {
