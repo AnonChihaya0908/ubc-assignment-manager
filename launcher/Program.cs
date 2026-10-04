@@ -15,7 +15,7 @@ internal static class Program
     private static extern int MessageBoxW(IntPtr window, string message, string title, uint type);
 
     [STAThread]
-    private static int Main()
+    private static int Main(string[] commandLineArguments)
     {
         string appDirectory = AppDomain.CurrentDomain.BaseDirectory;
         string nodePath = Path.Combine(appDirectory, "runtime", "node.exe");
@@ -30,7 +30,11 @@ internal static class Program
         try
         {
             string arguments = "\"" + appPath + "\"";
-            if (Environment.GetEnvironmentVariable("PRAIRIELEARN_NO_OPEN") == "1")
+            bool background = false;
+            foreach (string argument in commandLineArguments)
+                if (String.Equals(argument, "--background", StringComparison.OrdinalIgnoreCase))
+                    background = true;
+            if (background || Environment.GetEnvironmentVariable("PRAIRIELEARN_NO_OPEN") == "1")
                 arguments += " --no-open";
             ProcessStartInfo start = new ProcessStartInfo(nodePath)
             {

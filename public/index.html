@@ -94,6 +94,11 @@
             <div class="setting-row"><div><h3>主界面</h3><p>打开应用后显示全部作业，左侧目录按平台和课程展开。</p></div><span class="setting-value">全部作业</span></div>
           </section>
           <section class="setting-block">
+            <h2>后台运行</h2>
+            <div class="setting-row"><div><h3>登录 Windows 后自动启动</h3><p>在当前账户登录后静默启动后台。主窗口关闭后，仍可从系统托盘重新打开。</p><p id="startup-status" class="form-note" role="status" aria-live="polite"></p></div><label class="check-row compact" for="startup-enabled"><input id="startup-enabled" type="checkbox"><span>自动启动</span></label></div>
+            <div class="setting-row"><div><h3>关闭与退出</h3><p>关闭主窗口只会隐藏窗口，课程同步与提醒继续运行。请使用系统托盘或“数据与退出”页面退出应用。</p></div><span class="setting-value">托盘运行</span></div>
+          </section>
+          <section class="setting-block">
             <h2>软件更新</h2>
             <p id="update-status" class="setting-intro" role="status" aria-live="polite">正在检查 GitHub 更新…</p>
             <p id="update-notes" class="update-notes" hidden></p>
@@ -112,6 +117,7 @@
             <h2>截止提醒</h2>
             <div class="setting-row"><div><h3>提醒时间</h3><p>对有明确截止时间且未完成的作业发送 Windows 提醒。</p></div><span class="setting-value">24 小时、3 小时前</span></div>
             <div class="setting-row"><div><h3>日期来源</h3><p>WeBWorK 的开放时间只用于展示；页面公布 Due 后才按截止时间提醒。</p></div><span class="setting-value">课程页面</span></div>
+            <div class="setting-row"><div><h3>暂停全部提醒</h3><p>暂停 Windows 截止提醒和每日微信汇总；课程自动同步仍会继续。</p></div><label class="check-row compact" for="reminders-paused"><input id="reminders-paused" type="checkbox"><span>暂停提醒</span></label></div>
           </section>
           <section class="setting-block">
             <h2>自动同步</h2>

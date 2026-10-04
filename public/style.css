@@ -184,7 +184,9 @@ a { color:inherit; }
 .wechat-form>input[type=password] { width:min(100%,520px); }
 .wechat-form>input[type=time] { width:190px; }
 .form-note { margin:0 0 7px; max-width:70ch; color:var(--muted); font-size:12px; line-height:1.6; }
+.form-note.error { color:#f1a3ac; }
 .check-row { display:flex; align-items:center; gap:10px; margin:10px 0 1px; cursor:pointer; }
+.check-row.compact { flex:none; margin:0; white-space:nowrap; }
 .check-row input { flex:none; width:18px; height:18px; min-height:18px; margin:0; accent-color:#788bb5; }
 .wechat-actions { display:flex; flex-wrap:wrap; align-items:center; gap:9px; margin:8px 0 12px; }
 .wechat-status { min-height:20px; margin:5px 0 18px; color:var(--muted); font-size:12px; }

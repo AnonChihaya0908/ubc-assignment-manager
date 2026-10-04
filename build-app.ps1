@@ -27,7 +27,7 @@ $packageFull = [IO.Path]::GetFullPath($packageDir)
 if (-not $packageFull.StartsWith($rootFull + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw '打包目录不在工作区内。' }
 if (Test-Path -LiteralPath $packageDir) { Remove-Item -LiteralPath $packageDir -Recurse -Force }
 New-Item -ItemType Directory -Path $packageDir,(Join-Path $packageDir 'lib'),(Join-Path $packageDir 'public'),(Join-Path $packageDir 'runtime') -Force | Out-Null
-foreach ($name in @("$productName.exe",'app.js','notify.ps1','README.md','package.json','install-update.ps1')) {
+foreach ($name in @("$productName.exe",'app.js','notify.ps1','tray.ps1','README.md','package.json','install-update.ps1')) {
   Copy-Item -LiteralPath (Join-Path $appRoot $name) -Destination $packageDir
 }
 Copy-Item -Path (Join-Path $appRoot 'lib\*') -Destination (Join-Path $packageDir 'lib') -Recurse

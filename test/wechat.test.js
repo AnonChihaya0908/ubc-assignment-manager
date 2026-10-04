@@ -12,6 +12,9 @@ test('daily reminder is sent once at or after the local time and retries are spa
   const config = { ...emptyConfig(), enabled: true, sendKey, time: '09:00' };
   assert.equal(shouldSendDaily(config, new Date(2026, 9, 2, 8, 59)), false);
   assert.equal(shouldSendDaily(config, now), true);
+  config.remindersPaused = true;
+  assert.equal(shouldSendDaily(config, now), false);
+  config.remindersPaused = false;
   config.startDate = '2026-10-03';
   assert.equal(shouldSendDaily(config, new Date(2026, 9, 2, 23, 59)), false);
   assert.equal(shouldSendDaily(config, new Date(2026, 9, 3, 9, 1)), true);
