@@ -1,7 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizeCourseUrl, coursePlatform, mergeRows, mergeWebworkRows } = require('./lib/store');
 const { effectiveDue, isComplete } = require('./lib/deadlines');
 const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } = require('./lib/browser');
@@ -258,9 +258,31 @@ server = http.createServer((request, response) => {
 });
 
 const address = 'http://127.0.0.1:43873';
+function dashboardWindowArguments() {
+  const idealWidth = 1440;
+  const idealHeight = 810;
+  const args = [`--window-size=${idealWidth},${idealHeight}`];
+  try {
+    const script = 'Add-Type -AssemblyName System.Windows.Forms; $r = [System.Windows.Forms.Screen]::FromPoint([System.Windows.Forms.Cursor]::Position).WorkingArea; Write-Output "$($r.X),$($r.Y),$($r.Width),$($r.Height)"';
+    const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8', windowsHide: true, timeout: 3000,
+    });
+    const bounds = result.status === 0 ? result.stdout.trim().split(',').map(Number) : [];
+    if (bounds.length === 4 && bounds.every(Number.isFinite) && bounds[2] > 0 && bounds[3] > 0) {
+      const [x, y, availableWidth, availableHeight] = bounds;
+      const scale = Math.min(1, (availableWidth - 24) / idealWidth, (availableHeight - 24) / idealHeight);
+      if (scale > 0) {
+        const width = Math.floor(idealWidth * scale);
+        const height = Math.floor(idealHeight * scale);
+        return [`--window-size=${width},${height}`, `--window-position=${Math.floor(x + (availableWidth - width) / 2)},${Math.floor(y + (availableHeight - height) / 2)}`];
+      }
+    }
+  } catch { /* Keep the 16:9 default when screen information is unavailable. */ }
+  return args;
+}
 function openDashboard() {
   if (!process.argv.includes('--no-open')) {
-    const browser = spawn(edgePath(), [`--app=${address}`, '--window-size=1360,820'], {
+    const browser = spawn(edgePath(), [`--app=${address}`, ...dashboardWindowArguments()], {
       windowsHide: true, stdio: 'ignore', detached: true,
     });
     browser.unref();

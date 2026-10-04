@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111926">
+  <meta name="theme-color" content="#2b2d31">
   <meta name="description" content="UBC作业管理工具：本地汇总 PrairieLearn 与 WeBWorK 作业及截止提醒。">
   <title>UBC作业管理工具 1.0.0</title>
   <link rel="stylesheet" href="/style.css">
@@ -12,8 +12,17 @@
 <body>
   <a class="skip-link" href="#main-content">跳到主要内容</a>
   <div class="app-shell">
+    <header class="window-toolbar">
+      <span class="product-mark" aria-hidden="true">U</span>
+      <button id="toolbar-menu" class="toolbar-menu" type="button" aria-label="折叠或展开课程目录" aria-expanded="true" title="课程目录"><span></span><span></span><span></span></button>
+      <span class="toolbar-mark" aria-hidden="true">PL</span>
+      <span class="toolbar-title">UBC作业管理工具</span>
+      <span class="toolbar-version">1.0.0</span>
+      <span class="toolbar-divider" aria-hidden="true"></span>
+      <button id="toolbar-courses" class="toolbar-context" type="button" title="返回全部作业">我的课程⌄</button>
+      <label class="toolbar-search" for="task-search"><span aria-hidden="true">⌕</span><input id="task-search" type="search" placeholder="搜索作业、课程" autocomplete="off"><kbd>Ctrl K</kbd></label>
+    </header>
     <nav class="app-rail" aria-label="主导航">
-      <div class="brand-mark" aria-label="UBC作业管理工具">✦</div>
       <button id="nav-menu" class="rail-button menu-rail" type="button" aria-label="展开目录" aria-expanded="false" title="目录">☰</button>
       <button id="nav-all" class="rail-button active" type="button" aria-label="全部作业" title="全部作业"><span class="rail-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
       <button id="nav-prairielearn" class="rail-button" type="button" aria-label="PrairieLearn 作业" title="PrairieLearn"><span class="source-mark pl">P</span><span class="notification-dot" hidden></span></button>
@@ -23,14 +32,14 @@
 
     <aside class="folder-pane" aria-label="目录">
       <div id="work-navigation" class="folder-content">
-        <div class="pane-heading"><h2>作业</h2></div>
+        <div class="pane-heading"><h2>课程与来源</h2></div>
         <button id="all-folder" class="folder-link active" type="button"><span>全部作业</span><span id="all-count" class="folder-count"></span></button>
         <div class="folder-group">
-          <button id="pl-folder" class="folder-group-heading" type="button"><span>PrairieLearn</span><span class="notification-dot" hidden></span></button>
+          <button id="pl-folder" class="folder-group-heading" type="button"><span class="group-name"><span class="source-mark pl">PL</span>PrairieLearn<span class="notification-dot" hidden></span></span><span id="pl-count" class="folder-count"></span></button>
           <div id="pl-courses" class="course-folders"></div>
         </div>
         <div class="folder-group">
-          <button id="ww-folder" class="folder-group-heading" type="button"><span>WeBWorK</span><span class="notification-dot" hidden></span></button>
+          <button id="ww-folder" class="folder-group-heading" type="button"><span class="group-name"><span class="source-mark ww">W</span>WeBWorK<span class="notification-dot" hidden></span></span><span id="ww-count" class="folder-count"></span></button>
           <div id="ww-courses" class="course-folders"></div>
         </div>
       </div>
@@ -43,19 +52,19 @@
         <button class="settings-link" data-settings="data" type="button">数据与退出</button>
       </div>
       <div class="sync-dock">
-        <span id="sync-status">尚未同步</span>
         <button id="sync" class="sync-button" type="button">立即同步</button>
+        <span id="sync-status">尚未同步</span>
       </div>
     </aside>
 
     <main id="main-content" class="content">
       <div id="message" class="message" role="status" aria-live="polite" hidden></div>
 
+      <div id="work-layout" class="work-layout">
       <section id="work-page" class="page">
         <header class="page-header">
-          <p id="work-breadcrumb" class="breadcrumb">作业 / 全部作业</p>
-          <h1 id="work-heading">你的作业</h1>
-          <p id="work-summary" class="page-summary">按平台查看截止时间和完成状态。</p>
+          <div class="page-title"><p id="work-breadcrumb" class="breadcrumb">作业 / 全部作业</p><h1 id="work-heading">作业概览</h1><p id="work-summary" class="page-summary">按平台查看截止时间和完成状态。</p></div>
+          <div class="page-meta"><span id="today-label"></span><span id="pending-badge" class="pending-badge"><span class="notification-dot"></span><span>0 项待完成</span></span></div>
         </header>
         <nav id="task-tabs" class="tabs" aria-label="作业状态">
           <button class="tab active" data-tab="pending" type="button">待完成 <span id="pending-tab-count">0</span></button>
@@ -63,8 +72,11 @@
           <button class="tab" data-tab="history" type="button">已过日期 <span id="history-tab-count">0</span></button>
           <button class="tab" data-tab="done" type="button">已完成 <span id="done-tab-count">0</span></button>
         </nav>
+        <div id="work-overview" class="work-overview"><div class="overview-tile urgent-tile"><strong id="overview-pending">0</strong><span>待完成作业</span></div><div class="overview-tile"><strong id="overview-nearest">—</strong><span>距离最近截止时间</span></div><div class="overview-tile"><strong id="overview-done">0</strong><span>已完成作业</span></div></div>
         <div id="task-groups" class="task-groups"></div>
       </section>
+      <aside id="task-inspector" class="task-inspector" aria-label="作业详情"><div class="inspector-heading">作业详情</div><div id="inspector-content" class="inspector-content"></div></aside>
+      </div>
 
       <section id="settings-page" class="page" hidden>
         <header class="page-header">
@@ -76,7 +88,7 @@
         <div id="settings-general" class="settings-panel">
           <section class="setting-block">
             <h2>窗口布局</h2>
-            <div class="setting-row"><div><h3>默认横向宽屏窗口</h3><p>从应用程序打开时使用 1360 × 820 的初始尺寸。窗口仍可手动调整。</p></div><span class="setting-value">已启用</span></div>
+            <div class="setting-row"><div><h3>默认 16:9 宽屏窗口</h3><p>屏幕空间足够时使用 1440 × 810；较小屏幕会按可用区域等比例缩小。窗口仍可手动调整。</p></div><span class="setting-value">已启用</span></div>
             <div class="setting-row"><div><h3>应用版本</h3><p>UBC作业管理工具</p></div><span class="setting-value">1.0.0</span></div>
             <div class="setting-row"><div><h3>主界面</h3><p>打开应用后显示全部作业，左侧目录按平台和课程展开。</p></div><span class="setting-value">全部作业</span></div>
           </section>
@@ -145,6 +157,7 @@
         </div>
       </section>
     </main>
+    <footer class="app-statusbar"><span class="status-ready" aria-hidden="true">●</span><span id="footer-sync">尚未同步</span><span id="footer-sources">尚未添加课程</span><span class="status-spacer"></span><span id="footer-reminder">每日提醒未启用</span><span id="footer-timezone"></span></footer>
   </div>
 
   <dialog id="deadline-dialog"><form method="dialog" id="deadline-form"><h2>修改提醒日期</h2><p id="deadline-task-name"></p><label for="deadline-input">电脑当地时间</label><input id="deadline-input" type="datetime-local"><div class="dialog-actions"><button type="button" id="clear-deadline" class="text-button">恢复网页日期</button><button type="button" id="cancel-deadline" class="secondary-button">取消</button><button class="primary-button" value="save">保存</button></div></form></dialog>
