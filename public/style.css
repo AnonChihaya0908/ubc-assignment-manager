@@ -230,6 +230,10 @@ dialog::backdrop { background:#000a; }
 dialog h2 { margin:0 0 8px; font-size:19px; }
 dialog p { margin:0 0 20px; color:var(--muted); }
 dialog input { width:100%; }
+.onboarding-dialog { width:min(620px,calc(100% - 30px)); }
+.onboarding-progress { display:flex; justify-content:space-between; margin:0 0 22px; padding-bottom:12px; border-bottom:1px solid var(--border); color:var(--muted); font-size:11px; }
+.onboarding-progress strong { color:#c9d3e7; }
+.onboarding-dialog section>p { line-height:1.6; }
 .dialog-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin-top:20px; }
 .sidebar-collapsed { grid-template-columns:52px 0 minmax(0,1fr); }
 .sidebar-collapsed .folder-pane { visibility:hidden; overflow:hidden; padding:0; border:0; }

@@ -10,6 +10,12 @@ const { parseWebworkText, parseWebworkDate, parseWebworkProgress } = require('..
 const { categoryOf, needsAttention } = require('../public/task-status');
 const { classifySyncError, markSyncFailure, markSyncSuccess, courseDataStatus } = require('../lib/sync-status');
 
+function addPrairieLearnCourse(state) {
+  const course = normalizeCourseUrl('https://us.prairielearn.com/pl/course_instance/231184/assessments');
+  state.courses.push({ ...course, name: 'CPSC 310 · 2026W1', lastSyncedAt: null });
+  return course;
+}
+
 test('CPSC 310 screenshot deadline is parsed in the course year', () => {
   const result = parseDisplayedDeadline('100% until 23:59, Thu, Oct 8', 'CPSC 310, 2026W1', new Date(2026, 9, 2));
   const date = new Date(result.dueAt);
@@ -60,10 +66,17 @@ test('existing saved data defaults to automatic full-score completion', () => {
   const file = path.join(directory, 'data.json');
   try {
     fs.writeFileSync(file, JSON.stringify({ version: 1, courses: [], tasks: [], notified: {} }));
-    assert.deepEqual(loadState(file).preferences, { requireManualCompletion: false });
+    assert.deepEqual(loadState(file).preferences, { requireManualCompletion: false, onboardingDismissed: true });
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('a new installation starts empty and keeps onboarding available', () => {
+  const state = emptyState();
+  assert.deepEqual(state.courses, []);
+  assert.deepEqual(state.tasks, []);
+  assert.equal(state.preferences.onboardingDismissed, false);
 });
 
 test('course sync status classifies failures, preserves success time, and detects stale data', () => {
@@ -85,11 +98,12 @@ test('course sync status classifies failures, preserves success time, and detect
 
 test('missing deadlines remain undated and student overrides remain after sync', () => {
   const state = emptyState();
+  const course = addPrairieLearnCourse(state);
   const rows = [
     { name: 'Refactoring and Testability', code: 'LAB03', section: 'Lab Assignments', url: 'https://us.prairielearn.com/pl/course_instance/231184/assessment/1', creditText: '100% until 23:59, Thu, Oct 8', score: '0%' },
     { name: 'Onboarding', code: 'LAB01', section: 'Lab Assignments', url: 'https://us.prairielearn.com/pl/course_instance/231184/assessment/2', creditText: '', score: '100%' },
   ];
-  mergeRows(state, state.courses[0].id, { courseTitle: 'CPSC 310, 2026W1', rows });
+  mergeRows(state, course.id, { courseTitle: 'CPSC 310, 2026W1', rows });
   assert.equal(state.tasks.length, 2);
   assert.equal(state.tasks[1].dueAt, null);
   assert.equal(isComplete(state.tasks[1]), true);
@@ -98,7 +112,7 @@ test('missing deadlines remain undated and student overrides remain after sync',
   assert.equal(isComplete(state.tasks[1]), true);
   state.tasks[0].doneOverride = true;
   state.tasks[0].deadlineOverride = new Date(2026, 9, 9, 23, 59).toISOString();
-  mergeRows(state, state.courses[0].id, { courseTitle: 'CPSC 310, 2026W1', rows });
+  mergeRows(state, course.id, { courseTitle: 'CPSC 310, 2026W1', rows });
   assert.equal(state.tasks[0].doneOverride, true);
   assert.equal(state.tasks[0].deadlineOverride, new Date(2026, 9, 9, 23, 59).toISOString());
   assert.equal(state.tasks[1].doneOverride, true);
@@ -190,9 +204,10 @@ test('WeBWorK progress is merged without losing student overrides', () => {
 
 test('copied student table can populate the local dashboard', () => {
   const state = emptyState();
-  const page = parseCopiedTable('Lab Assignments\nLAB03 Refactoring and Testability\t100% until 23:59, Thu, Oct 8\t0%\nLAB04 DIP, LSP & Testability\t100% until 23:59, Thu, Oct 15\tNot started', state.courses[0]);
+  const course = addPrairieLearnCourse(state);
+  const page = parseCopiedTable('Lab Assignments\nLAB03 Refactoring and Testability\t100% until 23:59, Thu, Oct 8\t0%\nLAB04 DIP, LSP & Testability\t100% until 23:59, Thu, Oct 15\tNot started', course);
   assert.equal(page.rows.length, 2);
-  mergeRows(state, state.courses[0].id, page);
+  mergeRows(state, course.id, page);
   assert.equal(state.tasks[0].code, 'LAB03');
   assert.equal(new Date(state.tasks[0].dueAt).getDate(), 8);
   assert.equal(state.tasks[1].score, 'Not started');
