@@ -1,12 +1,12 @@
 {
   "name": "ubc-assignment-manager",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Local UBC assignment manager for PrairieLearn and WeBWorK",
   "scripts": {
     "start": "node app.js",
     "build:app": "powershell -NoProfile -ExecutionPolicy Bypass -File build-app.ps1",
-    "test": "node --test test/app.test.js test/wechat.test.js",
+    "test": "node --test test/app.test.js test/wechat.test.js test/updater.test.js",
     "test:browser": "node --test test/browser.integration.test.js test/ui.integration.test.js"
   },
   "engines": {

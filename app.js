@@ -1,13 +1,14 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizeCourseUrl, coursePlatform, mergeRows, mergeWebworkRows } = require('./lib/store');
 const { effectiveDue, isComplete } = require('./lib/deadlines');
 const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } = require('./lib/browser');
 const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
   shouldSendDaily, buildDailyDigest, sendServerChan } = require('./lib/wechat');
+const { createUpdater, VERSION } = require('./lib/updater');
 
 let state = loadState();
 let wechatConfig = loadConfig();
@@ -15,9 +16,10 @@ let syncing = false;
 let sendingWechat = false;
 let autoSyncEnabled = state.courses.some(course => course.lastSyncedAt);
 let server;
+const updater = createUpdater();
 
 function publicState() {
-  return { courses: state.courses, tasks: state.tasks, syncing, autoSyncEnabled,
+  return { version: VERSION, courses: state.courses, tasks: state.tasks, syncing, autoSyncEnabled,
     wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
 }
 
@@ -153,11 +155,21 @@ async function handle(request, response) {
   if (request.method === 'GET' && url.pathname === '/style.css') return serveFile(response, 'style.css', 'text/css; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/ui.js') return serveFile(response, 'ui.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, publicState());
+  if (request.method === 'GET' && url.pathname === '/api/update') return json(response, 200, updater.status());
   if (!url.pathname.startsWith('/api/') || request.method === 'GET') return json(response, 404, { error: '未找到。' });
   if (request.headers['content-type']?.split(';')[0] !== 'application/json') return json(response, 415, { error: '需要 JSON 请求。' });
 
   try {
     const body = await readBody(request);
+    if (request.method === 'POST' && url.pathname === '/api/update/check') {
+      return json(response, 200, await updater.check(true));
+    }
+    if (request.method === 'POST' && url.pathname === '/api/update/install') {
+      const result = await updater.install();
+      json(response, 200, result);
+      setTimeout(() => server.close(() => process.exit(0)), 300);
+      return;
+    }
     if (request.method === 'PATCH' && url.pathname === '/api/wechat') {
       const next = { ...wechatConfig };
       if (Object.hasOwn(body, 'time')) {
@@ -258,9 +270,31 @@ server = http.createServer((request, response) => {
 });
 
 const address = 'http://127.0.0.1:43873';
+function dashboardWindowArguments() {
+  const idealWidth = 1440;
+  const idealHeight = 810;
+  const args = [`--window-size=${idealWidth},${idealHeight}`];
+  try {
+    const script = 'Add-Type -AssemblyName System.Windows.Forms; $r = [System.Windows.Forms.Screen]::FromPoint([System.Windows.Forms.Cursor]::Position).WorkingArea; Write-Output "$($r.X),$($r.Y),$($r.Width),$($r.Height)"';
+    const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      encoding: 'utf8', windowsHide: true, timeout: 3000,
+    });
+    const bounds = result.status === 0 ? result.stdout.trim().split(',').map(Number) : [];
+    if (bounds.length === 4 && bounds.every(Number.isFinite) && bounds[2] > 0 && bounds[3] > 0) {
+      const [x, y, availableWidth, availableHeight] = bounds;
+      const scale = Math.min(1, (availableWidth - 24) / idealWidth, (availableHeight - 24) / idealHeight);
+      if (scale > 0) {
+        const width = Math.floor(idealWidth * scale);
+        const height = Math.floor(idealHeight * scale);
+        return [`--window-size=${width},${height}`, `--window-position=${Math.floor(x + (availableWidth - width) / 2)},${Math.floor(y + (availableHeight - height) / 2)}`];
+      }
+    }
+  } catch { /* Keep the 16:9 default when screen information is unavailable. */ }
+  return args;
+}
 function openDashboard() {
   if (!process.argv.includes('--no-open')) {
-    const browser = spawn(edgePath(), [`--app=${address}`, '--window-size=1360,820'], {
+    const browser = spawn(edgePath(), [`--app=${address}`, ...dashboardWindowArguments()], {
       windowsHide: true, stdio: 'ignore', detached: true,
     });
     browser.unref();
@@ -283,6 +317,7 @@ server.on('error', async error => {
 server.listen(43873, '127.0.0.1', () => {
   console.log(`UBC作业管理工具已启动：${address}`);
   openDashboard();
+  updater.check().catch(error => console.error(`更新检查失败：${error.message}`));
 });
 
 setInterval(checkReminders, 60_000).unref();
