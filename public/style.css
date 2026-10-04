@@ -211,8 +211,14 @@ select { cursor:pointer; }
 .settings-course-main { min-width:0; }
 .settings-course-main strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .settings-course-main small { display:block; margin-top:5px; color:var(--dim); }
-.settings-course button { flex:none; border:0; background:transparent; color:#f2a4ad; }
+.settings-course-actions { display:flex; flex:none; align-items:center; gap:7px; }
+.settings-course button { flex:none; border:0; background:transparent; color:#c5d0e3; }
+.settings-course button:last-child { color:#f2a4ad; }
 .settings-course button:hover { color:#fff; text-decoration:underline; }
+.course-sync-status.error { color:#f1a3ac; }
+.course-sync-status.stale,.course-sync-status.never { color:#dfb978; }
+.course-sync-status.syncing { color:#9eb7e5; }
+.course-folder.sync-warning .course-name { color:#e2bd83; }
 .paste-panel { margin:20px 0 23px; padding-top:17px; border-top:1px solid var(--border); }
 .paste-panel summary { cursor:pointer; color:#c9d1df; font-weight:650; }
 .paste-panel p { color:var(--muted); font-size:12px; line-height:1.6; }

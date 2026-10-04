@@ -41,7 +41,8 @@ test('a missed schedule sends the current day on return, without replaying older
 test('daily digest contains actionable assignments and does not include private course URLs', () => {
   const now = new Date(2026, 9, 2, 9);
   const state = {
-    courses: [{ id: 'c1', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/course?effectiveUser=private-id' }],
+    courses: [{ id: 'c1', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/course?effectiveUser=private-id',
+      lastSyncedAt: new Date(2026, 9, 1, 8).toISOString(), lastSyncError: 'network failed', lastSyncErrorKind: 'network' }],
     tasks: [
       { courseId: 'c1', name: 'Assignment-03', code: 'A03', score: '0%', sourceStatus: 'open', dueAt: new Date(2026, 9, 8, 23, 59).toISOString() },
       { courseId: 'c1', name: 'Assignment-04', score: '', sourceStatus: 'future', opensAt: new Date(2026, 9, 6).toISOString() },
@@ -56,6 +57,7 @@ test('daily digest contains actionable assignments and does not include private 
   assert.match(digest.desp, /STAT 251.*Assignment-03/);
   assert.match(digest.desp, /STAT 251.*Assignment-00/);
   assert.match(digest.desp, /STAT 251.*Assignment-02.*网页标记已截止/);
+  assert.match(digest.desp, /数据状态.*STAT 251.*最近刷新失败（网络连接失败）/s);
   assert.doesNotMatch(digest.desp, /Assignment-04|Assignment-01|private-id|effectiveUser/);
 });
 

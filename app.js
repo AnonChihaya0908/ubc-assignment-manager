@@ -9,17 +9,19 @@ const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
   shouldSendDaily, buildDailyDigest, sendServerChan } = require('./lib/wechat');
 const { createUpdater, VERSION } = require('./lib/updater');
+const { markSyncAttempt, markSyncSuccess, markSyncFailure } = require('./lib/sync-status');
 
 let state = loadState();
 let wechatConfig = loadConfig();
-let syncing = false;
+const syncingCourseIds = new Set();
 let sendingWechat = false;
 let autoSyncEnabled = state.courses.some(course => course.lastSyncedAt);
 let server;
 const updater = createUpdater();
 
 function publicState() {
-  return { version: VERSION, courses: state.courses, tasks: state.tasks, syncing, autoSyncEnabled,
+  return { version: VERSION, courses: state.courses, tasks: state.tasks, syncing: syncingCourseIds.size > 0,
+    syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
     wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
 }
 
@@ -66,20 +68,40 @@ function serveFile(response, fileName, contentType) {
 }
 
 async function syncCourse(courseId) {
-  if (syncing) throw new Error('正在同步，请稍等。');
   const course = state.courses.find(item => item.id === courseId);
   if (!course) throw new Error('课程不存在。');
-  syncing = true;
+  if (syncingCourseIds.has(courseId)) throw new Error('这门课程正在同步，请稍等。');
+  syncingCourseIds.add(courseId);
+  markSyncAttempt(course);
+  saveState(state);
   try {
     const webwork = coursePlatform(course) === 'webwork';
     const page = await (webwork ? readWebworkPage(course.url) : readCoursePage(course.url));
     const count = webwork ? mergeWebworkRows(state, courseId, page) : mergeRows(state, courseId, page);
+    markSyncSuccess(course);
     saveState(state);
     autoSyncEnabled = true;
     return count;
+  } catch (error) {
+    markSyncFailure(course, error);
+    saveState(state);
+    throw error;
   } finally {
-    syncing = false;
+    syncingCourseIds.delete(courseId);
   }
+}
+
+async function syncAllCourses() {
+  const results = [];
+  for (const course of [...state.courses]) {
+    try {
+      const count = await syncCourse(course.id);
+      results.push({ courseId: course.id, ok: true, count });
+    } catch (error) {
+      results.push({ courseId: course.id, ok: false, error: error.message || '同步失败。' });
+    }
+  }
+  return results;
 }
 
 function notify(title, message) {
@@ -128,6 +150,7 @@ async function checkDailyWechat() {
   wechatConfig.lastAttemptAt = now.toISOString();
   saveConfig(wechatConfig);
   try {
+    if (await activePort()) await syncAllCourses();
     const digest = buildDailyDigest(state, now);
     await sendServerChan(wechatConfig.sendKey, digest.title, digest.desp);
     wechatConfig.lastSentDate = today;
@@ -208,7 +231,8 @@ async function handle(request, response) {
       const parsed = normalizeCourseUrl(body.url);
       if (state.courses.some(item => item.id === parsed.id)) throw new Error('这门课已经添加。');
       state.courses.push({ id: parsed.id, name: parsed.platform === 'webwork' ? `WeBWorK · ${parsed.instanceId}` : `课程 ${parsed.instanceId}`,
-        platform: parsed.platform, url: parsed.url, lastSyncedAt: null });
+        platform: parsed.platform, url: parsed.url, lastSyncedAt: null, lastSyncAttemptAt: null,
+        lastSyncError: null, lastSyncErrorKind: null });
       saveState(state);
       return json(response, 200, publicState());
     }
@@ -228,6 +252,10 @@ async function handle(request, response) {
     if (request.method === 'POST' && url.pathname === '/api/sync') {
       const count = await syncCourse(body.courseId);
       return json(response, 200, { message: `已同步 ${count} 项作业。`, state: publicState() });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/sync-all') {
+      const results = await syncAllCourses();
+      return json(response, 200, { results, state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/import-text') {
       const course = state.courses.find(item => item.id === body.courseId);
@@ -326,10 +354,12 @@ server.listen(43873, '127.0.0.1', () => {
 setInterval(checkReminders, 60_000).unref();
 setInterval(() => { checkDailyWechat().catch(error => console.error(`微信提醒检查失败：${error.message}`)); }, 60_000).unref();
 setInterval(async () => {
-  if (!autoSyncEnabled || syncing) return;
+  if (!autoSyncEnabled || syncingCourseIds.size) return;
   if (!(await activePort())) return;
-  for (const course of state.courses) {
-    try { await syncCourse(course.id); } catch (error) { console.error(`自动同步失败：${course.name}: ${error.message}`); }
+  const results = await syncAllCourses();
+  for (const result of results.filter(item => !item.ok)) {
+    const course = state.courses.find(item => item.id === result.courseId);
+    console.error(`自动同步失败：${course?.name || result.courseId}: ${result.error}`);
   }
 }, 30 * 60_000).unref();
 checkReminders();
