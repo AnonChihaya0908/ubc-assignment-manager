@@ -2,9 +2,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
-const { migrateLegacyData } = require('./lib/paths');
-migrateLegacyData();
-const { loadState, saveState, normalizeCourseUrl, coursePlatform, mergeRows, mergeWebworkRows } = require('./lib/store');
+const { loadState, saveState, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
+  reviewCourseAccess, mergeRows, mergeWebworkRows } = require('./lib/store');
 const { effectiveDue, categoryOf } = require('./lib/deadlines');
 const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } = require('./lib/browser');
 const { parseCopiedTable } = require('./lib/paste');
@@ -20,7 +19,7 @@ let wechatConfig = loadConfig();
 const syncingCourseIds = new Set();
 let syncAllPromise = null;
 let sendingWechat = false;
-let autoSyncEnabled = state.courses.some(course => course.lastSyncedAt);
+let autoSyncEnabled = state.courses.some(course => courseAccessConfirmed(course) && course.lastSyncedAt);
 let server;
 let trayProcess = null;
 let startup = startupStatus();
@@ -85,6 +84,7 @@ function serveFile(response, fileName, contentType) {
 async function syncCourse(courseId) {
   const course = state.courses.find(item => item.id === courseId);
   if (!course) throw new Error('课程不存在。');
+  requireCourseAccess(course);
   if (syncingCourseIds.has(courseId)) throw new Error('这门课程正在同步，请稍等。');
   syncingCourseIds.add(courseId);
   try {
@@ -109,6 +109,10 @@ async function syncCourse(courseId) {
 async function syncAllCourses() {
   const results = [];
   for (const course of [...state.courses]) {
+    if (!courseAccessConfirmed(course)) {
+      results.push({ courseId: course.id, ok: true, skipped: true, count: 0 });
+      continue;
+    }
     try {
       const count = await syncCourse(course.id);
       results.push({ courseId: course.id, ok: true, count });
@@ -141,6 +145,7 @@ function checkReminders() {
   let changed = false;
   let configChanged = false;
   const disabledCourses = new Set(wechatConfig.disabledCourseIds || []);
+  for (const course of state.courses) if (!courseAccessConfirmed(course)) disabledCourses.add(course.id);
   const options = taskOptions();
   for (const task of state.tasks) {
     if (disabledCourses.has(task.courseId)) continue;
@@ -179,7 +184,9 @@ async function checkDailyWechat() {
   saveConfig(wechatConfig);
   try {
     if (await activePort()) await startAllCoursesSync();
-    const digest = buildDailyDigest(state, now, wechatConfig);
+    const confirmedIds = new Set(state.courses.filter(courseAccessConfirmed).map(course => course.id));
+    const digest = buildDailyDigest({ ...state, courses: state.courses.filter(courseAccessConfirmed),
+      tasks: state.tasks.filter(task => confirmedIds.has(task.courseId)) }, now, wechatConfig);
     await sendServerChan(wechatConfig.sendKey, digest.title, digest.desp);
     wechatConfig.lastSentDate = today;
     wechatConfig.lastSentAt = new Date().toISOString();
@@ -344,9 +351,21 @@ async function handle(request, response) {
       if (state.courses.some(item => item.id === parsed.id)) throw new Error('这门课已经添加。');
       state.courses.push({ id: parsed.id, name: parsed.platform === 'webwork' ? `WeBWorK · ${parsed.instanceId}` : `课程 ${parsed.instanceId}`,
         platform: parsed.platform, url: parsed.url, lastSyncedAt: null, lastSyncAttemptAt: null,
-        lastSyncError: null, lastSyncErrorKind: null, ignoredSections: [] });
+        lastSyncError: null, lastSyncErrorKind: null, ignoredSections: [], origin: 'user_added', accessConfirmedAt: new Date().toISOString() });
       saveState(state);
       return json(response, 200, publicState());
+    }
+    if (request.method === 'POST' && url.pathname === '/api/course/access-review') {
+      const result = reviewCourseAccess(state, body.confirmedIds);
+      saveState(state);
+      const activeCourseIds = new Set(state.courses.map(course => course.id));
+      const disabledCourseIds = (wechatConfig.disabledCourseIds || []).filter(id => activeCourseIds.has(id));
+      if (disabledCourseIds.length !== (wechatConfig.disabledCourseIds || []).length) {
+        wechatConfig.disabledCourseIds = disabledCourseIds;
+        saveConfig(wechatConfig);
+      }
+      autoSyncEnabled = state.courses.some(course => courseAccessConfirmed(course) && course.lastSyncedAt);
+      return json(response, 200, { message: `已确认 ${result.kept} 门课程，移除 ${result.removed} 门未选择课程。`, state: publicState() });
     }
     if (request.method === 'DELETE' && url.pathname === '/api/course') {
       if (!state.courses.some(item => item.id === body.id)) throw new Error('课程不存在。');
@@ -376,6 +395,7 @@ async function handle(request, response) {
     if (request.method === 'POST' && url.pathname === '/api/open-browser') {
       const course = state.courses.find(item => item.id === body.courseId);
       if (!course) throw new Error('课程不存在。');
+      requireCourseAccess(course);
       await openCoursePage(course.url);
       return json(response, 200, { message: `Edge 已打开。请登录${coursePlatform(course) === 'webwork' ? ' WeBWorK' : ' PrairieLearn'}，然后回到应用点击“同步”。` });
     }
@@ -399,6 +419,7 @@ async function handle(request, response) {
     if (request.method === 'POST' && url.pathname === '/api/import-text') {
       const course = state.courses.find(item => item.id === body.courseId);
       if (!course) throw new Error('课程不存在。');
+      requireCourseAccess(course);
       if (coursePlatform(course) === 'webwork') throw new Error('WeBWorK 请使用登录窗口同步；此处的文字导入仅支持 PrairieLearn。');
       const page = parseCopiedTable(body.text, course);
       if (!page.rows.length) throw new Error('未识别到作业。请从作业表格复制包含 LAB03 等代码的行。');

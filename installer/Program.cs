@@ -40,7 +40,6 @@ internal static class Program
             ValidatePayload(source);
             string version = ReadVersion(Path.Combine(source, "package.json"));
 
-            MigratePortableData();
             StopRunningApp();
             if (Directory.Exists(installDirectory)) { Directory.Move(installDirectory, backup); oldMoved = true; }
             installStarted = true;
@@ -135,42 +134,6 @@ internal static class Program
             Directory.CreateDirectory(directory.Replace(source, destination));
         foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
             File.Copy(file, file.Replace(source, destination), true);
-    }
-
-    private static void CopyMissing(string source, string destination)
-    {
-        Directory.CreateDirectory(destination);
-        foreach (string directory in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
-            Directory.CreateDirectory(directory.Replace(source, destination));
-        foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
-        {
-            string target = file.Replace(source, destination);
-            if (!File.Exists(target)) File.Copy(file, target);
-        }
-    }
-
-    private static void MigratePortableData()
-    {
-        string installerDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-        string startupDirectory = null;
-        using (RegistryKey run = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
-        {
-            string command = run == null ? null : run.GetValue("UBCAssignmentManager") as string;
-            if (!String.IsNullOrWhiteSpace(command))
-            {
-                Match executable = Regex.Match(command, "^\\s*\\\"([^\\\"]+\\.exe)\\\"");
-                if (executable.Success) startupDirectory = Path.GetDirectoryName(executable.Groups[1].Value);
-            }
-        }
-        string parent = Directory.GetParent(installerDirectory) == null ? null : Directory.GetParent(installerDirectory).FullName;
-        string[] candidates = { installerDirectory, parent, Environment.CurrentDirectory, startupDirectory };
-        string destination = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Product, "data");
-        foreach (string candidate in candidates)
-        {
-            if (String.IsNullOrWhiteSpace(candidate)) continue;
-            string legacy = Path.Combine(candidate, ".local-data");
-            if (Directory.Exists(legacy)) CopyMissing(legacy, destination);
-        }
     }
 
     private static void RegisterInstallation(string directory, string version)

@@ -95,6 +95,7 @@
 
   function render(entry) {
     const config = entry.config;
+    dialog.setAttribute('aria-busy', 'false');
     dialog.dataset.level = config.level;
     dialog.dataset.noticeId = config.id;
     levelLabel.textContent = levelNames[config.level];
