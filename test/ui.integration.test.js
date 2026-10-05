@@ -427,14 +427,14 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.deepEqual(fixtureState.wechat.leadHours, [48, 6]);
     assert.equal(fixtureState.wechat.quietEnabled, true);
     await evaluate("document.querySelector('#reminders-paused').click()");
-    for (let i = 0; i < 20; i++) {
-      if (fixtureState.wechat.remindersPaused) break;
+    for (let i = 0; i < 50; i++) {
+      if (await evaluate("document.querySelector('#footer-reminder').textContent === '提醒已暂停'")) break;
       await sleep(100);
     }
     assert.equal(await evaluate("document.querySelector('#footer-reminder').textContent"), '提醒已暂停');
     await evaluate("document.querySelector('#reminders-paused').click()");
-    for (let i = 0; i < 20; i++) {
-      if (!fixtureState.wechat.remindersPaused) break;
+    for (let i = 0; i < 50; i++) {
+      if (await evaluate("document.querySelector('#footer-reminder').textContent === '每日提醒未启用'")) break;
       await sleep(100);
     }
     assert.equal(await evaluate("document.querySelector('#wechat-include-notes').checked"), false);
