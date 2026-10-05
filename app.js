@@ -208,6 +208,7 @@ async function handle(request, response) {
   if (request.method === 'GET' && url.pathname === '/') return serveFile(response, 'index.html', 'text/html; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/style.css') return serveFile(response, 'style.css', 'text/css; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/task-status.js') return serveFile(response, 'task-status.js', 'text/javascript; charset=utf-8');
+  if (request.method === 'GET' && url.pathname === '/dialogs.js') return serveFile(response, 'dialogs.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/ui.js') return serveFile(response, 'ui.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, publicState());
   if (request.method === 'GET' && url.pathname === '/api/update') return json(response, 200, updater.status());
