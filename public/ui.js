@@ -407,6 +407,23 @@ function renderSelection() {
   renderInspector();
 }
 
+function renderToolbarContext(settings) {
+  const course = selectedScope.startsWith('course:') ? state.courses.find(item => item.id === selectedScope.slice(7)) : null;
+  const platform = course ? coursePlatform(course) : selectedScope.startsWith('platform:') ? selectedScope.slice('platform:'.length) : null;
+  const context = settings ? 'settings' : platform || 'all';
+  const labels = { all: '全部作业', prairielearn: 'PrairieLearn', webwork: 'WeBWorK', settings: '设置' };
+  const marks = { prairielearn: 'PL', webwork: 'W', settings: 'ST' };
+  const toolbar = document.querySelector('.window-toolbar');
+  const rail = document.querySelector('.app-rail');
+  const mark = $('toolbar-scope-mark');
+  toolbar.dataset.context = context;
+  rail.dataset.context = context;
+  mark.dataset.context = context;
+  mark.querySelector('.toolbar-mark-text').textContent = marks[context] || '';
+  mark.setAttribute('aria-label', `当前界面：${labels[context]}`);
+  mark.title = labels[context];
+}
+
 function renderWork() {
   const course = selectedScope.startsWith('course:') ? state.courses.find(item => item.id === selectedScope.slice(7)) : null;
   if (selectedScope === 'all') {
@@ -744,6 +761,7 @@ function render() {
   $('work-navigation').hidden = settings;
   $('settings-navigation').hidden = !settings;
   $('nav-settings').classList.toggle('active', settings);
+  renderToolbarContext(settings);
   renderFolders();
   renderWork();
   renderSettings();
@@ -805,7 +823,6 @@ function routeFromHash() {
 }
 
 $('nav-all').addEventListener('click', () => navigateWork('all'));
-$('toolbar-courses').addEventListener('click', () => navigateWork('all'));
 $('nav-prairielearn').addEventListener('click', () => navigateWork('platform:prairielearn'));
 $('nav-webwork').addEventListener('click', () => navigateWork('platform:webwork'));
 $('nav-settings').addEventListener('click', () => navigateSettings(settingsPanel));

@@ -191,6 +191,17 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#overview-pending').textContent"), '2');
     assert.equal(await evaluate("document.querySelector('#pending-badge').textContent.includes('2 项需处理')"), true);
     assert.equal(await evaluate("document.querySelector('#overview-done').textContent"), '2');
+    assert.equal(await evaluate("document.querySelector('#toolbar-courses') === null"), true);
+    assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'all');
+    assert.equal(await evaluate("document.querySelector('#toolbar-scope-mark').getAttribute('aria-label')"), '当前界面：全部作业');
+    const allToolbarBackground = await evaluate("getComputedStyle(document.querySelector('.window-toolbar')).backgroundImage");
+    await evaluate("document.querySelector('#nav-prairielearn').click()");
+    assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'prairielearn');
+    assert.equal(await evaluate("document.querySelector('.app-rail').dataset.context"), 'prairielearn');
+    assert.equal(await evaluate("document.querySelector('#toolbar-scope-mark').textContent.trim()"), 'PL');
+    const prairieLearnToolbarBackground = await evaluate("getComputedStyle(document.querySelector('.window-toolbar')).backgroundImage");
+    assert.notEqual(prairieLearnToolbarBackground, allToolbarBackground);
+    await evaluate("document.querySelector('#nav-all').click()");
     await evaluate("document.querySelector('[data-task-id=\"a\"]').click()");
     assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('完成状态已完成')"), true);
     assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('成绩达到 100%')"), true);
@@ -206,6 +217,10 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     }
     await evaluate("document.querySelector('#nav-webwork').click()");
     assert.equal(await evaluate("document.querySelector('#work-heading').textContent"), 'WeBWorK');
+    assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'webwork');
+    assert.equal(await evaluate("document.querySelector('.app-rail').dataset.context"), 'webwork');
+    assert.equal(await evaluate("document.querySelector('#toolbar-scope-mark').textContent.trim()"), 'W');
+    assert.notEqual(await evaluate("getComputedStyle(document.querySelector('.window-toolbar')).backgroundImage"), prairieLearnToolbarBackground);
     assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 1);
     assert.equal(await evaluate("document.querySelector('.assignment-row .status-label').textContent"), '完成中');
     assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('题目完成2 / 6')"), true);
@@ -223,6 +238,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#ww-folder .notification-dot').hidden"), true);
     await evaluate("document.querySelector('#nav-settings').click()");
     assert.equal(await evaluate("document.querySelector('#settings-page').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'settings');
+    assert.equal(await evaluate("document.querySelector('#toolbar-scope-mark').getAttribute('aria-label')"), '当前界面：设置');
     assert.equal(await evaluate("document.querySelector('#startup-status').textContent.includes('当前未启用')"), true);
     await evaluate("document.querySelector('#startup-enabled').click()");
     for (let i = 0; i < 20; i++) {

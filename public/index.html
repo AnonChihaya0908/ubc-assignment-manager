@@ -16,18 +16,19 @@
     <header class="window-toolbar">
       <span class="product-mark" aria-hidden="true">U</span>
       <button id="toolbar-menu" class="toolbar-menu" type="button" aria-label="折叠或展开课程目录" aria-expanded="true" title="课程目录"><span></span><span></span><span></span></button>
-      <span class="toolbar-mark" aria-hidden="true">PL</span>
+      <span id="toolbar-scope-mark" class="toolbar-mark" data-context="all" role="img" aria-label="当前界面：全部作业" title="全部作业">
+        <span class="toolbar-mark-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span class="toolbar-mark-text" aria-hidden="true"></span>
+      </span>
       <span class="toolbar-title">UBC作业管理工具</span>
       <span class="toolbar-version">1.1.2</span>
-      <span class="toolbar-divider" aria-hidden="true"></span>
-      <button id="toolbar-courses" class="toolbar-context" type="button" title="返回全部作业">我的课程⌄</button>
       <label class="toolbar-search" for="task-search"><span aria-hidden="true">⌕</span><input id="task-search" type="search" placeholder="搜索作业、课程" autocomplete="off"><kbd>Ctrl K</kbd></label>
     </header>
     <nav class="app-rail" aria-label="主导航">
       <button id="nav-menu" class="rail-button menu-rail" type="button" aria-label="展开目录" aria-expanded="false" title="目录">☰</button>
-      <button id="nav-all" class="rail-button active" type="button" aria-label="全部作业" title="全部作业"><span class="rail-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
-      <button id="nav-prairielearn" class="rail-button" type="button" aria-label="PrairieLearn 作业" title="PrairieLearn"><span class="source-mark pl">P</span><span class="notification-dot" hidden></span></button>
-      <button id="nav-webwork" class="rail-button" type="button" aria-label="WeBWorK 作业" title="WeBWorK"><span class="source-mark ww">W</span><span class="notification-dot" hidden></span></button>
+      <button id="nav-all" class="rail-button active" type="button" aria-label="全部作业" title="全部作业"><span class="rail-context-mark all" aria-hidden="true"><span class="rail-grid"><i></i><i></i><i></i><i></i></span></span></button>
+      <button id="nav-prairielearn" class="rail-button" type="button" aria-label="PrairieLearn 作业" title="PrairieLearn"><span class="rail-context-mark pl" aria-hidden="true">PL</span><span class="notification-dot" hidden></span></button>
+      <button id="nav-webwork" class="rail-button" type="button" aria-label="WeBWorK 作业" title="WeBWorK"><span class="rail-context-mark ww" aria-hidden="true">W</span><span class="notification-dot" hidden></span></button>
       <button id="nav-settings" class="rail-button settings-rail" type="button" aria-label="设置" title="设置"><span class="settings-glyph" aria-hidden="true">⚙</span></button>
     </nav>
 
