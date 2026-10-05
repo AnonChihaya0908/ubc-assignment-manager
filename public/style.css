@@ -41,7 +41,8 @@ a { color:inherit; }
 .toolbar-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
 .toolbar-version { color:#8e919b; font-size:11px; }
 .toolbar-search { display:flex; align-items:center; gap:8px; width:250px; height:29px; margin:0 0 0 auto; padding:0 9px; border:1px solid #494b52; border-radius:6px; background:#242529; color:#a9acb4; }
-.toolbar-search>span { font-size:19px; line-height:1; }
+.toolbar-search-icon { display:grid; place-items:center; flex:none; width:14px; height:100%; }
+.toolbar-search-icon svg { display:block; width:13px; height:13px; overflow:visible; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; }
 .toolbar-search input { flex:1; min-width:0; height:25px; padding:0; border:0; outline:0; background:transparent; color:var(--text); font-size:12px; }
 .toolbar-search input::placeholder { color:#a0a3ac; }
 .toolbar-search input::-webkit-search-cancel-button { cursor:pointer; }
@@ -191,7 +192,8 @@ a { color:inherit; }
 .status-ready { color:#81bd8d; font-size:9px; }
 .status-spacer { flex:1; }
 .app-statusbar .error { color:#f19ba4; }
-#settings-page .page-header { padding-inline:0; border-bottom:0; }
+#settings-page .page-header { align-items:center; min-height:70px; padding:17px 0; border-bottom:0; }
+#settings-page .breadcrumb { margin:0; color:#b4b7c0; font-size:13px; font-weight:600; line-height:1.4; }
 .settings-panel { display:grid; gap:18px; max-width:1060px; }
 .setting-block { padding:21px 24px 5px; border:1px solid var(--border); border-radius:7px; background:var(--surface); }
 .setting-block h2 { margin:0 0 18px; font-size:16px; }
@@ -232,6 +234,8 @@ label { display:block; margin:0 0 8px; color:#d1d3da; font-size:12px; font-weigh
 input,select,textarea { min-height:38px; padding:8px 11px; border:1px solid #62656d; border-radius:6px; outline:0; background:#1c1d20; color:var(--text); }
 input::placeholder,textarea::placeholder { color:#92959e; }
 input:focus,select:focus,textarea:focus { border-color:#92a5cb; box-shadow:0 0 0 2px #8b9dc13d; }
+.toolbar-search input:focus,.toolbar-search input:focus-visible { border:0; outline:0; box-shadow:none; }
+.toolbar-search:focus-within { border-color:#494b52; outline:0; box-shadow:none; }
 select { cursor:pointer; }
 .input-action { display:flex; align-items:center; gap:9px; }
 .input-action input,.input-action select { flex:1; min-width:0; }

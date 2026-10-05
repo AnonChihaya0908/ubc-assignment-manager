@@ -546,11 +546,6 @@ function renderSettings() {
   $('startup-status').classList.toggle('error', Boolean(startup.error));
   $('require-manual-completion').checked = Boolean(state.preferences?.requireManualCompletion);
   $('settings-breadcrumb').textContent = `设置 / ${settingNames[settingsPanel]}`;
-  $('settings-heading').textContent = settingNames[settingsPanel];
-  $('settings-summary').textContent = settingsPanel === 'courses' ? '添加课程，管理登录窗口和手动导入。' :
-    settingsPanel === 'reminders' ? '查看当前的提醒和同步规则。' :
-    settingsPanel === 'data' ? '了解本地数据的保存方式，并管理应用运行。' :
-    '窗口布局和作业标记规则。';
   for (const panel of Object.keys(settingNames)) $(`settings-${panel}`).hidden = settingsPanel !== panel;
   for (const button of document.querySelectorAll('.settings-link')) button.classList.toggle('active', button.dataset.settings === settingsPanel);
   const select = $('settings-course-select');

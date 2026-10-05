@@ -293,10 +293,21 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     }
     assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), true);
     assert.equal(await evaluate("document.querySelector('#ww-folder .notification-dot').hidden"), true);
+    assert.equal(await evaluate("(() => { const search = document.querySelector('.toolbar-search'); const icon = document.querySelector('.toolbar-search-icon'); const a = search.getBoundingClientRect(); const b = icon.getBoundingClientRect(); return Math.abs((a.top + a.height / 2) - (b.top + b.height / 2)) < 1; })()"), true);
+    await evaluate("document.querySelector('#task-search').focus()");
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('#task-search')).boxShadow"), 'none');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('#task-search')).outlineStyle"), 'none');
     await evaluate("document.querySelector('#nav-settings').click()");
     assert.equal(await evaluate("document.querySelector('#settings-page').hidden"), false);
     assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'settings');
     assert.equal(await evaluate("document.querySelector('#toolbar-scope-mark').getAttribute('aria-label')"), '当前界面：设置');
+    assert.equal(await evaluate("document.querySelector('#settings-heading') === null"), true);
+    assert.equal(await evaluate("document.querySelector('#settings-summary') === null"), true);
+    assert.equal(await evaluate("parseFloat(getComputedStyle(document.querySelector('#settings-breadcrumb')).fontSize)"), 13);
+    assert.equal(await evaluate("document.querySelector('#settings-general .setting-block:first-child h2').textContent"), '应用信息');
+    assert.equal(await evaluate("document.querySelectorAll('#settings-general .setting-block:first-child .setting-row').length"), 1);
+    assert.equal(await evaluate("document.querySelector('#settings-general .setting-block:first-child').textContent.includes('默认 16:9')"), false);
+    assert.equal(await evaluate("document.querySelector('#settings-general .setting-block:first-child').textContent.includes('主界面')"), false);
     assert.equal(await evaluate("document.querySelector('#startup-status').textContent.includes('当前未启用')"), true);
     await evaluate("document.querySelector('#startup-enabled').click()");
     for (let i = 0; i < 20; i++) {
