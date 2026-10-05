@@ -30,7 +30,19 @@
     return task.deadlineOverride || task.dueAt || null;
   }
 
+  function normalizedSection(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  }
+
+  function isIgnored(task, options = {}) {
+    const section = normalizedSection(task.section);
+    if (!section) return false;
+    const configured = options.ignoredSectionsByCourse?.[task.courseId];
+    return Array.isArray(configured) && configured.some(value => normalizedSection(value) === section);
+  }
+
   function categoryOf(task, now = Date.now(), options = {}) {
+    if (isIgnored(task, options)) return 'ignored';
     const completion = completionStatus(task, options);
     if (completion.complete === true) return 'done';
     if (completion.source === 'confirmation_required') return 'pending';
@@ -46,5 +58,5 @@
     return category === 'pending' || category === 'history';
   }
 
-  return { scorePercent, completionStatus, isComplete, effectiveDue, categoryOf, needsAttention };
+  return { scorePercent, completionStatus, isComplete, effectiveDue, normalizedSection, isIgnored, categoryOf, needsAttention };
 });

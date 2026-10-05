@@ -11,7 +11,7 @@ function fixture() {
   return {
     state: {
       version: 1, notified: { private: true }, preferences: { requireManualCompletion: true, onboardingDismissed: true },
-      courses: [{ id: courseId, platform: 'webwork', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/STAT_251?effectiveUser=PRIVATE123' }],
+      courses: [{ id: courseId, platform: 'webwork', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/STAT_251?effectiveUser=PRIVATE123', ignoredSections: ['Practice'] }],
       tasks: [{ id: 'abcdef0123456789abcdef01', courseId, name: 'Assignment-03', code: 'A03', section: '',
         url: 'https://webwork.elearning.ubc.ca/webwork2/STAT_251/Assignment-03?effectiveUser=PRIVATE123&token=secret',
         creditText: '', score: '80%', dueAt: '2026-10-09T06:59:00.000Z', opensAt: null, creditPercent: null,
@@ -35,6 +35,7 @@ test('exported backup restores managed data without credentials or personal quer
   const restored = applyBackup(validated, { ...emptyConfig(), sendKey: 'SCTexistingkey123', history: [{ type: 'test' }] });
   assert.equal(restored.state.tasks[0].doneOverride, false);
   assert.equal(restored.state.tasks[0].deadlineOverride, '2026-10-09T05:00:00.000Z');
+  assert.deepEqual(restored.state.courses[0].ignoredSections, ['Practice']);
   assert.deepEqual(restored.config.leadHours, [48, 6]);
   assert.equal(restored.config.enabled, false);
   assert.equal(restored.config.sendKey, 'SCTexistingkey123');

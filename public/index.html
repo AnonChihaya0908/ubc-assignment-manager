@@ -72,6 +72,7 @@
           <button class="tab" data-tab="future" type="button">将开放 <span id="future-tab-count">0</span></button>
           <button class="tab" data-tab="history" type="button">已过日期 <span id="history-tab-count">0</span></button>
           <button class="tab" data-tab="done" type="button">已完成 <span id="done-tab-count">0</span></button>
+          <button class="tab" data-tab="ignored" type="button">已忽略 <span id="ignored-tab-count">0</span></button>
         </nav>
         <div id="work-overview" class="work-overview"><div class="overview-tile urgent-tile"><strong id="overview-pending">0</strong><span>需处理作业</span></div><div class="overview-tile"><strong id="overview-nearest">—</strong><span>距离最近截止时间</span></div><div class="overview-tile"><strong id="overview-done">0</strong><span>已完成作业</span></div></div>
         <div id="task-groups" class="task-groups"></div>
@@ -173,6 +174,7 @@
           </section>
           <section class="setting-block">
             <h2>已添加课程</h2>
+            <p class="setting-intro">作业类别来自课程页面的分组标题。请根据 syllabus 自行决定是否忽略；应用不会根据名称推断类别是否计分。忽略后仍保留成绩、日期和手动设置，但不进入默认列表、计数、红点或任何提醒。</p>
             <div id="course-list" class="settings-course-list"></div>
           </section>
           <section class="setting-block">

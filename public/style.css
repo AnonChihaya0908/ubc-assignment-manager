@@ -130,6 +130,7 @@ a { color:inherit; }
 .assignment-date.unknown { color:var(--muted); }
 .status-label { color:#e6bf89; font-size:11px; font-weight:650; white-space:nowrap; }
 .status-label.late { color:#f38c95; }
+.status-label.ignored { color:#a7aab2; }
 .status-label.future { color:#b1b4bd; }
 .status-label.done { color:#8bc49b; }
 .score-bar { position:relative; display:block; justify-self:end; width:105px; height:18px; overflow:hidden; border:1px solid #4d5058; border-radius:4px; background:#34363b; text-align:center; }
@@ -219,7 +220,9 @@ select { cursor:pointer; }
 .text-button { padding:8px; border:0; background:transparent; color:#c5d0e3; }
 .text-button:hover { color:#fff; text-decoration:underline; }
 .settings-course-list { margin-bottom:18px; border-top:1px solid var(--border); }
-.settings-course { display:flex; align-items:center; justify-content:space-between; gap:15px; min-height:59px; padding:10px 0; border-bottom:1px solid var(--border); }
+.settings-course { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:15px; min-height:59px; padding:10px 0; border-bottom:1px solid var(--border); }
+.course-categories { flex-basis:100%; display:flex; flex-wrap:wrap; gap:7px 14px; padding:5px 0 3px 42px; }
+.course-categories .check-row { margin:0; font-size:11px; }
 .settings-course-main { min-width:0; }
 .settings-course-main strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .settings-course-main small { display:block; margin-top:5px; color:var(--dim); }

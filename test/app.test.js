@@ -61,6 +61,19 @@ test('shared task status covers both platforms, dates, and manual overrides', ()
   assert.deepEqual(completionStatus(fullScore, manualMode), { complete: true, source: 'manual' });
 });
 
+test('ignored categories apply only to the selected course and exclude attention', () => {
+  const now = new Date('2026-10-04T12:00:00Z').getTime();
+  const options = { ignoredSectionsByCourse: { c317: ['In Class Assignment'] } };
+  const ignored = { courseId: 'c317', section: '  in class   assignment ', dueAt: '2026-10-05T12:00:00Z', sourceComplete: false };
+  const otherCourse = { ...ignored, courseId: 'c310', section: 'In Class Assignment' };
+  const newlySynced = { ...ignored, name: 'ICA 07' };
+  assert.equal(categoryOf(ignored, now, options), 'ignored');
+  assert.equal(needsAttention(ignored, now, options), false);
+  assert.equal(categoryOf(newlySynced, now, options), 'ignored');
+  assert.equal(categoryOf(otherCourse, now, options), 'pending');
+  assert.equal(needsAttention(otherCourse, now, options), true);
+});
+
 test('existing saved data defaults to automatic full-score completion', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-assignment-state-'));
   const file = path.join(directory, 'data.json');
