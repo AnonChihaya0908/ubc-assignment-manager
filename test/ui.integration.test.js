@@ -121,7 +121,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       return;
     }
     const files = { '/': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'],
-      '/task-status.js': ['task-status.js', 'text/javascript'], '/ui.js': ['ui.js', 'text/javascript'] };
+      '/task-status.js': ['task-status.js', 'text/javascript'], '/dialogs.js': ['dialogs.js', 'text/javascript'],
+      '/ui.js': ['ui.js', 'text/javascript'] };
     const target = files[request.url];
     if (!target) { response.writeHead(404); response.end(); return; }
     response.writeHead(200, { 'Content-Type': target[1] });
@@ -183,6 +184,24 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#update-dialog-text').textContent.includes('1.2.0')"), true);
     await evaluate("document.querySelector('#update-later').click()");
     assert.equal(await evaluate("document.querySelector('#update-dialog').open"), false);
+    assert.equal(await evaluate("(() => { const first = AppDialog.push({ id: 'queue-one', level: 'warning', title: '课程确认', body: '请检查课程。', required: true, actions: [{ id: 'continue', label: '继续', kind: 'primary' }] }); const duplicate = AppDialog.push({ id: 'queue-one', title: '不应重复' }); AppDialog.push({ id: 'queue-two', title: '第二条通知' }); window.__dialogResult = first; return first === duplicate; })()"), true);
+    assert.equal(await evaluate("document.querySelector('#app-dialog').open"), true);
+    assert.equal(await evaluate("document.querySelector('#app-dialog').dataset.level"), 'warning');
+    assert.equal(await evaluate("document.querySelector('#app-dialog-title').textContent"), '课程确认');
+    if (process.env.UI_DIALOG_PREVIEW_PATH) {
+      const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(process.env.UI_DIALOG_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
+    }
+    await evaluate("document.querySelector('#app-dialog').dispatchEvent(new Event('cancel', { cancelable: true }))");
+    assert.equal(await evaluate("document.querySelector('#app-dialog').open"), true);
+    await evaluate("document.querySelector('#app-dialog-actions button').click()");
+    for (let i = 0; i < 20; i++) {
+      if (await evaluate("document.querySelector('#app-dialog-title').textContent === '第二条通知'")) break;
+      await sleep(50);
+    }
+    assert.equal(await evaluate("document.querySelector('#app-dialog-title').textContent"), '第二条通知');
+    await evaluate("document.querySelector('#app-dialog').dispatchEvent(new Event('cancel', { cancelable: true }))");
+    assert.equal(await evaluate("document.querySelector('#app-dialog').open"), false);
     assert.equal(await evaluate('document.title'), 'UBC作业管理工具 1.1.2');
     assert.equal(await evaluate("document.querySelector('#future-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#history-tab-count').textContent"), '1');

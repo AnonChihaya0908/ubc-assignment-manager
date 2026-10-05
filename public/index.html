@@ -8,6 +8,7 @@
   <title>UBC作业管理工具 1.1.2</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/task-status.js" defer></script>
+  <script src="/dialogs.js" defer></script>
   <script src="/ui.js" defer></script>
 </head>
 <body>
@@ -229,5 +230,13 @@
     </section>
   </dialog>
   <dialog id="deadline-dialog"><form method="dialog" id="deadline-form"><h2>修改提醒日期</h2><p id="deadline-task-name"></p><label for="deadline-input">电脑当地时间</label><input id="deadline-input" type="datetime-local"><div class="dialog-actions"><button type="button" id="clear-deadline" class="text-button">恢复网页日期</button><button type="button" id="cancel-deadline" class="secondary-button">取消</button><button class="primary-button" value="save">保存</button></div></form></dialog>
+  <dialog id="app-dialog" class="app-dialog" data-level="info" aria-labelledby="app-dialog-title" aria-describedby="app-dialog-body">
+    <div class="app-dialog-heading"><span class="app-dialog-emblem" aria-hidden="true"><i></i></span><div><span id="app-dialog-level" class="app-dialog-level">应用通知</span><h2 id="app-dialog-title"></h2></div></div>
+    <p id="app-dialog-body"></p>
+    <ul id="app-dialog-items" class="app-dialog-items" hidden></ul>
+    <fieldset id="app-dialog-choices" class="app-dialog-choices" aria-label="请选择" hidden></fieldset>
+    <p id="app-dialog-error" class="app-dialog-error" role="alert" hidden></p>
+    <div id="app-dialog-actions" class="dialog-actions"></div>
+  </dialog>
 </body>
 </html>
