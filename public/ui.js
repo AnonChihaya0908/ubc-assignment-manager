@@ -619,18 +619,21 @@ function renderWork() {
   if (!shown.length) {
     const empty = node('div', 'empty-state');
     const hasSuccessfulSync = state.courses.some(item => item.lastSyncedAt);
-    const filtered = Boolean(searchTerm || selectedScope !== 'all' || selectedTab !== 'all');
-    const title = !state.courses.length ? '还没有课程' : !hasSuccessfulSync ? '还没有完成首次同步' : state.tasks.length === 0 ? '同步完成，但没有发现可见作业' : filtered ? '没有匹配的作业' : '暂无作业';
+    const allCurrentComplete = selectedTab === 'pending' && !searchTerm && pendingCount === 0 && recentDone.length > 0;
+    const futureCount = tasks.filter(task => categoryOf(task) === 'future').length;
+    const title = !state.courses.length ? '还没有课程' : !hasSuccessfulSync ? '还没有完成首次同步' : state.tasks.length === 0 ? '同步完成，但没有发现可见作业' :
+      allCurrentComplete ? '所有任务均已完成' : searchTerm ? '没有匹配的作业' : selectedTab !== 'all' ? '当前分类暂无作业' : '暂无作业';
     empty.append(node('h2', '', title));
     const description = !state.courses.length ? '添加 PrairieLearn Assessments 页面或 UBC WeBWorK 课程首页，即可开始。' :
       !hasSuccessfulSync ? '请打开专用 Edge 登录窗口，完成学校登录并停留在作业列表页，然后返回应用同步。' :
       state.tasks.length === 0 ? '连接已经成功，但课程页面目前没有可见作业。可检查页面内容和登录状态后再次同步。' :
-      filtered ? '请调整搜索词或筛选条件，也可以清除筛选恢复完整列表。' : '课程中暂时没有可显示的作业。';
+      allCurrentComplete ? futureCount ? `当前已开放的任务都已完成；另有 ${futureCount} 项尚未开放，可在“将开放”中查看。` : '当前课程的任务均已完成。' :
+      searchTerm ? '没有找到符合搜索内容的作业，可以清除搜索后查看当前列表。' : selectedTab !== 'all' ? '当前课程在此分类中没有可显示的作业。' : '课程中暂时没有可显示的作业。';
     empty.append(node('p', '', description));
-    if (filtered && state.tasks.length) {
-      const action = node('button', 'secondary-button', '清除筛选');
+    if (searchTerm && state.tasks.length) {
+      const action = node('button', 'secondary-button', '清除搜索');
       action.type = 'button';
-      action.addEventListener('click', clearTaskFilters);
+      action.addEventListener('click', clearTaskSearch);
       empty.append(action);
     } else if (!state.courses.length || !hasSuccessfulSync || state.tasks.length === 0) {
       const action = node('button', 'primary-button', !state.courses.length ? '开始添加课程' : !hasSuccessfulSync ? '前往登录与同步' : '重新同步');
@@ -995,9 +998,7 @@ function navigateWork(scope) {
   closeMobileMenu();
 }
 
-function clearTaskFilters() {
-  selectedScope = 'all';
-  selectedTab = 'all';
+function clearTaskSearch() {
   searchTerm = '';
   $('task-search').value = '';
   render();
