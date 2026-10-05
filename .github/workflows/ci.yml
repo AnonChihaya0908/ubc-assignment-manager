@@ -53,3 +53,6 @@ jobs:
 
       - name: Run logic tests
         run: npm test
+
+      - name: Build macOS desktop App
+        run: bash macos/build-app.sh "$(command -v node)" "$RUNNER_TEMP/UBC作业管理工具.app"

@@ -10,6 +10,14 @@ const { parseCopiedTable } = require('../lib/paste');
 const { parseWebworkText, parseWebworkDate, parseWebworkProgress } = require('../lib/webwork');
 const { categoryOf, needsAttention } = require('../public/task-status');
 const { classifySyncError, markSyncFailure, markSyncSuccess, courseDataStatus } = require('../lib/sync-status');
+const { authorizedNativeRequest } = require('../lib/native-auth');
+
+test('native app API rejects missing and incorrect window tokens', () => {
+  assert.equal(authorizedNativeRequest('desktop-secret', undefined), false);
+  assert.equal(authorizedNativeRequest('desktop-secret', 'desktop-secrex'), false);
+  assert.equal(authorizedNativeRequest('desktop-secret', 'desktop-secret'), true);
+  assert.equal(authorizedNativeRequest('', undefined), true);
+});
 
 function addPrairieLearnCourse(state) {
   const course = normalizeCourseUrl('https://us.prairielearn.com/pl/course_instance/231184/assessments');

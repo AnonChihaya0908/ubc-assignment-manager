@@ -36,9 +36,11 @@ const syncErrorNames = { login: '需要重新登录', network: '网络连接失�
 const staleAfterMs = 6 * 60 * 60 * 1000;
 
 async function api(path, method = 'GET', body) {
+  const headers = body === undefined ? {} : { 'Content-Type': 'application/json' };
+  if (window.UBC_NATIVE_TOKEN) headers['X-UBC-Native-Token'] = window.UBC_NATIVE_TOKEN;
   const response = await fetch(path, {
     method,
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await response.json();
@@ -704,6 +706,9 @@ function renderSettings() {
   const startup = state.startup || { supported: false, enabled: false, error: '无法读取开机启动状态。' };
   const mac = state.platform === 'darwin';
   $('startup-row').hidden = mac;
+  $('mac-menu-bar-row').hidden = !mac;
+  $('mac-menu-bar-visible').checked = window.UBC_NATIVE_MENU_BAR_VISIBLE !== false;
+  $('mac-menu-bar-visible').disabled = !window.webkit?.messageHandlers?.nativeHost;
   $('close-behavior-description').textContent = mac
     ? '关闭主窗口后应用可继续运行，并从菜单栏重新打开。完全退出请使用应用菜单或“数据与退出”。'
     : '关闭主窗口只会隐藏窗口，课程同步与提醒继续运行。请使用系统托盘或“数据与退出”页面退出应用。';
@@ -1222,6 +1227,12 @@ $('startup-enabled').addEventListener('change', async event => {
     event.target.checked = !enabled;
     message(error.message, true);
   } finally { event.target.disabled = !state?.startup?.supported; }
+});
+$('mac-menu-bar-visible').addEventListener('change', event => {
+  const bridge = window.webkit?.messageHandlers?.nativeHost;
+  if (!bridge) { event.target.checked = !event.target.checked; return; }
+  window.UBC_NATIVE_MENU_BAR_VISIBLE = event.target.checked;
+  bridge.postMessage({ action: 'setMenuBarVisible', visible: event.target.checked });
 });
 $('require-manual-completion').addEventListener('change', async event => {
   const requireManualCompletion = event.target.checked;
