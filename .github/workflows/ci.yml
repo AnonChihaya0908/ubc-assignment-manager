@@ -56,3 +56,31 @@ jobs:
 
       - name: Build macOS desktop App
         run: bash macos/build-app.sh "$(command -v node)" "$RUNNER_TEMP/UBC作业管理工具.app"
+
+  macos-packages:
+    name: macOS ${{ matrix.arch }} package
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and inspect unsigned package
+        run: bash macos/build-pkg.sh "${{ matrix.arch }}" "$RUNNER_TEMP/packages"
+
+      - name: Save package and SHA-256 for preview validation
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-${{ matrix.arch }}-preview
+          path: ${{ runner.temp }}/packages/*
+          if-no-files-found: error
