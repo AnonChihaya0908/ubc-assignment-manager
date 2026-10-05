@@ -9,8 +9,8 @@ const { spawnSync } = require('node:child_process');
 const { createUpdater, newerThan, safeRelease, githubErrorMessage } = require('../lib/updater');
 
 const release = {
-  tagName: 'v1.3.0', name: '1.3.0', body: '修复同步问题', isDraft: false, isPrerelease: false,
-  assets: [{ name: 'ubc-assignment-manager-1.3.0-windows.zip' }, { name: 'ubc-assignment-manager-1.3.0-windows.zip.sha256' }],
+  tagName: 'v1.4.0', name: '1.4.0', body: '修复同步问题', isDraft: false, isPrerelease: false,
+  assets: [{ name: 'ubc-assignment-manager-1.4.0-windows.zip' }, { name: 'ubc-assignment-manager-1.4.0-windows.zip.sha256' }],
 };
 
 test('only a newer stable release with the matching Windows package and checksum is offered', () => {
@@ -18,9 +18,9 @@ test('only a newer stable release with the matching Windows package and checksum
   assert.equal(newerThan('v1.1.0', '1.1.0'), false);
   assert.equal(newerThan('v1.0.9', '1.1.0'), false);
   assert.equal(newerThan('main', '1.1.0'), false);
-  assert.equal(safeRelease(release, 'win32').version, '1.3.0');
-  assert.equal(safeRelease({ tag_name: 'v1.3.0', name: '1.3.0', body: 'API response', draft: false, prerelease: false,
-    assets: release.assets }, 'win32').version, '1.3.0');
+  assert.equal(safeRelease(release, 'win32').version, '1.4.0');
+  assert.equal(safeRelease({ tag_name: 'v1.4.0', name: '1.4.0', body: 'API response', draft: false, prerelease: false,
+    assets: release.assets }, 'win32').version, '1.4.0');
   assert.equal(safeRelease({ ...release, isPrerelease: true }, 'win32'), null);
   assert.equal(safeRelease({ ...release, assets: [release.assets[0]] }, 'win32'), null);
 });
@@ -29,8 +29,8 @@ test('macOS offers only the matching pkg for manual installation', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-mac-update-'));
   const macRelease = { ...release, assets: [
     ...release.assets,
-    { name: 'ubc-assignment-manager-1.3.0-macos-arm64.pkg' },
-    { name: 'ubc-assignment-manager-1.3.0-macos-arm64.pkg.sha256' },
+    { name: 'ubc-assignment-manager-1.4.0-macos-arm64.pkg' },
+    { name: 'ubc-assignment-manager-1.4.0-macos-arm64.pkg.sha256' },
   ] };
   try {
     assert.equal(safeRelease(release, 'darwin', 'arm64'), null);
@@ -60,7 +60,7 @@ test('startup check reports no package, then detects an update without sending c
     assert.equal(calls, 1);
     const result = await updater.check(true);
     assert.equal(result.kind, 'available');
-    assert.equal(result.release.version, '1.3.0');
+    assert.equal(result.release.version, '1.4.0');
     assert.equal(JSON.stringify(result).includes('token'), false);
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
@@ -91,7 +91,7 @@ test('a successful release check is reused across app restarts for six hours', a
       directory, platform: 'win32', now: () => checkedAt + 60_000 });
     const cached = await second.check();
     assert.equal(cached.kind, 'available');
-    assert.equal(cached.release.version, '1.3.0');
+    assert.equal(cached.release.version, '1.4.0');
     assert.equal(cached.checkedAt, '2026-10-04T12:00:00.000Z');
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
@@ -106,7 +106,7 @@ test('verified archive is handed to the detached installer, invalid checksum blo
     const filename = path.basename(target);
     const bytes = Buffer.from('test package bytes');
     fs.writeFileSync(target, filename.endsWith('.sha256')
-      ? `${valid ? crypto.createHash('sha256').update(bytes).digest('hex') : '0'.repeat(64)}  ubc-assignment-manager-1.3.0-windows.zip`
+      ? `${valid ? crypto.createHash('sha256').update(bytes).digest('hex') : '0'.repeat(64)}  ubc-assignment-manager-1.4.0-windows.zip`
       : bytes);
   };
   const start = (program, args) => {
