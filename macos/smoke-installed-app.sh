@@ -45,4 +45,18 @@ if [[ "$api_status" != 403 ]]; then
   echo "The installed app did not protect its native API (HTTP $api_status)." >&2
   exit 1
 fi
-echo "Installed desktop app launched and its private API rejected an untrusted request."
+
+"$binary" > /tmp/ubc-assignment-manager-second-launch.log 2>&1 &
+second_pid=$!
+for ((attempt = 0; attempt < 10; attempt++)); do
+  if ! kill -0 "$second_pid" 2>/dev/null; then break; fi
+  sleep 1
+done
+if kill -0 "$second_pid" 2>/dev/null; then
+  kill "$second_pid" 2>/dev/null || true
+  echo "A second app instance stayed open instead of activating the first." >&2
+  exit 1
+fi
+wait "$second_pid"
+kill -0 "$app_pid"
+echo "Installed desktop app launched, protected its API, and reused the first instance."
