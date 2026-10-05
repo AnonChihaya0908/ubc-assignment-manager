@@ -19,6 +19,7 @@
       <button id="toolbar-menu" class="toolbar-menu" type="button" aria-label="折叠或展开课程目录" aria-expanded="true" title="课程目录"><span></span><span></span><span></span></button>
       <span id="toolbar-scope-mark" class="toolbar-mark" data-context="all" role="img" aria-label="当前界面：全部作业" title="全部作业">
         <span class="toolbar-mark-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span class="toolbar-calendar-glyph" aria-hidden="true"><i></i></span>
         <span class="toolbar-mark-text" aria-hidden="true"></span>
       </span>
       <span class="toolbar-title">UBC作业管理工具</span>
@@ -28,6 +29,7 @@
     <nav class="app-rail" aria-label="主导航">
       <button id="nav-menu" class="rail-button menu-rail" type="button" aria-label="展开目录" aria-expanded="false" title="目录">☰</button>
       <button id="nav-all" class="rail-button active" type="button" aria-label="全部作业" title="全部作业"><span class="rail-context-mark all" aria-hidden="true"><span class="rail-grid"><i></i><i></i><i></i><i></i></span></span></button>
+      <button id="nav-calendar" class="rail-button" type="button" aria-label="作业日历" title="作业日历"><span class="rail-context-mark calendar" aria-hidden="true"><span class="calendar-glyph"><i></i></span></span></button>
       <button id="nav-prairielearn" class="rail-button" type="button" aria-label="PrairieLearn 作业" title="PrairieLearn"><span class="rail-context-mark pl" aria-hidden="true">PL</span><span class="notification-dot" hidden></span></button>
       <button id="nav-webwork" class="rail-button" type="button" aria-label="WeBWorK 作业" title="WeBWorK"><span class="rail-context-mark ww" aria-hidden="true">W</span><span class="notification-dot" hidden></span></button>
       <button id="nav-settings" class="rail-button settings-rail" type="button" aria-label="设置" title="设置"><span class="settings-glyph" aria-hidden="true">⚙</span></button>
@@ -77,16 +79,15 @@
           <button class="tab" data-tab="done" type="button">已完成 <span id="done-tab-count">0</span></button>
           <button class="tab" data-tab="ignored" type="button">已忽略 <span id="ignored-tab-count">0</span></button>
         </nav>
-        <div class="task-filters" role="search" aria-label="作业筛选">
-          <label><span>平台</span><select id="filter-platform"><option value="all">全部平台</option><option value="prairielearn">PrairieLearn</option><option value="webwork">WeBWorK</option></select></label>
-          <label><span>课程</span><select id="filter-course"><option value="all">全部课程</option></select></label>
-          <label><span>状态</span><select id="filter-status"><option value="all">全部状态</option><option value="pending">待完成</option><option value="future">将开放</option><option value="history">已过日期</option><option value="done">已完成</option><option value="ignored">已忽略</option></select></label>
-          <label><span>日期与视图</span><select id="filter-date"><option value="all">全部日期</option><option value="today">今天</option><option value="week">未来 7 天</option><option value="calendar">日历视图</option><option value="undated">未公布日期</option></select></label>
-          <button id="clear-filters" class="filter-clear" type="button">清除筛选</button>
-          <span id="filter-result" class="filter-result" role="status" aria-live="polite"></span>
-        </div>
         <div id="work-overview" class="work-overview"><div class="overview-tile urgent-tile"><strong id="overview-pending">0</strong><span>需处理作业</span></div><div class="overview-tile"><strong id="overview-nearest">—</strong><span>距离最近截止时间</span></div><div class="overview-tile"><strong id="overview-done">0</strong><span>已完成作业</span></div></div>
         <div id="task-groups" class="task-groups"></div>
+      </section>
+      <section id="calendar-page" class="page" hidden>
+        <header class="page-header calendar-page-header">
+          <div class="page-title"><p id="calendar-breadcrumb" class="breadcrumb">日历 / 月视图</p><h1>作业日历</h1><p class="page-summary">按日期查看所有课程的开放、截止和手动提醒。</p></div>
+          <div class="page-meta"><span id="calendar-today-label"></span></div>
+        </header>
+        <div id="calendar-content" class="calendar-page-content"></div>
       </section>
       <aside id="task-inspector" class="task-inspector" aria-label="作业详情"><div class="inspector-heading">作业详情</div><div id="inspector-content" class="inspector-content"></div></aside>
       </div>
