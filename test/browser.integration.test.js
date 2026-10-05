@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { edgePath, cdp, EXTRACT_PAGE, EXTRACT_WEBWORK_PAGE, EXTRACT_WEBWORK_PROGRESS } = require('../lib/browser');
+const { edgePath, cdp, withinSyncDeadline, EXTRACT_PAGE, EXTRACT_WEBWORK_PAGE, EXTRACT_WEBWORK_PROGRESS } = require('../lib/browser');
 const { parseWebworkText, parseWebworkProgress } = require('../lib/webwork');
 
 const fixture = `<!doctype html><title>PrairieLearn</title>
@@ -31,6 +31,14 @@ const webworkPastDetailFixture = `<!doctype html><title>Assignment-02</title><ta
 <thead><tr><th>Name</th><th>Attempts</th><th>Remaining</th><th>Worth</th><th>Status</th></tr></thead>
 <tbody><tr><td>Problem 1</td><td>1</td><td>0</td><td>2</td><td>50%</td></tr>
 <tr><td>Problem 2</td><td>1</td><td>0</td><td>3</td><td>100%</td></tr></tbody></table>`;
+
+test('browser work is cancelled when the sync deadline expires', async () => {
+  const started = Date.now();
+  await assert.rejects(() => withinSyncDeadline(signal => new Promise((resolve, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+  }), 30), /同步等待页面超时/);
+  assert.ok(Date.now() - started < 1000, 'deadline should stop waiting promptly');
+});
 
 test('Edge reads assignment rows from a rendered student-style table', { timeout: 30000 }, async () => {
   const httpServer = http.createServer((request, response) => {
