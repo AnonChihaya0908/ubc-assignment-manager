@@ -130,18 +130,19 @@
         <div id="settings-reminders" class="settings-panel" hidden>
           <section class="setting-block">
             <h2>截止提醒</h2>
+            <div id="mac-notification-row" class="setting-row" hidden><div><h3>macOS 系统通知</h3><p id="mac-notification-status" role="status" aria-live="polite">正在检查通知权限…</p><p class="form-note">主窗口关闭后，只要应用仍在运行，就会按下方规则提醒；完全退出或关机期间不会实时提醒。</p></div><div class="update-actions"><button id="mac-notification-permission" class="secondary-button" type="button">允许通知</button><button id="mac-notification-test" class="secondary-button" type="button">发送测试通知</button></div></div>
             <form id="reminder-form" class="wechat-form">
-              <label for="reminder-leads">Windows 提前提醒（小时，用逗号分隔）</label>
+              <label id="reminder-leads-label" for="reminder-leads">Windows 提前提醒（小时，用逗号分隔）</label>
               <input id="reminder-leads" type="text" inputmode="decimal" value="24, 3" required>
               <p class="form-note">可设置 0.25 到 336 小时，最多 6 个时间点。例如 48, 24, 3。</p>
               <label class="check-row" for="quiet-enabled"><input id="quiet-enabled" type="checkbox"><span>启用免打扰时段</span></label>
               <div class="time-pair"><label for="quiet-start">开始<input id="quiet-start" type="time" value="22:00"></label><label for="quiet-end">结束<input id="quiet-end" type="time" value="08:00"></label></div>
-              <p class="form-note">免打扰期间不会弹出 Windows 通知或发送每日微信汇总；应用恢复或时段结束后只补发当天尚未成功的汇总，不补发往日消息。</p>
+              <p id="quiet-hours-description" class="form-note">免打扰期间不会弹出 Windows 通知或发送每日微信汇总；应用恢复或时段结束后只补发当天尚未成功的汇总，不补发往日消息。</p>
               <button class="primary-button" type="submit">保存提醒规则</button>
             </form>
             <div class="setting-row"><div><h3>日期来源</h3><p>WeBWorK 的开放时间只用于展示；页面公布 Due 后才按截止时间提醒。</p></div><span class="setting-value">课程页面</span></div>
-            <div class="setting-row"><div><h3>暂停全部提醒</h3><p>暂停 Windows 截止提醒和每日微信汇总；课程自动同步仍会继续。</p></div><label class="check-row compact" for="reminders-paused"><input id="reminders-paused" type="checkbox"><span>暂停提醒</span></label></div>
-            <h3>按课程控制</h3><p class="setting-intro">关闭后，该课程不会进入 Windows 截止通知或微信每日汇总。</p><div id="reminder-course-list" class="reminder-course-list"></div>
+            <div class="setting-row"><div><h3>暂停全部提醒</h3><p id="pause-reminders-description">暂停 Windows 截止提醒和每日微信汇总；课程自动同步仍会继续。</p></div><label class="check-row compact" for="reminders-paused"><input id="reminders-paused" type="checkbox"><span>暂停提醒</span></label></div>
+            <h3>按课程控制</h3><p id="course-reminders-description" class="setting-intro">关闭后，该课程不会进入 Windows 截止通知或微信每日汇总。</p><div id="reminder-course-list" class="reminder-course-list"></div>
           </section>
           <section class="setting-block">
             <h2>自动同步</h2>
@@ -210,8 +211,8 @@
           </section>
           <section class="setting-block">
             <h2>本地数据</h2>
-            <p class="setting-intro">作业清单、提醒设置与专用 Edge 登录资料保存在当前 Windows 账户的本地应用数据目录中，覆盖升级不会删除。关闭网页不会停止后台提醒。</p>
-            <div class="setting-row"><div><h3>退出应用</h3><p>停止后台同步和 Windows 提醒。下次可双击 UBC作业管理工具.exe 重新打开。</p></div><button id="quit" class="danger-button" type="button">退出应用</button></div>
+            <p id="local-data-description" class="setting-intro">作业清单、提醒设置与专用 Edge 登录资料保存在当前 Windows 账户的本地应用数据目录中，覆盖升级不会删除。关闭网页不会停止后台提醒。</p>
+            <div class="setting-row"><div><h3>退出应用</h3><p id="quit-description">停止后台同步和 Windows 提醒。下次可双击 UBC作业管理工具.exe 重新打开。</p></div><button id="quit" class="danger-button" type="button">退出应用</button></div>
           </section>
         </div>
       </section>

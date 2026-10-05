@@ -11,12 +11,33 @@ const { parseWebworkText, parseWebworkDate, parseWebworkProgress } = require('..
 const { categoryOf, needsAttention } = require('../public/task-status');
 const { classifySyncError, markSyncFailure, markSyncSuccess, courseDataStatus } = require('../lib/sync-status');
 const { authorizedNativeRequest } = require('../lib/native-auth');
+const { pendingReminderEvents } = require('../lib/reminders');
 
 test('native app API rejects missing and incorrect window tokens', () => {
   assert.equal(authorizedNativeRequest('desktop-secret', undefined), false);
   assert.equal(authorizedNativeRequest('desktop-secret', 'desktop-secrex'), false);
   assert.equal(authorizedNativeRequest('desktop-secret', 'desktop-secret'), true);
   assert.equal(authorizedNativeRequest('', undefined), true);
+});
+
+test('desktop reminders respect completion, quiet hours, course scope and deduplication', () => {
+  const now = new Date('2026-10-08T18:00:00Z');
+  const dueAt = new Date(now.getTime() + 2 * 3600000).toISOString();
+  const course = { id: 'course-1', accessConfirmedAt: now.toISOString() };
+  const task = { id: 'task-1', courseId: course.id, name: 'Assignment', dueAt, sourceStatus: 'open' };
+  const state = { courses: [course], tasks: [task], notified: {} };
+  const config = { leadHours: [24, 3] };
+  const events = pendingReminderEvents(state, config, now);
+  assert.equal(events.length, 2);
+  assert.equal(events[0].taskId, task.id);
+  state.notified[events[0].key] = now.toISOString();
+  assert.equal(pendingReminderEvents(state, config, now).length, 1);
+  assert.equal(pendingReminderEvents(state, { ...config, disabledCourseIds: [course.id] }, now).length, 0);
+  assert.equal(pendingReminderEvents(state, { ...config, remindersPaused: true }, now).length, 0);
+  assert.equal(pendingReminderEvents(state, { ...config, quietEnabled: true,
+    quietStart: `${String(now.getHours()).padStart(2, '0')}:00`, quietEnd: `${String((now.getHours() + 1) % 24).padStart(2, '0')}:00` }, now).length, 0);
+  task.doneOverride = true;
+  assert.equal(pendingReminderEvents(state, config, now).length, 0);
 });
 
 function addPrairieLearnCourse(state) {

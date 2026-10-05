@@ -14,6 +14,7 @@ let updateStatus = { kind: 'checking', currentVersion: '1.2.1' };
 let promptedUpdate = null;
 let onboardingActive = false;
 let pendingBackup = null;
+let macNotificationStatus = 'checking';
 
 const $ = id => document.getElementById(id);
 const taskStatus = window.TaskStatus;
@@ -709,6 +710,22 @@ function renderSettings() {
   $('mac-menu-bar-row').hidden = !mac;
   $('mac-menu-bar-visible').checked = window.UBC_NATIVE_MENU_BAR_VISIBLE !== false;
   $('mac-menu-bar-visible').disabled = !window.webkit?.messageHandlers?.nativeHost;
+  $('mac-notification-row').hidden = !mac;
+  const notificationNames = { checking: '正在检查通知权限…', authorized: '通知已允许，应用运行时可发送截止提醒。',
+    denied: '通知已被系统拒绝。请在“系统设置 → 通知”中允许此应用。', notDetermined: '尚未授权通知。请点击“允许通知”。', unsupported: '无法读取系统通知状态。' };
+  $('mac-notification-status').textContent = notificationNames[macNotificationStatus] || notificationNames.unsupported;
+  $('mac-notification-permission').hidden = macNotificationStatus === 'authorized';
+  $('mac-notification-test').disabled = macNotificationStatus !== 'authorized';
+  $('reminder-leads-label').textContent = `${mac ? 'macOS' : 'Windows'} 提前提醒（小时，用逗号分隔）`;
+  $('quiet-hours-description').textContent = `免打扰期间不会弹出 ${mac ? 'macOS' : 'Windows'} 通知或发送每日微信汇总；应用恢复或时段结束后只补发当天尚未成功的汇总，不补发往日消息。`;
+  $('pause-reminders-description').textContent = `暂停 ${mac ? 'macOS' : 'Windows'} 截止提醒和每日微信汇总；课程自动同步仍会继续。`;
+  $('course-reminders-description').textContent = `关闭后，该课程不会进入 ${mac ? 'macOS' : 'Windows'} 截止通知或微信每日汇总。`;
+  $('local-data-description').textContent = mac
+    ? '作业清单、提醒设置与专用 Edge 登录资料保存在当前 Mac 账户的“应用程序支持”目录中，覆盖升级不会删除。关闭主窗口不会停止后台提醒。'
+    : '作业清单、提醒设置与专用 Edge 登录资料保存在当前 Windows 账户的本地应用数据目录中，覆盖升级不会删除。关闭网页不会停止后台提醒。';
+  $('quit-description').textContent = mac
+    ? '停止后台同步和 macOS 系统通知。下次可从“应用程序”重新打开。'
+    : '停止后台同步和 Windows 提醒。下次可双击 UBC作业管理工具.exe 重新打开。';
   $('close-behavior-description').textContent = mac
     ? '关闭主窗口后应用可继续运行，并从菜单栏重新打开。完全退出请使用应用菜单或“数据与退出”。'
     : '关闭主窗口只会隐藏窗口，课程同步与提醒继续运行。请使用系统托盘或“数据与退出”页面退出应用。';
@@ -867,7 +884,7 @@ function renderSettings() {
   $('reminder-timezone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const history = $('reminder-history');
   history.replaceChildren();
-  const typeNames = { daily: '自动汇总', test: '手动测试', windows: 'Windows 通知' };
+  const typeNames = { daily: '自动汇总', test: '手动测试', windows: 'Windows 通知', macos: 'macOS 通知' };
   const resultNames = { accepted: '服务已接受', failed: '发送失败', shown: '已交给系统显示' };
   if (!wechat.history?.length) history.append(node('p', 'form-note', '尚无发送记录。'));
   for (const record of (wechat.history || []).slice(0, 12)) {
@@ -1016,6 +1033,23 @@ function navigateWork(scope) {
   render();
   closeMobileMenu();
 }
+
+window.UBC_OPEN_TASK = taskId => {
+  if (!state || !state.tasks.some(task => task.id === taskId)) return;
+  selectedScope = 'all';
+  selectedTab = 'all';
+  selectedTaskId = taskId;
+  searchTerm = '';
+  $('task-search').value = '';
+  if (location.hash !== '#work') location.hash = 'work';
+  render();
+  document.querySelector(`[data-task-id="${CSS.escape(taskId)}"]`)?.scrollIntoView({ block: 'center' });
+};
+
+window.UBC_SET_NOTIFICATION_STATUS = status => {
+  macNotificationStatus = status;
+  if (state) renderSettings();
+};
 
 function clearTaskSearch() {
   searchTerm = '';
@@ -1234,6 +1268,13 @@ $('mac-menu-bar-visible').addEventListener('change', event => {
   window.UBC_NATIVE_MENU_BAR_VISIBLE = event.target.checked;
   bridge.postMessage({ action: 'setMenuBarVisible', visible: event.target.checked });
 });
+$('mac-notification-permission').addEventListener('click', () => {
+  window.webkit?.messageHandlers?.nativeHost?.postMessage({ action: 'requestNotificationPermission' });
+});
+$('mac-notification-test').addEventListener('click', () => {
+  window.webkit?.messageHandlers?.nativeHost?.postMessage({ action: 'testNotification' });
+  message('已提交 macOS 测试通知，请查看系统通知中心。');
+});
 $('require-manual-completion').addEventListener('change', async event => {
   const requireManualCompletion = event.target.checked;
   event.target.disabled = true;
@@ -1367,5 +1408,10 @@ $('quit').addEventListener('click', async () => {
   catch (error) { message(error.message, true); }
 });
 
-api('/api/state').then(result => { state = result; routeFromHash(); checkUpdate(); }).catch(error => message(error.message, true));
+api('/api/state').then(result => {
+  state = result;
+  routeFromHash();
+  checkUpdate();
+  window.webkit?.messageHandlers?.nativeHost?.postMessage({ action: 'notificationStatus' });
+}).catch(error => message(error.message, true));
 setInterval(() => api('/api/state').then(result => { state = result; render(); }).catch(() => {}), 60_000);
