@@ -256,6 +256,12 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'all');
     assert.equal(await evaluate("document.querySelector('#toolbar-scope-mark').getAttribute('aria-label')"), '当前界面：全部作业');
     assert.equal(await evaluate("document.querySelector('.task-filters') === null"), true);
+    await evaluate("(() => { const b = state.tasks.find(task => task.id === 'b'); const d = state.tasks.find(task => task.id === 'd'); window.__completionState = { b: { score: b.score, sourceComplete: b.sourceComplete, completedProblemCount: b.completedProblemCount }, d: { doneOverride: d.doneOverride } }; b.score = '100%'; b.sourceComplete = true; b.completedProblemCount = 6; d.doneOverride = true; document.querySelector('#nav-webwork').click(); })()");
+    assert.equal(await evaluate("document.querySelector('.empty-state h2').textContent"), '所有任务均已完成');
+    assert.equal(await evaluate("document.querySelector('.empty-state').textContent.includes('尚未开放')"), true);
+    assert.equal(await evaluate("document.querySelector('.empty-state button') === null"), true);
+    assert.equal(await evaluate("document.querySelector('#task-groups').textContent.includes('最近完成')"), true);
+    await evaluate("(() => { const b = state.tasks.find(task => task.id === 'b'); const d = state.tasks.find(task => task.id === 'd'); Object.assign(b, window.__completionState.b); Object.assign(d, window.__completionState.d); document.querySelector('#nav-all').click(); })()");
     await evaluate("document.querySelector('[data-tab=all]').click()");
     assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 5);
     await evaluate("(() => { const input = document.querySelector('#task-search'); input.value = 'STAT_V'; input.dispatchEvent(new Event('input', { bubbles: true })); })()");
