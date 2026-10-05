@@ -1,6 +1,6 @@
 # macOS 桌面版预览：安装与使用
 
-目前 macOS 版仍在真实设备验证阶段。预览构建来自仓库的 [CI 工作流](https://github.com/AnonChihaya0908/ubc-assignment-manager/actions/workflows/ci.yml)；完成验证前不作为稳定版推荐。Windows 安装版与便携版继续在 [Releases](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases) 提供。
+目前 macOS 版仍在真实设备验证阶段。可从 [v1.3.0 预览版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) 下载安装包；完成验证前不作为稳定版推荐。Windows 稳定安装版与便携版继续在 [Releases](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases) 提供。
 
 ## 选择安装包
 

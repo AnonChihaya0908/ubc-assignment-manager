@@ -1,20 +1,20 @@
-# macOS 桌面版预览发布说明（草稿）
+# UBC 作业管理工具 1.3.0 预览版
 
-此文档用于首次 macOS 预览版发布时填写准确版本号和下载链接。真实 Apple Silicon 与 Intel 设备完成安装、通知和课程同步验证前，发布类型应标为 **预览版**。
+本次提供 Windows 安装版、便携版，以及 Apple Silicon 和 Intel 两种 macOS `.pkg` 安装包。macOS 版是独立桌面 App；主界面在自有窗口打开，登录课程时使用本机 Microsoft Edge。
 
 ## 下载
 
-| 平台 | 资产 |
+| 平台 | 文件 |
 | --- | --- |
-| Windows 安装版 | `ubc-assignment-manager-<版本>-setup.exe` |
-| Windows 便携版 | `ubc-assignment-manager-<版本>-windows.zip` 及校验文件 |
-| Apple Silicon | `ubc-assignment-manager-<版本>-macos-arm64.pkg` 及 `.pkg.sha256` |
-| Intel Mac | `ubc-assignment-manager-<版本>-macos-x64.pkg` 及 `.pkg.sha256` |
+| Windows 安装版 | `ubc-assignment-manager-1.3.0-setup.exe` |
+| Windows 便携版 | `ubc-assignment-manager-1.3.0-windows.zip` 与 `.zip.sha256` |
+| Apple Silicon | `ubc-assignment-manager-1.3.0-macos-arm64.pkg` 与 `.pkg.sha256` |
+| Intel Mac | `ubc-assignment-manager-1.3.0-macos-x64.pkg` 与 `.pkg.sha256` |
 
-macOS 预览版需要 macOS 12 或更新版本；同步 PrairieLearn 和 UBC WeBWorK 课程需要本机 Microsoft Edge。安装包会将独立 `.app` 安装到“应用程序”，作业主界面在 App 自有窗口打开；课程登录和同步时才会打开专用 Edge。
+## 验证与限制
 
-macOS 包尚未签名或公证。首次安装或打开若被系统阻止，请先确认文件来自本仓库并核对 SHA-256，然后按 [Apple 官方说明](https://support.apple.com/en-us/102445) 在“系统设置 → 隐私与安全性”中选择“仍要打开”。受管理设备可能禁止此操作。
+Windows 逻辑测试、浏览器集成测试，以及两种 macOS 架构的构建、安装和启动测试已在 GitHub CI 通过。macOS 尚未在用户真实设备上完成首次安装、通知权限和课程同步验收，因此本次标记为**预览版**；Windows 1.2.1 仍是最新稳定版，应用内自动更新不会推送本预览版。
 
-Mac App 可从 Dock 或菜单栏重新打开；关闭主窗口后仍可在应用运行期间同步和发送 macOS 系统通知。首次使用须在“设置 → 提醒与同步”允许通知。电脑关机、睡眠或 App 完全退出时不能实时提醒。Mac 更新需手动下载并安装新版 `.pkg`；Windows 版继续支持应用内自动安装更新。
+macOS 安装包未进行 Apple Developer ID 签名或公证。首次安装或打开若被系统阻止，请先核对下载来源与 SHA-256，再参考 [Apple 官方说明](https://support.apple.com/en-us/102445) 在“系统设置 → 隐私与安全性”中选择“仍要打开”。受管理设备可能禁止此操作。macOS 12 或更新版本及 Microsoft Edge 是必要条件。
 
-安装与使用细节见 [macOS 预览说明](macos-preview.md)。发布前须将 `<版本>` 替换为实际版号，并核对这四类产物及校验文件都已上传；不得将本草稿直接当作已完成的真实设备验收记录。
+Mac App 可从 Dock 或菜单栏重新打开。首次使用系统通知须在“设置 → 提醒与同步”允许通知；电脑关机、睡眠或 App 完全退出时不能实时提醒。Mac 更新需手动下载并安装对应架构的新版 `.pkg`，Windows 稳定版继续支持应用内自动安装更新。详细说明见 [macOS 安装与使用说明](macos-preview.md)。

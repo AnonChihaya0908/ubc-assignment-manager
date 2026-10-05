@@ -4,6 +4,8 @@
 
 当前稳定版本：**1.2.1** · [下载最新版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
 
+跨平台 **1.3.0 预览版**：[下载 Windows 与 macOS 安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0)。此版本仍需在真实 Mac 上验证首次安装、通知和课程同步；Windows 1.2.1 仍是稳定版。应用内自动更新不会推送预览版。
+
 > 本项目不是 UBC、PrairieLearn 或 WeBWorK 的官方产品。应用只读取用户登录后有权访问且页面上可见的数据，不使用教师 API，也不需要 PrairieLearn API token。
 
 ![作业总览](docs/screenshots/assignment-overview.png)
@@ -41,7 +43,7 @@
 
 macOS 版交付为 `.pkg` 安装的独立 `.app`。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。课程登录和同步仍需本机 Microsoft Edge。
 
-目前 [macOS 预览构建](https://github.com/AnonChihaya0908/ubc-assignment-manager/actions/workflows/ci.yml) 尚待真实 Mac 首次安装验证，**不是稳定版**。下载时按处理器选择 `macos-arm64.pkg`（Apple Silicon）或 `macos-x64.pkg`（Intel），并保留同名 `.sha256` 文件。详细步骤见 [macOS 安装与使用说明](docs/macos-preview.md)。现有 Windows 安装包和便携包继续保留。
+目前 [macOS 1.3.0 预览安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) 尚待真实 Mac 首次安装验证，**不是稳定版**。下载时按处理器选择 `macos-arm64.pkg`（Apple Silicon）或 `macos-x64.pkg`（Intel），并保留同名 `.sha256` 文件。详细步骤见 [macOS 安装与使用说明](docs/macos-preview.md)。现有 Windows 安装包和便携包继续保留。
 
 ### 系统要求
 
