@@ -70,12 +70,21 @@
           <div class="page-meta"><span id="today-label"></span><span id="pending-badge" class="pending-badge"><span class="notification-dot"></span><span>0 项需处理</span></span></div>
         </header>
         <nav id="task-tabs" class="tabs" aria-label="作业状态">
+          <button class="tab" data-tab="all" type="button">全部 <span id="all-tab-count">0</span></button>
           <button class="tab active" data-tab="pending" type="button">待完成 <span id="pending-tab-count">0</span></button>
           <button class="tab" data-tab="future" type="button">将开放 <span id="future-tab-count">0</span></button>
           <button class="tab" data-tab="history" type="button">已过日期 <span id="history-tab-count">0</span></button>
           <button class="tab" data-tab="done" type="button">已完成 <span id="done-tab-count">0</span></button>
           <button class="tab" data-tab="ignored" type="button">已忽略 <span id="ignored-tab-count">0</span></button>
         </nav>
+        <div class="task-filters" role="search" aria-label="作业筛选">
+          <label><span>平台</span><select id="filter-platform"><option value="all">全部平台</option><option value="prairielearn">PrairieLearn</option><option value="webwork">WeBWorK</option></select></label>
+          <label><span>课程</span><select id="filter-course"><option value="all">全部课程</option></select></label>
+          <label><span>状态</span><select id="filter-status"><option value="all">全部状态</option><option value="pending">待完成</option><option value="future">将开放</option><option value="history">已过日期</option><option value="done">已完成</option><option value="ignored">已忽略</option></select></label>
+          <label><span>日期</span><select id="filter-date"><option value="all">全部日期</option><option value="today">今天</option><option value="week">未来 7 天</option><option value="undated">未公布日期</option></select></label>
+          <button id="clear-filters" class="filter-clear" type="button">清除筛选</button>
+          <span id="filter-result" class="filter-result" role="status" aria-live="polite"></span>
+        </div>
         <div id="work-overview" class="work-overview"><div class="overview-tile urgent-tile"><strong id="overview-pending">0</strong><span>需处理作业</span></div><div class="overview-tile"><strong id="overview-nearest">—</strong><span>距离最近截止时间</span></div><div class="overview-tile"><strong id="overview-done">0</strong><span>已完成作业</span></div></div>
         <div id="task-groups" class="task-groups"></div>
       </section>
