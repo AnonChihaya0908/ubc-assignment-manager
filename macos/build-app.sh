@@ -26,7 +26,7 @@ macos_dir="$app_bundle/Contents/MacOS"
 resources_dir="$app_bundle/Contents/Resources"
 mkdir -p "$macos_dir" "$resources_dir/runtime"
 
-swiftc -O -framework AppKit -framework WebKit "$repo_root/macos/App.swift" \
+swiftc -O -parse-as-library -framework AppKit -framework WebKit "$repo_root/macos/App.swift" \
   -o "$macos_dir/UBC作业管理工具"
 cp "$node_binary" "$resources_dir/runtime/node"
 chmod 755 "$resources_dir/runtime/node" "$macos_dir/UBC作业管理工具"
