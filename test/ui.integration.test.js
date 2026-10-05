@@ -22,7 +22,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     preferences: { requireManualCompletion: false, onboardingDismissed: true },
     startup: { supported: true, enabled: false, configured: false, error: null },
     wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null,
-      leadHours: [24, 3], quietEnabled: false, quietStart: '22:00', quietEnd: '08:00', disabledCourseIds: [], nextSendAt: null,
+      leadHours: [24, 3], quietEnabled: false, quietStart: '22:00', quietEnd: '08:00', disabledCourseIds: [], includeNotes: false, nextSendAt: null,
       history: [{ at: new Date().toISOString(), type: 'test', result: 'accepted', detail: 'Server酱已接受测试消息' }] }, tasks: [
     makeTask('a', 'pl:1', 'LAB04', { section: 'In Class Assignment', dueAt: future(10), score: '100%' }),
     makeTask('b', 'ww:1', 'Assignment-03', { sourceStatus: 'open', dueAt: future(8), score: '40%',
@@ -107,7 +107,10 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       request.on('end', () => {
         const update = JSON.parse(body);
         const task = fixtureState.tasks.find(item => item.id === update.id);
-        task.doneOverride = update.doneOverride;
+        if (Object.hasOwn(update, 'doneOverride')) task.doneOverride = update.doneOverride;
+        if (Object.hasOwn(update, 'deadlineOverride')) task.deadlineOverride = update.deadlineOverride;
+        if (Object.hasOwn(update, 'priority')) task.priority = update.priority;
+        if (Object.hasOwn(update, 'note')) task.note = update.note.trim();
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(fixtureState));
       });
@@ -130,7 +133,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       request.on('data', chunk => { body += chunk; });
       request.on('end', () => {
         const update = JSON.parse(body);
-        fixtureState.wechat = { ...fixtureState.wechat, time: update.time, enabled: update.enabled, hasKey: Boolean(update.sendKey) };
+        fixtureState.wechat = { ...fixtureState.wechat, time: update.time, enabled: update.enabled,
+          includeNotes: Boolean(update.includeNotes), hasKey: Boolean(update.sendKey) };
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(fixtureState));
       });
@@ -318,6 +322,30 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 1);
     assert.equal(await evaluate("document.querySelector('.assignment-row .status-label').textContent"), '完成中');
     assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('题目完成2 / 6')"), true);
+    await evaluate("(() => { const form = document.querySelector('.task-personal-editor'); form.querySelector('select').value = 'high'; form.querySelector('textarea').value = '先复习第三章，再完成第 4 题。'; form.requestSubmit(); })()");
+    for (let i = 0; i < 20; i++) {
+      if (fixtureState.tasks.find(task => task.id === 'b').note) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.tasks.find(task => task.id === 'b').priority, 'high');
+    assert.equal(fixtureState.tasks.find(task => task.id === 'b').note, '先复习第三章，再完成第 4 题。');
+    assert.equal(await evaluate("document.querySelector('.priority-badge.high').textContent"), '高优先级');
+    assert.equal(await evaluate("document.querySelector('.assignment-meta').textContent.includes('有个人备注')"), true);
+    if (process.env.UI_PERSONAL_PREVIEW_PATH) {
+      const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(process.env.UI_PERSONAL_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
+    }
+    await evaluate("(() => { const task = state.tasks.find(item => item.id === 'c'); window.__prioritySortTask = { sourceStatus: task.sourceStatus, dueAt: task.dueAt, opensAt: task.opensAt }; task.sourceStatus = 'open'; task.dueAt = new Date(Date.now() + 86400000).toISOString(); task.opensAt = null; renderWork(); })()");
+    assert.equal(await evaluate("document.querySelector('.assignment-row').dataset.taskId"), 'b');
+    await evaluate("(() => { const task = state.tasks.find(item => item.id === 'c'); Object.assign(task, window.__prioritySortTask); renderWork(); })()");
+    await evaluate("(() => { const form = document.querySelector('.task-personal-editor'); form.querySelector('textarea').value = '未保存内容'; form.querySelector('.task-personal-actions button:last-child').click(); })()");
+    assert.equal(await evaluate("document.querySelector('.task-personal-editor textarea').value"), '先复习第三章，再完成第 4 题。');
+    await evaluate("(() => { const form = document.querySelector('.task-personal-editor'); form.querySelector('.task-personal-actions button:nth-child(2)').click(); form.requestSubmit(); })()");
+    for (let i = 0; i < 20; i++) {
+      if (!fixtureState.tasks.find(task => task.id === 'b').note) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.tasks.find(task => task.id === 'b').note, '');
     await evaluate("document.querySelector('#inspector-content .inspector-actions button:last-child').click()");
     assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), false);
     assert.equal(await evaluate("[...document.querySelectorAll('#inspector-content .inspector-actions button')].some(button => button.textContent === '恢复网站判断')"), true);
@@ -398,7 +426,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       if (!fixtureState.wechat.remindersPaused) break;
       await sleep(100);
     }
-    await evaluate("(() => { const key = document.querySelector('#wechat-key'); key.value = 'SCTabcdefghijklmnop'; key.dispatchEvent(new Event('input', { bubbles: true })); const time = document.querySelector('#wechat-time'); time.value = '10:15'; time.dispatchEvent(new Event('input', { bubbles: true })); const enabled = document.querySelector('#wechat-enabled'); enabled.checked = true; enabled.dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('#wechat-form button[type=submit]').click(); })()");
+    assert.equal(await evaluate("document.querySelector('#wechat-include-notes').checked"), false);
+    await evaluate("(() => { const key = document.querySelector('#wechat-key'); key.value = 'SCTabcdefghijklmnop'; key.dispatchEvent(new Event('input', { bubbles: true })); const time = document.querySelector('#wechat-time'); time.value = '10:15'; time.dispatchEvent(new Event('input', { bubbles: true })); const enabled = document.querySelector('#wechat-enabled'); enabled.checked = true; enabled.dispatchEvent(new Event('change', { bubbles: true })); const notes = document.querySelector('#wechat-include-notes'); notes.checked = true; notes.dispatchEvent(new Event('change', { bubbles: true })); document.querySelector('#wechat-form button[type=submit]').click(); })()");
     for (let i = 0; i < 20; i++) {
       if (await evaluate("document.querySelector('#wechat-key-status').textContent.includes('已保存在本机')")) break;
       await sleep(100);
@@ -406,6 +435,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#wechat-key').value"), '');
     assert.equal(await evaluate("document.querySelector('#wechat-time').value"), '10:15');
     assert.equal(await evaluate("document.querySelector('#wechat-enabled').checked"), true);
+    assert.equal(await evaluate("document.querySelector('#wechat-include-notes').checked"), true);
+    assert.equal(fixtureState.wechat.includeNotes, true);
     assert.equal(await evaluate("document.querySelector('#wechat-test').disabled"), false);
     assert.equal(JSON.stringify(fixtureState).includes('SCTabcdefghijklmnop'), false);
     await evaluate("document.querySelector('[data-settings=courses]').click()");

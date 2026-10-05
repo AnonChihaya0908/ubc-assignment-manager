@@ -182,6 +182,10 @@ a { color:inherit; }
 .assignment-title { display:inline; color:var(--text); font-weight:650; font-size:12px; text-decoration:none; }
 .assignment-title:hover { color:#c2d0ed; text-decoration:underline; }
 .assignment-code { display:inline; margin-right:7px; color:#bac5d6; font-weight:750; font-size:11px; }
+.priority-badge { display:inline-block; margin-left:7px; padding:2px 5px; border:1px solid #5c5f67; border-radius:4px; color:#c8cbd2; font-size:9px; line-height:1; vertical-align:1px; }
+.priority-badge.high { border-color:#815057; background:#3d2d31; color:#f0a3aa; }
+.priority-badge.medium { border-color:#765f43; background:#3b342a; color:#e3bd82; }
+.priority-badge.low { border-color:#4d6175; background:#2b343d; color:#9fc0df; }
 .assignment-meta { overflow:hidden; margin-top:5px; color:#9498a2; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
 .assignment-date { font-size:12px; font-variant-numeric:tabular-nums; }
 .assignment-date small { display:block; margin-top:4px; color:#a4a7b0; font-size:11px; }
@@ -210,6 +214,15 @@ a { color:inherit; }
 .inspector-details dt { color:#888c96; }
 .inspector-details dd { min-width:0; margin:0; overflow-wrap:anywhere; color:#d6d8de; }
 .inspector-hint { margin:22px 0 0; padding:12px; border:1px solid #594b43; border-radius:6px; background:#39312d; color:#ebc7aa; font-size:11px; line-height:1.55; }
+.task-personal-editor { display:grid; gap:11px; margin-top:20px; padding:14px; border:1px solid #41434a; border-radius:7px; background:#28292d; }
+.task-personal-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.task-personal-heading h3 { margin:0; font-size:12px; }
+.task-personal-heading span { color:#858994; font-size:9px; }
+.task-personal-editor label { display:grid; gap:6px; margin:0; color:#aeb1b9; font-size:10px; }
+.task-personal-editor select,.task-personal-editor textarea { width:100%; min-height:32px; border-color:#51545b; background:#202125; font-size:11px; }
+.task-personal-editor textarea { min-height:78px; resize:vertical; line-height:1.5; }
+.task-personal-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.task-personal-actions button { min-height:29px; padding:0 8px; font-size:10px; }
 .inspector-open { display:grid; place-items:center; min-height:35px; margin-top:18px; border:1px solid #656870; border-radius:6px; background:#45474d; color:#fff; font-size:12px; font-weight:650; text-align:center; text-decoration:none; }
 .inspector-open:hover { background:#53565d; }
 .inspector-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }

@@ -33,6 +33,7 @@ function needsAttention(task, now = Date.now()) { return taskStatus.needsAttenti
 const platformNames = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK' };
 const settingNames = { general: '常规与窗口', reminders: '提醒与同步', courses: '课程与登录', data: '数据与退出' };
 const tabNames = { all: '全部', pending: '待完成', future: '将开放', history: '已过日期', done: '已完成', ignored: '已忽略' };
+const priorityNames = { high: '高优先级', medium: '中优先级', low: '低优先级' };
 const syncErrorNames = { login: '需要重新登录', network: '网络连接失败', parse: '页面解析失败', page: '页面不匹配', unknown: '同步失败' };
 const staleAfterMs = 6 * 60 * 60 * 1000;
 
@@ -290,7 +291,8 @@ function taskRow(task) {
     title.rel = 'noopener noreferrer';
   }
   description.append(title);
-  description.append(node('div', 'assignment-meta', [course ? shortCourseName(course) : '', platformNames[coursePlatform(course)], task.section].filter(Boolean).join(' · ')));
+  if (task.priority) description.append(node('span', `priority-badge ${task.priority}`, priorityNames[task.priority]));
+  description.append(node('div', 'assignment-meta', [course ? shortCourseName(course) : '', platformNames[coursePlatform(course)], task.section, task.note ? '有个人备注' : ''].filter(Boolean).join(' · ')));
   main.append(description);
 
   const dateInfo = rowDate(task);
@@ -428,6 +430,9 @@ function sortTasks(tasks, category = selectedTab) {
       const secondNeedsConfirmation = completionStatus(b).source === 'confirmation_required';
       if (firstNeedsConfirmation !== secondNeedsConfirmation) return firstNeedsConfirmation ? -1 : 1;
     }
+    const priorityRank = { high: 0, medium: 1, low: 2 };
+    const priorityDifference = (priorityRank[a.priority] ?? 3) - (priorityRank[b.priority] ?? 3);
+    if (priorityDifference) return priorityDifference;
     const first = category === 'future' ? a.opensAt : dueOf(a);
     const second = category === 'future' ? b.opensAt : dueOf(b);
     if (first && second) return category === 'history' ? new Date(second) - new Date(first) : new Date(first) - new Date(second);
@@ -435,6 +440,48 @@ function sortTasks(tasks, category = selectedTab) {
     if (second) return 1;
     return a.name.localeCompare(b.name);
   });
+}
+
+function taskPersonalEditor(task) {
+  const form = node('form', 'task-personal-editor');
+  const heading = node('div', 'task-personal-heading');
+  heading.append(node('h3', '', '个人安排'), node('span', '', '仅保存在本机'));
+  const priorityLabel = node('label');
+  priorityLabel.append(node('span', '', '优先级'));
+  const priority = document.createElement('select');
+  priority.append(new Option('未设置', ''), new Option('高优先级', 'high'), new Option('中优先级', 'medium'), new Option('低优先级', 'low'));
+  priority.value = task.priority || '';
+  priorityLabel.append(priority);
+  const noteLabel = node('label');
+  noteLabel.append(node('span', '', '个人备注'));
+  const note = document.createElement('textarea');
+  note.rows = 4;
+  note.maxLength = 1000;
+  note.placeholder = '记录准备事项、复习范围或提交说明';
+  note.value = task.note || '';
+  noteLabel.append(note);
+  const actions = node('div', 'task-personal-actions');
+  const save = node('button', 'primary-button', '保存安排');
+  save.type = 'submit';
+  const clear = node('button', 'text-button', '清空备注');
+  clear.type = 'button';
+  clear.addEventListener('click', () => { note.value = ''; note.focus(); });
+  const reset = node('button', 'text-button', '撤销未保存更改');
+  reset.type = 'button';
+  reset.addEventListener('click', () => { priority.value = task.priority || ''; note.value = task.note || ''; });
+  actions.append(save, clear, reset);
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    save.disabled = true;
+    try {
+      state = await api('/api/task', 'PATCH', { id: task.id, priority: priority.value || null, note: note.value });
+      render();
+      message('个人安排已保存。');
+    } catch (error) { message(error.message, true); }
+    finally { save.disabled = false; }
+  });
+  form.append(heading, priorityLabel, noteLabel, actions);
+  return form;
 }
 
 function renderInspector() {
@@ -479,6 +526,7 @@ function renderInspector() {
   } else if (!due && !isDone(task)) {
     container.append(node('p', 'inspector-hint', '网页没有显示明确截止时间。你可以手动设置提醒日期。'));
   }
+  container.append(taskPersonalEditor(task));
   if (task.url && courseAccessConfirmed(course)) {
     const link = node('a', 'inspector-open', `在 ${platformNames[platform]} 中打开 ↗`);
     link.href = task.url;
@@ -791,6 +839,7 @@ function renderSettings() {
   if (!wechatFormDirty) {
     $('wechat-time').value = wechat.time || '09:00';
     $('wechat-enabled').checked = Boolean(wechat.enabled);
+    $('wechat-include-notes').checked = Boolean(wechat.includeNotes);
   }
   $('wechat-key-status').textContent = wechat.hasKey ? '密钥已保存在本机；留空可保持现有密钥。' : '尚未配置密钥。请使用 Server酱 Turbo 的 SCT SendKey。';
   $('wechat-test').disabled = !wechat.hasKey;
@@ -1150,7 +1199,7 @@ $('import-text').addEventListener('click', async () => {
     message(result.message);
   } catch (error) { message(error.message, true); }
 });
-for (const id of ['wechat-key', 'wechat-time', 'wechat-enabled']) {
+for (const id of ['wechat-key', 'wechat-time', 'wechat-enabled', 'wechat-include-notes']) {
   $(id).addEventListener('input', () => { wechatFormDirty = true; });
   $(id).addEventListener('change', () => { wechatFormDirty = true; });
 }
@@ -1213,7 +1262,7 @@ $('reminders-paused').addEventListener('change', async event => {
 $('wechat-form').addEventListener('submit', async event => {
   event.preventDefault();
   const button = $('wechat-form').querySelector('button[type="submit"]');
-  const body = { time: $('wechat-time').value, enabled: $('wechat-enabled').checked };
+  const body = { time: $('wechat-time').value, enabled: $('wechat-enabled').checked, includeNotes: $('wechat-include-notes').checked };
   if ($('wechat-key').value.trim()) body.sendKey = $('wechat-key').value.trim();
   button.disabled = true;
   try {
