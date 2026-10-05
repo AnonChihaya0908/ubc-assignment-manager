@@ -6,7 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { EventEmitter } = require('node:events');
 const { spawnSync } = require('node:child_process');
-const { createUpdater, newerThan, safeRelease } = require('../lib/updater');
+const { createUpdater, newerThan, safeRelease, githubErrorMessage } = require('../lib/updater');
 
 const release = {
   tagName: 'v1.2.0', name: '1.2.0', body: '修复同步问题', isDraft: false, isPrerelease: false,
@@ -19,40 +19,74 @@ test('only a newer stable release with the matching Windows package and checksum
   assert.equal(newerThan('v1.0.9', '1.1.0'), false);
   assert.equal(newerThan('main', '1.1.0'), false);
   assert.equal(safeRelease(release).version, '1.2.0');
+  assert.equal(safeRelease({ tag_name: 'v1.2.0', name: '1.2.0', body: 'API response', draft: false, prerelease: false,
+    assets: release.assets }).version, '1.2.0');
   assert.equal(safeRelease({ ...release, isPrerelease: true }), null);
   assert.equal(safeRelease({ ...release, assets: [release.assets[0]] }), null);
 });
 
 test('startup check reports no package, then detects an update without sending credentials to the UI', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-update-check-'));
   let calls = 0;
-  const updater = createUpdater({ run: async () => {
+  const updater = createUpdater({ fetchImpl: async () => {
     calls++;
-    if (calls === 1) throw Object.assign(new Error('release not found'), { stderr: 'release not found' });
-    return { stdout: JSON.stringify(release) };
-  }, now: () => 1000 });
-  assert.equal((await updater.check()).kind, 'no_package');
-  assert.equal((await updater.check()).kind, 'no_package');
-  assert.equal(calls, 1);
-  const result = await updater.check(true);
-  assert.equal(result.kind, 'available');
-  assert.equal(result.release.version, '1.2.0');
-  assert.equal(JSON.stringify(result).includes('token'), false);
+    if (calls === 1) return new Response('', { status: 404 });
+    return Response.json(release);
+  }, directory, now: () => 1000 });
+  try {
+    assert.equal((await updater.check()).kind, 'no_package');
+    assert.equal((await updater.check()).kind, 'no_package');
+    assert.equal(calls, 1);
+    const result = await updater.check(true);
+    assert.equal(result.kind, 'available');
+    assert.equal(result.release.version, '1.2.0');
+    assert.equal(JSON.stringify(result).includes('token'), false);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('temporary GitHub failures retry and error messages distinguish timeout from DNS', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-update-retry-'));
+  let calls = 0;
+  const updater = createUpdater({ fetchImpl: async () => {
+    calls += 1;
+    if (calls < 3) throw Object.assign(new Error('request timed out'), { code: 'ETIMEDOUT' });
+    return Response.json(release);
+  }, directory, wait: async () => {}, now: () => 1000 });
+  try {
+    assert.equal((await updater.check()).kind, 'available');
+    assert.equal(calls, 3);
+    assert.match(githubErrorMessage(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' }), '检查更新'), /超时.*自动重试/);
+    assert.match(githubErrorMessage(Object.assign(new Error('getaddrinfo'), { code: 'ENOTFOUND' })), /DNS/);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a successful release check is reused across app restarts for six hours', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-update-cache-'));
+  const checkedAt = Date.parse('2026-10-04T12:00:00.000Z');
+  try {
+    const first = createUpdater({ fetchImpl: async () => Response.json(release), directory, now: () => checkedAt });
+    assert.equal((await first.check()).kind, 'available');
+    const second = createUpdater({ fetchImpl: async () => { throw new Error('network should not be used'); },
+      directory, now: () => checkedAt + 60_000 });
+    const cached = await second.check();
+    assert.equal(cached.kind, 'available');
+    assert.equal(cached.release.version, '1.2.0');
+    assert.equal(cached.checkedAt, '2026-10-04T12:00:00.000Z');
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
 test('verified archive is handed to the detached installer, invalid checksum blocks installation', async () => {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-update-test-'));
   let valid = true;
   let launched = false;
-  const run = async (program, args) => {
-    assert.equal(program, 'gh');
-    if (args[1] === 'view') return { stdout: JSON.stringify(release) };
-    const filename = args[args.indexOf('--pattern') + 1];
-    const directory = args[args.indexOf('--dir') + 1];
+  const download = async (url, target) => {
+    assert.match(url, /^https:\/\/github\.com\/AnonChihaya0908\/ubc-assignment-manager\/releases\/download\//);
+    assert.doesNotMatch(url, /token|PRIVATE/i);
+    const filename = path.basename(target);
     const bytes = Buffer.from('test package bytes');
-    fs.writeFileSync(path.join(directory, filename), filename.endsWith('.sha256')
+    fs.writeFileSync(target, filename.endsWith('.sha256')
       ? `${valid ? crypto.createHash('sha256').update(bytes).digest('hex') : '0'.repeat(64)}  ubc-assignment-manager-1.2.0-windows.zip`
       : bytes);
-    return { stdout: '' };
   };
   const start = (program, args) => {
     assert.equal(program, 'powershell.exe');
@@ -65,7 +99,8 @@ test('verified archive is handed to the detached installer, invalid checksum blo
     return child;
   };
   try {
-    const updater = createUpdater({ run, start, directory: temporary, appDirectory: temporary, platform: 'win32' });
+    const updater = createUpdater({ fetchImpl: async () => Response.json(release), download, start,
+      directory: temporary, appDirectory: temporary, platform: 'win32' });
     await updater.check();
     await updater.install();
     assert.equal(launched, true);
