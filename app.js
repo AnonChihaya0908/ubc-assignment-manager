@@ -87,9 +87,9 @@ async function syncCourse(courseId) {
   if (!course) throw new Error('课程不存在。');
   if (syncingCourseIds.has(courseId)) throw new Error('这门课程正在同步，请稍等。');
   syncingCourseIds.add(courseId);
-  markSyncAttempt(course);
-  saveState(state);
   try {
+    markSyncAttempt(course);
+    saveState(state);
     const webwork = coursePlatform(course) === 'webwork';
     const page = await (webwork ? readWebworkPage(course.url) : readCoursePage(course.url));
     const count = webwork ? mergeWebworkRows(state, courseId, page) : mergeRows(state, courseId, page);
