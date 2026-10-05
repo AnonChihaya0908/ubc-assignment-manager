@@ -256,7 +256,7 @@ select { cursor:pointer; }
 .settings-course button:last-child { color:#f2a4ad; }
 .settings-course button:hover { color:#fff; text-decoration:underline; }
 .course-sync-status.error { color:#f1a3ac; }
-.course-sync-status.stale,.course-sync-status.never { color:#dfb978; }
+.course-sync-status.stale,.course-sync-status.never,.course-sync-status.review { color:#dfb978; }
 .course-sync-status.syncing { color:#9eb7e5; }
 .course-folder.sync-warning .course-name { color:#e2bd83; }
 .paste-panel { margin:20px 0 23px; padding-top:17px; border-top:1px solid var(--border); }

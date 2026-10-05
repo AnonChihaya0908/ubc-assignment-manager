@@ -13,12 +13,12 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   const future = days => new Date(Date.now() + days * 86400000).toISOString();
   const courses = [
     { id: 'pl:1', platform: 'prairielearn', name: 'CPSC 310 · 2026W1', url: 'https://us.prairielearn.com/pl/course_instance/1/assessments',
-      lastSyncedAt: new Date().toISOString(), lastSyncError: '专用 Edge 窗口尚未登录', lastSyncErrorKind: 'login', ignoredSections: [] },
-    { id: 'ww:1', platform: 'webwork', name: 'STAT_V 251 101 2026W1 Introductory Probability and Statistics', url: 'https://webwork.elearning.ubc.ca/webwork2/example', lastSyncedAt: new Date().toISOString(), ignoredSections: [] },
+      lastSyncedAt: new Date().toISOString(), lastSyncError: '专用 Edge 窗口尚未登录', lastSyncErrorKind: 'login', ignoredSections: [], accessConfirmedAt: new Date().toISOString() },
+    { id: 'ww:1', platform: 'webwork', name: 'STAT_V 251 101 2026W1 Introductory Probability and Statistics', url: 'https://webwork.elearning.ubc.ca/webwork2/example', lastSyncedAt: new Date().toISOString(), ignoredSections: [], accessConfirmedAt: new Date().toISOString() },
   ];
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
-  const fixtureState = { version: '1.1.2', courses, syncing: false,
+  const fixtureState = { version: '1.1.3', courses, syncing: false,
     preferences: { requireManualCompletion: false, onboardingDismissed: true },
     startup: { supported: true, enabled: false, configured: false, error: null },
     wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null,
@@ -40,7 +40,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     }
     if (request.url === '/api/update/check' && request.method === 'POST') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ kind: 'available', canInstall: true, currentVersion: '1.1.2',
+      response.end(JSON.stringify({ kind: 'available', canInstall: true, currentVersion: '1.1.3',
         release: { version: '1.2.0', name: '1.2.0', notes: '更新说明' } }));
       return;
     }
@@ -67,6 +67,22 @@ test('desktop navigation separates sources, settings, and clears red dots after 
         Object.assign(fixtureState.preferences, JSON.parse(body));
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(fixtureState));
+      });
+      return;
+    }
+    if (request.url === '/api/course/access-review' && request.method === 'POST') {
+      let body = '';
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        const selected = new Set(JSON.parse(body).confirmedIds);
+        const pending = fixtureState.courses.filter(course => !course.accessConfirmedAt);
+        const removed = new Set(pending.filter(course => !selected.has(course.id)).map(course => course.id));
+        const now = new Date().toISOString();
+        fixtureState.courses = fixtureState.courses.filter(course => !removed.has(course.id));
+        fixtureState.tasks = fixtureState.tasks.filter(task => !removed.has(task.courseId));
+        for (const course of fixtureState.courses) if (selected.has(course.id)) course.accessConfirmedAt = now;
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ message: `已确认 ${selected.size} 门课程，移除 ${removed.size} 门未选择课程。`, state: fixtureState }));
       });
       return;
     }
@@ -202,7 +218,29 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#app-dialog-title').textContent"), '第二条通知');
     await evaluate("document.querySelector('#app-dialog').dispatchEvent(new Event('cancel', { cancelable: true }))");
     assert.equal(await evaluate("document.querySelector('#app-dialog').open"), false);
-    assert.equal(await evaluate('document.title'), 'UBC作业管理工具 1.1.2');
+    await evaluate("state.courses[0].accessConfirmedAt = null; render()");
+    for (let i = 0; i < 20; i++) {
+      if (await evaluate("document.querySelector('#app-dialog-title').textContent === '确认本机课程'")) break;
+      await sleep(50);
+    }
+    assert.equal(await evaluate("document.querySelector('#app-dialog').open"), true);
+    assert.equal(await evaluate("document.querySelector('#app-dialog-choices input').checked"), false);
+    assert.equal(await evaluate("document.querySelector('.settings-course .course-action').disabled"), true);
+    if (process.env.UI_COURSE_REVIEW_PREVIEW_PATH) {
+      const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(process.env.UI_COURSE_REVIEW_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
+    }
+    await evaluate("document.querySelector('#app-dialog-choices input').click()");
+    assert.equal(await evaluate("document.querySelector('#app-dialog-choices input').checked"), true);
+    assert.equal(await evaluate("document.querySelectorAll('#app-dialog-actions button')[1].disabled"), false);
+    await evaluate("document.querySelectorAll('#app-dialog-actions button')[1].click()");
+    for (let i = 0; i < 100; i++) {
+      if (!await evaluate("document.querySelector('#app-dialog').open")) break;
+      await sleep(50);
+    }
+    assert.equal(await evaluate("document.querySelector('#app-dialog').open"), false);
+    assert.equal(await evaluate("Boolean(state.courses[0].accessConfirmedAt)"), true);
+    assert.equal(await evaluate('document.title'), 'UBC作业管理工具 1.1.3');
     assert.equal(await evaluate("document.querySelector('#future-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#history-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), false);

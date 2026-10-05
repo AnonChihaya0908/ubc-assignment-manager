@@ -36,6 +36,8 @@ test('exported backup restores managed data without credentials or personal quer
   assert.equal(restored.state.tasks[0].doneOverride, false);
   assert.equal(restored.state.tasks[0].deadlineOverride, '2026-10-09T05:00:00.000Z');
   assert.deepEqual(restored.state.courses[0].ignoredSections, ['Practice']);
+  assert.equal(restored.state.courses[0].accessConfirmedAt, null);
+  assert.equal(restored.state.courses[0].origin, 'backup');
   assert.deepEqual(restored.config.leadHours, [48, 6]);
   assert.equal(restored.config.enabled, false);
   assert.equal(restored.config.sendKey, 'SCTexistingkey123');

@@ -9,7 +9,7 @@ let reminderFormDirty = false;
 let selectedTaskId = null;
 let searchTerm = '';
 let inspectorTasks = [];
-let updateStatus = { kind: 'checking', currentVersion: '1.1.2' };
+let updateStatus = { kind: 'checking', currentVersion: '1.1.3' };
 let promptedUpdate = null;
 let onboardingActive = false;
 let pendingBackup = null;
@@ -64,6 +64,10 @@ function coursePlatform(course) {
   return course?.platform || (course?.url?.includes('webwork.elearning.ubc.ca') ? 'webwork' : 'prairielearn');
 }
 
+function courseAccessConfirmed(course) {
+  return Boolean(course?.accessConfirmedAt && Number.isFinite(Date.parse(course.accessConfirmedAt)));
+}
+
 function courseFor(task) { return state.courses.find(course => course.id === task.courseId); }
 function completionInfo(task) {
   const status = completionStatus(task);
@@ -110,6 +114,7 @@ function shortCourseName(course) {
 }
 
 function courseSyncStatus(course, now = Date.now()) {
+  if (!courseAccessConfirmed(course)) return { kind: 'review', text: '等待确认课程归属' };
   if (state.syncingCourseIds?.includes(course.id)) return { kind: 'syncing', text: '正在同步…' };
   const syncedAt = Date.parse(course.lastSyncedAt || '');
   const stale = !Number.isFinite(syncedAt) || now - syncedAt > staleAfterMs;
@@ -165,7 +170,7 @@ function renderFolders() {
       button.title = course.name;
       const syncStatus = courseSyncStatus(course);
       button.title = `${course.name} · ${syncStatus.text}`;
-      button.classList.toggle('sync-warning', syncStatus.kind === 'error' || syncStatus.kind === 'stale' || syncStatus.kind === 'never');
+      button.classList.toggle('sync-warning', ['error', 'stale', 'never', 'review'].includes(syncStatus.kind));
       button.classList.toggle('active', selectedScope === `course:${course.id}`);
       button.append(node('span', `source-mark ${platform === 'webwork' ? 'ww' : 'pl'}`, platform === 'webwork' ? 'W' : 'PL'));
       button.append(node('span', 'course-name', shortCourseName(course)));
@@ -242,10 +247,12 @@ function taskRow(task) {
   main.append(node('span', `source-mark ${coursePlatform(course) === 'webwork' ? 'ww' : 'pl'}`, coursePlatform(course) === 'webwork' ? 'W' : 'PL'));
   const description = node('div', 'assignment-description');
   if (task.code && task.code !== task.name) description.append(node('span', 'assignment-code', task.code));
-  const title = node('a', 'assignment-title', task.name);
-  title.href = task.url;
-  title.target = '_blank';
-  title.rel = 'noopener noreferrer';
+  const title = node(courseAccessConfirmed(course) ? 'a' : 'span', 'assignment-title', task.name);
+  if (courseAccessConfirmed(course)) {
+    title.href = task.url;
+    title.target = '_blank';
+    title.rel = 'noopener noreferrer';
+  }
   description.append(title);
   description.append(node('div', 'assignment-meta', [course ? shortCourseName(course) : '', platformNames[coursePlatform(course)], task.section].filter(Boolean).join(' · ')));
   main.append(description);
@@ -365,12 +372,14 @@ function renderInspector() {
   } else if (!due && !isDone(task)) {
     container.append(node('p', 'inspector-hint', '网页没有显示明确截止时间。你可以手动设置提醒日期。'));
   }
-  if (task.url) {
+  if (task.url && courseAccessConfirmed(course)) {
     const link = node('a', 'inspector-open', `在 ${platformNames[platform]} 中打开 ↗`);
     link.href = task.url;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     container.append(link);
+  } else if (task.url && course) {
+    container.append(node('p', 'inspector-hint', '确认这门课程属于你之后，才能打开课程网站。'));
   }
   const actions = node('div', 'inspector-actions');
   if (categoryOf(task) === 'ignored') {
@@ -526,9 +535,9 @@ async function dismissOnboarding(targetPanel = null) {
 }
 
 function renderSettings() {
-  $('app-version').textContent = state.version || '1.1.2';
-  document.title = `UBC作业管理工具 ${state.version || '1.1.2'}`;
-  document.querySelector('.toolbar-version').textContent = state.version || '1.1.2';
+  $('app-version').textContent = state.version || '1.1.3';
+  document.title = `UBC作业管理工具 ${state.version || '1.1.3'}`;
+  document.querySelector('.toolbar-version').textContent = state.version || '1.1.3';
   renderUpdateStatus();
   const startup = state.startup || { supported: false, enabled: false, error: '无法读取开机启动状态。' };
   $('startup-enabled').checked = Boolean(startup.enabled);
@@ -550,9 +559,10 @@ function renderSettings() {
   for (const course of state.courses) select.append(new Option(course.name, course.id));
   settingsCourseId = state.courses.some(course => course.id === current) ? current : state.courses[0]?.id || null;
   if (settingsCourseId) select.value = settingsCourseId;
+  const settingsCourse = selectedSettingsCourse();
   select.disabled = !state.courses.length;
-  $('open-browser').disabled = !state.courses.length;
-  $('import-text').disabled = !state.courses.length;
+  $('open-browser').disabled = !courseAccessConfirmed(settingsCourse);
+  $('import-text').disabled = !courseAccessConfirmed(settingsCourse);
   $('course-list').replaceChildren();
   if (!state.courses.length) $('course-list').append(node('p', 'setting-intro', '尚未添加课程。'));
   for (const course of state.courses) {
@@ -565,6 +575,7 @@ function renderSettings() {
     const actions = node('div', 'settings-course-actions');
     const login = node('button', 'course-action', course.lastSyncErrorKind === 'login' ? '重新登录' : '打开登录');
     login.type = 'button';
+    login.disabled = !courseAccessConfirmed(course);
     login.addEventListener('click', async () => {
       try {
         await api('/api/open-browser', 'POST', { courseId: course.id });
@@ -573,7 +584,7 @@ function renderSettings() {
     });
     const retry = node('button', 'course-action', '重试同步');
     retry.type = 'button';
-    retry.disabled = syncStatus.kind === 'syncing';
+    retry.disabled = syncStatus.kind === 'syncing' || !courseAccessConfirmed(course);
     retry.addEventListener('click', async () => {
       retry.disabled = true;
       try {
@@ -766,11 +777,12 @@ function render() {
   renderWork();
   renderSettings();
   renderOnboarding();
+  showCourseAccessReview();
   const last = state.courses.map(course => course.lastSyncedAt).filter(Boolean).sort().at(-1);
   const failures = state.courses.filter(course => course.lastSyncError).length;
   const stale = state.courses.filter(course => ['stale', 'never'].includes(courseSyncStatus(course).kind)).length;
   $('sync-status').textContent = state.syncing ? '正在同步' : failures ? `${failures} 门课程同步失败` : stale ? `${stale} 门课程数据需要更新` : last ? `上次同步：${formatDate(last)}` : '尚未同步';
-  $('sync').disabled = state.syncing || !state.courses.length;
+  $('sync').disabled = state.syncing || !state.courses.some(courseAccessConfirmed);
   $('footer-sync').textContent = state.syncing ? '正在同步' : failures ? `${failures} 门同步失败` : stale ? `${stale} 门数据可能过旧` : last ? `上次同步 ${formatDate(last)}` : '尚未同步';
   $('footer-sync').title = state.courses.filter(course => course.lastSyncError).map(course => `${shortCourseName(course)}：${course.lastSyncError}`).join('；');
   $('footer-sync').classList.toggle('error', failures > 0);
@@ -780,6 +792,36 @@ function render() {
   $('footer-reminder').textContent = state.wechat?.remindersPaused ? '提醒已暂停' : state.wechat?.lastError ? '每日提醒发送失败' : state.wechat?.enabled ? '每日提醒已启用' : '每日提醒未启用';
   $('footer-reminder').classList.toggle('error', Boolean(state.wechat?.lastError && !state.wechat?.remindersPaused));
   $('footer-timezone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+function showCourseAccessReview() {
+  const pending = state.courses.filter(course => !courseAccessConfirmed(course));
+  if (!pending.length || !window.AppDialog) return;
+  window.AppDialog.push({
+    id: 'course-access-review-v1',
+    level: 'warning',
+    title: '确认本机课程',
+    body: '检测到旧版本或备份中的课程。为防止打开课程网址时被 PrairieLearn 自动加入课程，请只勾选你当前确实参加的课程。未勾选课程及其本地作业记录会被移除。',
+    items: ['确认前，这些课程不会打开网页、同步数据或发送提醒。', '如果暂时无法确认，可以选择“稍后处理”。'],
+    choices: pending.map(course => ({
+      id: course.id,
+      label: course.name,
+      description: `${platformNames[coursePlatform(course)]} · ${new URL(course.url).pathname}`,
+      checked: false,
+    })),
+    required: true,
+    actions: [
+      { id: 'later', label: '稍后处理', kind: 'secondary' },
+      { id: 'apply', label: '确认并应用', kind: 'primary', handler: async result => {
+        const response = await api('/api/course/access-review', 'POST', { confirmedIds: result.selectedIds });
+        state = response.state;
+        if (selectedScope.startsWith('course:') && !state.courses.some(course => `course:${course.id}` === selectedScope)) selectedScope = 'all';
+        if (settingsCourseId && !state.courses.some(course => course.id === settingsCourseId)) settingsCourseId = null;
+        render();
+        message(response.message);
+      } },
+    ],
+  }).catch(error => message(error.message, true));
 }
 
 function closeMobileMenu() {
@@ -916,11 +958,11 @@ $('sync').addEventListener('click', async () => {
     render();
   } finally {
     button.textContent = '立即同步';
-    button.disabled = !state.courses.length;
+    button.disabled = !state.courses.some(courseAccessConfirmed);
   }
 });
 
-$('settings-course-select').addEventListener('change', event => { settingsCourseId = event.target.value; });
+$('settings-course-select').addEventListener('change', event => { settingsCourseId = event.target.value; renderSettings(); });
 $('open-browser').addEventListener('click', async () => {
   const course = selectedSettingsCourse();
   if (!course) return;

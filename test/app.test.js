@@ -4,7 +4,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { parseDisplayedDeadline, completionStatus, isComplete } = require('../lib/deadlines');
-const { emptyState, loadState, normalizeCourseUrl, mergeRows, mergeWebworkRows } = require('../lib/store');
+const { emptyState, loadState, normalizeCourseUrl, courseAccessConfirmed, requireCourseAccess,
+  reviewCourseAccess, mergeRows, mergeWebworkRows } = require('../lib/store');
 const { parseCopiedTable } = require('../lib/paste');
 const { parseWebworkText, parseWebworkDate, parseWebworkProgress } = require('../lib/webwork');
 const { categoryOf, needsAttention } = require('../public/task-status');
@@ -80,6 +81,31 @@ test('existing saved data defaults to automatic full-score completion', () => {
   try {
     fs.writeFileSync(file, JSON.stringify({ version: 1, courses: [], tasks: [], notified: {} }));
     assert.deepEqual(loadState(file).preferences, { requireManualCompletion: false, onboardingDismissed: true });
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('existing courses require review and unselected courses are removed with their tasks', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-assignment-access-'));
+  const file = path.join(directory, 'data.json');
+  try {
+    fs.writeFileSync(file, JSON.stringify({ version: 1, notified: {}, preferences: {}, courses: [
+      { id: 'pl:310', name: 'CPSC 310', url: 'https://us.prairielearn.com/pl/course_instance/310/assessments' },
+      { id: 'pl:317', name: 'CPSC 317', url: 'https://us.prairielearn.com/pl/course_instance/317/assessments' },
+    ], tasks: [
+      { id: 'task310', courseId: 'pl:310' }, { id: 'task317', courseId: 'pl:317' },
+    ] }));
+    const saved = loadState(file);
+    assert.equal(saved.courses.every(course => course.accessConfirmedAt === null && course.origin === 'existing_data'), true);
+    assert.equal(courseAccessConfirmed(saved.courses[0]), false);
+    assert.throws(() => requireCourseAccess(saved.courses[0]), /确认这门课程/);
+    const result = reviewCourseAccess(saved, ['pl:317'], new Date('2026-10-04T12:00:00.000Z'));
+    assert.deepEqual(result, { kept: 1, removed: 1 });
+    assert.deepEqual(saved.courses.map(course => course.id), ['pl:317']);
+    assert.equal(saved.courses[0].accessConfirmedAt, '2026-10-04T12:00:00.000Z');
+    assert.deepEqual(saved.tasks.map(task => task.id), ['task317']);
+    assert.equal(courseAccessConfirmed(requireCourseAccess(saved.courses[0])), true);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
