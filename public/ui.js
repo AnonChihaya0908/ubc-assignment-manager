@@ -10,7 +10,7 @@ let selectedTaskId = null;
 let searchTerm = '';
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let inspectorTasks = [];
-let updateStatus = { kind: 'checking', currentVersion: '1.2.0' };
+let updateStatus = { kind: 'checking', currentVersion: '1.2.1' };
 let promptedUpdate = null;
 let onboardingActive = false;
 let pendingBackup = null;
@@ -697,9 +697,9 @@ async function dismissOnboarding(targetPanel = null) {
 }
 
 function renderSettings() {
-  $('app-version').textContent = state.version || '1.2.0';
-  document.title = `UBC作业管理工具 ${state.version || '1.2.0'}`;
-  document.querySelector('.toolbar-version').textContent = state.version || '1.2.0';
+  $('app-version').textContent = state.version || '1.2.1';
+  document.title = `UBC作业管理工具 ${state.version || '1.2.1'}`;
+  document.querySelector('.toolbar-version').textContent = state.version || '1.2.1';
   renderUpdateStatus();
   const startup = state.startup || { supported: false, enabled: false, error: '无法读取开机启动状态。' };
   $('startup-enabled').checked = Boolean(startup.enabled);
