@@ -1,6 +1,6 @@
 {
   "name": "ubc-assignment-manager",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Local UBC assignment manager for PrairieLearn and WeBWorK",
   "scripts": {
