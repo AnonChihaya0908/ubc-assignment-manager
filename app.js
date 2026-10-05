@@ -13,6 +13,7 @@ const { createUpdater, VERSION } = require('./lib/updater');
 const { markSyncAttempt, markSyncSuccess, markSyncFailure } = require('./lib/sync-status');
 const { startupStatus, setStartupEnabled } = require('./lib/windows-startup');
 const { createBackup, validateBackup, writeRestorePoint, applyBackup } = require('./lib/backup');
+const { authorizedNativeRequest } = require('./lib/native-auth');
 
 let state = loadState();
 let wechatConfig = loadConfig();
@@ -24,6 +25,7 @@ let server;
 let trayProcess = null;
 let startup = startupStatus();
 const updater = createUpdater();
+const nativeToken = process.env.UBC_NATIVE_TOKEN || '';
 
 function taskOptions() {
   return { ...state.preferences, ignoredSectionsByCourse: Object.fromEntries(state.courses.map(course => [course.id, course.ignoredSections || []])) };
@@ -220,6 +222,11 @@ async function handle(request, response) {
     return json(response, 403, { error: '来源不匹配。' });
   }
   const url = new URL(request.url, `http://${request.headers.host}`);
+  if (nativeToken && url.pathname.startsWith('/api/')) {
+    if (!authorizedNativeRequest(nativeToken, request.headers['x-ubc-native-token'])) {
+      return json(response, 403, { error: '需要从应用窗口访问。' });
+    }
+  }
   if (request.method === 'GET' && url.pathname === '/') return serveFile(response, 'index.html', 'text/html; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/style.css') return serveFile(response, 'style.css', 'text/css; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/task-status.js') return serveFile(response, 'task-status.js', 'text/javascript; charset=utf-8');
