@@ -4,6 +4,7 @@ import WebKit
 
 private let appURL = URL(string: "http://127.0.0.1:43873/")!
 private let serverURL = URL(string: "http://127.0.0.1:43873/api/state")!
+private let reopenNotification = Notification.Name("com.anonchihaya.ubc-assignment-manager.reopen")
 
 @main
 struct AssignmentManagerMain {
@@ -15,6 +16,7 @@ struct AssignmentManagerMain {
            let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
              .first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
             running.activate(options: [.activateAllWindows])
+            DistributedNotificationCenter.default().post(name: reopenNotification, object: bundleID)
             return
         }
         application.delegate = appDelegate
@@ -44,6 +46,8 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(handleReopen),
+                                                             name: reopenNotification, object: Bundle.main.bundleIdentifier)
         configureAppMenu()
         configureWindow()
         configureStatusItem()
@@ -60,6 +64,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
 
     func applicationWillTerminate(_ notification: Notification) {
         isQuitting = true
+        DistributedNotificationCenter.default().removeObserver(self)
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "nativeHost")
         if let process = nodeProcess, process.isRunning { process.terminate() }
     }
@@ -135,6 +140,8 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    @objc private func handleReopen(_ notification: Notification) { showWindow() }
 
     @objc private func toggleMenuBar() { menuBarVisible.toggle() }
 
@@ -219,6 +226,8 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
             menuBarVisible = visible
         } else if action == "showWindow" {
             showWindow()
+        } else if action == "quitApp" {
+            quitApp()
         }
     }
 

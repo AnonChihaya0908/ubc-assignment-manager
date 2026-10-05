@@ -1359,6 +1359,10 @@ $('deadline-form').addEventListener('submit', async event => {
   } catch (error) { message(error.message, true); }
 });
 $('quit').addEventListener('click', async () => {
+  if (window.webkit?.messageHandlers?.nativeHost) {
+    window.webkit.messageHandlers.nativeHost.postMessage({ action: 'quitApp' });
+    return;
+  }
   try { await api('/api/shutdown', 'POST', {}); window.close(); }
   catch (error) { message(error.message, true); }
 });
