@@ -86,6 +86,22 @@ test('existing saved data defaults to automatic full-score completion', () => {
   }
 });
 
+test('legacy task notes migrate into storage that is independent from sync rows', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-assignment-personal-'));
+  const file = path.join(directory, 'data.json');
+  try {
+    fs.writeFileSync(file, JSON.stringify({ version: 1, courses: [], notified: {}, tasks: [
+      { id: 'task-1', courseId: 'course-1', priority: 'high', note: '保留这条备注' },
+    ] }));
+    const saved = loadState(file);
+    assert.deepEqual(saved.taskPersonal['task-1'], { courseId: 'course-1', priority: 'high', note: '保留这条备注' });
+    assert.equal(Object.hasOwn(saved.tasks[0], 'priority'), false);
+    assert.equal(Object.hasOwn(saved.tasks[0], 'note'), false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('existing courses require review and unselected courses are removed with their tasks', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-assignment-access-'));
   const file = path.join(directory, 'data.json');
@@ -151,11 +167,21 @@ test('missing deadlines remain undated and student overrides remain after sync',
   assert.equal(isComplete(state.tasks[1]), true);
   state.tasks[0].doneOverride = true;
   state.tasks[0].deadlineOverride = new Date(2026, 9, 9, 23, 59).toISOString();
+  state.taskPersonal[state.tasks[0].id] = { courseId: course.id, priority: 'high', note: '完成重构前先复习测试替身。' };
   mergeRows(state, course.id, { courseTitle: 'CPSC 310, 2026W1', rows });
   assert.equal(state.tasks[0].doneOverride, true);
   assert.equal(state.tasks[0].deadlineOverride, new Date(2026, 9, 9, 23, 59).toISOString());
+  assert.equal(state.taskPersonal[state.tasks[0].id].priority, 'high');
+  assert.equal(state.taskPersonal[state.tasks[0].id].note, '完成重构前先复习测试替身。');
   assert.equal(state.tasks[1].doneOverride, true);
   assert.equal(isComplete(state.tasks[1]), true);
+  const personalTaskId = state.tasks[0].id;
+  mergeRows(state, course.id, { courseTitle: 'CPSC 310, 2026W1', rows: [rows[1]] });
+  assert.equal(state.tasks.some(task => task.id === personalTaskId), false);
+  assert.equal(state.taskPersonal[personalTaskId].note, '完成重构前先复习测试替身。');
+  mergeRows(state, course.id, { courseTitle: 'CPSC 310, 2026W1', rows });
+  assert.equal(state.tasks.some(task => task.id === personalTaskId), true);
+  assert.equal(state.taskPersonal[personalTaskId].priority, 'high');
 });
 
 test('course URLs are limited to supported student course pages', () => {
@@ -180,8 +206,11 @@ test('WeBWorK due dates and release dates remain distinct', () => {
   assert.equal(byName('Assignment-02').sourceStatus, 'past_due');
   assert.equal(byName('Assignment-02').dueAt, null);
   byName('Assignment-03').doneOverride = true;
+  state.taskPersonal[byName('Assignment-03').id] = { courseId: course.id, priority: 'medium', note: '检查第 4 题。' };
   mergeWebworkRows(state, course.id, { courseTitle: 'STAT 251', rows });
   assert.equal(byName('Assignment-03').doneOverride, true);
+  assert.equal(state.taskPersonal[byName('Assignment-03').id].priority, 'medium');
+  assert.equal(state.taskPersonal[byName('Assignment-03').id].note, '检查第 4 题。');
   assert.equal(parseWebworkDate('October 32, 2026, 11:59:00 PM PDT'), null);
 });
 

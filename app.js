@@ -2,7 +2,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
-const { loadState, saveState, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
+const { loadState, saveState, normalizePriority, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
   reviewCourseAccess, mergeRows, mergeWebworkRows } = require('./lib/store');
 const { effectiveDue, categoryOf } = require('./lib/deadlines');
 const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } = require('./lib/browser');
@@ -34,7 +34,11 @@ function sectionKey(value) {
 }
 
 function publicState() {
-  return { version: VERSION, courses: state.courses, tasks: state.tasks, syncing: syncingCourseIds.size > 0,
+  const tasks = state.tasks.map(task => {
+    const personal = state.taskPersonal?.[task.id] || {};
+    return { ...task, priority: normalizePriority(personal.priority), note: typeof personal.note === 'string' ? personal.note : '' };
+  });
+  return { version: VERSION, courses: state.courses, tasks, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
     preferences: state.preferences, startup, wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
 }
@@ -323,6 +327,10 @@ async function handle(request, response) {
         if (typeof body.enabled !== 'boolean') throw new Error('启用状态无效。');
         next.enabled = body.enabled;
       }
+      if (Object.hasOwn(body, 'includeNotes')) {
+        if (typeof body.includeNotes !== 'boolean') throw new Error('微信备注设置无效。');
+        next.includeNotes = body.includeNotes;
+      }
       if (next.enabled && !next.sendKey) throw new Error('请先保存 SCT SendKey。');
       wechatConfig = next;
       saveConfig(wechatConfig);
@@ -369,8 +377,13 @@ async function handle(request, response) {
     }
     if (request.method === 'DELETE' && url.pathname === '/api/course') {
       if (!state.courses.some(item => item.id === body.id)) throw new Error('课程不存在。');
+      const removedTaskIds = state.tasks.filter(item => item.courseId === body.id).map(item => item.id);
       state.courses = state.courses.filter(item => item.id !== body.id);
       state.tasks = state.tasks.filter(item => item.courseId !== body.id);
+      state.taskPersonal ||= {};
+      for (const [id, personal] of Object.entries(state.taskPersonal)) {
+        if (removedTaskIds.includes(id) || personal?.courseId === body.id) delete state.taskPersonal[id];
+      }
       saveState(state);
       return json(response, 200, publicState());
     }
@@ -439,6 +452,23 @@ async function handle(request, response) {
           throw new Error('日期格式无效。');
         }
         task.deadlineOverride = body.deadlineOverride;
+      }
+      if (Object.hasOwn(body, 'priority')) {
+        if (body.priority !== null && normalizePriority(body.priority) !== body.priority) throw new Error('作业优先级无效。');
+      }
+      if (Object.hasOwn(body, 'note')) {
+        if (typeof body.note !== 'string' || body.note.length > 1000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(body.note)) throw new Error('个人备注无效。');
+      }
+      if (Object.hasOwn(body, 'priority') || Object.hasOwn(body, 'note')) {
+        state.taskPersonal ||= {};
+        const existing = state.taskPersonal[task.id] || {};
+        const personal = {
+          courseId: task.courseId,
+          priority: Object.hasOwn(body, 'priority') ? normalizePriority(body.priority) : normalizePriority(existing.priority),
+          note: Object.hasOwn(body, 'note') ? body.note.trim() : typeof existing.note === 'string' ? existing.note : '',
+        };
+        if (personal.priority || personal.note) state.taskPersonal[task.id] = personal;
+        else delete state.taskPersonal[task.id];
       }
       saveState(state);
       return json(response, 200, publicState());

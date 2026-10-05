@@ -157,6 +157,8 @@
               <label for="wechat-time">每天发送时间（电脑当地时间）</label>
               <input id="wechat-time" type="time" value="09:00" required>
               <label class="check-row" for="wechat-enabled"><input id="wechat-enabled" type="checkbox"><span>启用每日微信提醒</span></label>
+              <label class="check-row" for="wechat-include-notes"><input id="wechat-include-notes" type="checkbox"><span>在微信汇总中包含个人备注</span></label>
+              <p class="form-note">默认关闭。开启后，个人备注会随作业名称和日期发送给 Server酱。</p>
               <p class="form-note">汇总已开放且未完成的作业。尚未开放的 WeBWorK 作业不会被当作截止提醒。如果今天的时间已过，启用后会发送一次今日汇总。</p>
               <div class="wechat-actions"><button class="primary-button" type="submit">保存设置</button><button id="wechat-test" class="secondary-button" type="button">发送测试消息</button><button id="wechat-clear" class="text-button" type="button">清除密钥</button></div>
             </form>
@@ -196,7 +198,7 @@
         <div id="settings-data" class="settings-panel" hidden>
           <section class="setting-block">
             <h2>备份与恢复</h2>
-            <p class="setting-intro">备份包含课程、缓存作业、手动完成状态、手动提醒日期和普通设置。不会包含 Server酱 SendKey、Cookie、Edge 登录资料、发送记录；课程和作业网址中的查询参数会移除。</p>
+            <p class="setting-intro">备份包含课程、缓存作业、优先级、个人备注、手动完成状态、手动提醒日期和普通设置。不会包含 Server酱 SendKey、Cookie、Edge 登录资料、发送记录；课程和作业网址中的查询参数会移除。</p>
             <div class="setting-row"><div><h3>导出 JSON 备份</h3><p>适合换电脑或在重要修改前保存。文件带有格式版本和内容范围说明。</p></div><button id="backup-export" class="secondary-button" type="button">导出备份</button></div>
             <div class="backup-import">
               <label for="backup-file">选择备份文件</label><input id="backup-file" type="file" accept="application/json,.json">

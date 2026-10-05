@@ -61,12 +61,13 @@ test('daily digest contains actionable assignments and does not include private 
     courses: [{ id: 'c1', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/course?effectiveUser=private-id',
       lastSyncedAt: new Date(2026, 9, 1, 8).toISOString(), lastSyncError: 'network failed', lastSyncErrorKind: 'network' }],
     tasks: [
-      { courseId: 'c1', name: 'Assignment-03', code: 'A03', score: '0%', sourceStatus: 'open', dueAt: new Date(2026, 9, 8, 23, 59).toISOString() },
+      { id: 'a03', courseId: 'c1', name: 'Assignment-03', code: 'A03', score: '0%', sourceStatus: 'open', dueAt: new Date(2026, 9, 8, 23, 59).toISOString() },
       { courseId: 'c1', name: 'Assignment-04', score: '', sourceStatus: 'future', opensAt: new Date(2026, 9, 6).toISOString() },
       { courseId: 'c1', name: 'Assignment-02', score: '', sourceStatus: 'past_due' },
       { courseId: 'c1', name: 'Assignment-01', score: '100%', sourceComplete: true, sourceStatus: 'open' },
       { courseId: 'c1', name: 'Assignment-00', score: '100%', sourceStatus: 'open' },
     ],
+    taskPersonal: { a03: { courseId: 'c1', priority: 'high', note: '复习第三章' } },
   };
   const digest = buildDailyDigest(state, now);
   assert.equal(digest.count, 4);
@@ -78,6 +79,9 @@ test('daily digest contains actionable assignments and does not include private 
   assert.match(digest.desp, /【100% 待确认】STAT 251.*Assignment-00/);
   assert.match(digest.desp, /【100% 待确认】STAT 251.*Assignment-01/);
   assert.doesNotMatch(digest.desp, /Assignment-04|private-id|effectiveUser/);
+  assert.doesNotMatch(digest.desp, /复习第三章/);
+  const withNotes = buildDailyDigest(state, now, { includeNotes: true });
+  assert.match(withNotes.desp, /备注：复习第三章/);
   const filtered = buildDailyDigest(state, now, { disabledCourseIds: ['c1'] });
   assert.equal(filtered.count, 0);
   assert.doesNotMatch(filtered.desp, /Assignment-03/);
