@@ -487,6 +487,13 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.row-actions')).display"), 'flex');
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
     assert.equal(await evaluate("document.querySelector('#work-page').scrollWidth <= document.querySelector('#work-page').clientWidth"), true);
+    await evaluate("document.querySelector('#nav-settings').click()");
+    await evaluate("state.platform = 'darwin'; updateStatus = { kind: 'available', updateMode: 'manual', canInstall: false, release: { version: '1.3.0', assetUrl: 'https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/download/v1.3.0/ubc-assignment-manager-1.3.0-macos-arm64.pkg' } }; render(); renderUpdateStatus()");
+    assert.equal(await evaluate("document.querySelector('#startup-row').hidden"), true);
+    assert.equal(await evaluate("document.querySelector('#install-update').hidden"), true);
+    assert.equal(await evaluate("document.querySelector('#download-update').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#download-update').getAttribute('href').endsWith('macos-arm64.pkg')"), true);
+    assert.equal(await evaluate("document.querySelector('#update-status').textContent.includes('手动安装')"), true);
     if (process.env.UI_NARROW_PREVIEW_PATH) {
       await sleep(250);
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });

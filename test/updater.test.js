@@ -18,11 +18,32 @@ test('only a newer stable release with the matching Windows package and checksum
   assert.equal(newerThan('v1.1.0', '1.1.0'), false);
   assert.equal(newerThan('v1.0.9', '1.1.0'), false);
   assert.equal(newerThan('main', '1.1.0'), false);
-  assert.equal(safeRelease(release).version, '1.3.0');
+  assert.equal(safeRelease(release, 'win32').version, '1.3.0');
   assert.equal(safeRelease({ tag_name: 'v1.3.0', name: '1.3.0', body: 'API response', draft: false, prerelease: false,
-    assets: release.assets }).version, '1.3.0');
-  assert.equal(safeRelease({ ...release, isPrerelease: true }), null);
-  assert.equal(safeRelease({ ...release, assets: [release.assets[0]] }), null);
+    assets: release.assets }, 'win32').version, '1.3.0');
+  assert.equal(safeRelease({ ...release, isPrerelease: true }, 'win32'), null);
+  assert.equal(safeRelease({ ...release, assets: [release.assets[0]] }, 'win32'), null);
+});
+
+test('macOS offers only the matching pkg for manual installation', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-mac-update-'));
+  const macRelease = { ...release, assets: [
+    ...release.assets,
+    { name: 'ubc-assignment-manager-1.3.0-macos-arm64.pkg' },
+    { name: 'ubc-assignment-manager-1.3.0-macos-arm64.pkg.sha256' },
+  ] };
+  try {
+    assert.equal(safeRelease(release, 'darwin', 'arm64'), null);
+    assert.equal(safeRelease(macRelease, 'darwin', 'x64'), null);
+    const updater = createUpdater({ platform: 'darwin', arch: 'arm64', directory,
+      fetchImpl: async () => Response.json(macRelease) });
+    const result = await updater.check();
+    assert.equal(result.kind, 'available');
+    assert.equal(result.updateMode, 'manual');
+    assert.equal(result.canInstall, false);
+    assert.match(result.release.assetUrl, /macos-arm64\.pkg$/);
+    await assert.rejects(updater.install(), /手动安装更新/);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
 test('startup check reports no package, then detects an update without sending credentials to the UI', async () => {
@@ -32,7 +53,7 @@ test('startup check reports no package, then detects an update without sending c
     calls++;
     if (calls === 1) return new Response('', { status: 404 });
     return Response.json(release);
-  }, directory, now: () => 1000 });
+  }, directory, platform: 'win32', now: () => 1000 });
   try {
     assert.equal((await updater.check()).kind, 'no_package');
     assert.equal((await updater.check()).kind, 'no_package');
@@ -51,7 +72,7 @@ test('temporary GitHub failures retry and error messages distinguish timeout fro
     calls += 1;
     if (calls < 3) throw Object.assign(new Error('request timed out'), { code: 'ETIMEDOUT' });
     return Response.json(release);
-  }, directory, wait: async () => {}, now: () => 1000 });
+  }, directory, platform: 'win32', wait: async () => {}, now: () => 1000 });
   try {
     assert.equal((await updater.check()).kind, 'available');
     assert.equal(calls, 3);
@@ -64,10 +85,10 @@ test('a successful release check is reused across app restarts for six hours', a
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-update-cache-'));
   const checkedAt = Date.parse('2026-10-04T12:00:00.000Z');
   try {
-    const first = createUpdater({ fetchImpl: async () => Response.json(release), directory, now: () => checkedAt });
+    const first = createUpdater({ fetchImpl: async () => Response.json(release), directory, platform: 'win32', now: () => checkedAt });
     assert.equal((await first.check()).kind, 'available');
     const second = createUpdater({ fetchImpl: async () => { throw new Error('network should not be used'); },
-      directory, now: () => checkedAt + 60_000 });
+      directory, platform: 'win32', now: () => checkedAt + 60_000 });
     const cached = await second.check();
     assert.equal(cached.kind, 'available');
     assert.equal(cached.release.version, '1.3.0');

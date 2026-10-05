@@ -40,7 +40,8 @@ function publicState() {
   });
   return { version: VERSION, courses: state.courses, tasks, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
-    preferences: state.preferences, startup, wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
+    preferences: state.preferences, startup, platform: process.platform,
+    wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
 }
 
 function json(response, status, body) {
@@ -144,6 +145,9 @@ function notify(title, message) {
 }
 
 function checkReminders() {
+  // macOS notification delivery is implemented by the native host in issue #63.
+  // Do not mark reminders as sent while there is no macOS delivery channel.
+  if (process.platform !== 'win32') return;
   if (wechatConfig.remindersPaused || inQuietHours(wechatConfig)) return;
   const now = Date.now();
   let changed = false;
@@ -512,6 +516,8 @@ function dashboardWindowArguments() {
   return args;
 }
 function openDashboard(force = false) {
+  // The macOS host owns the app window; its bundled server runs with --no-open.
+  if (process.platform === 'darwin') return;
   if (force || !process.argv.includes('--no-open')) {
     // Keep Edge visible and independent of the short-lived duplicate launcher.
     const browser = spawn(edgePath(), ['--no-first-run', '--no-default-browser-check', `--app=${address}`, ...dashboardWindowArguments()], {

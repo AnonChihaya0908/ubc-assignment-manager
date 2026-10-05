@@ -104,8 +104,8 @@
           </section>
           <section class="setting-block">
             <h2>后台运行</h2>
-            <div class="setting-row"><div><h3>登录 Windows 后自动启动</h3><p>在当前账户登录后静默启动后台。主窗口关闭后，仍可从系统托盘重新打开。</p><p id="startup-status" class="form-note" role="status" aria-live="polite"></p></div><label class="check-row compact" for="startup-enabled"><input id="startup-enabled" type="checkbox"><span>自动启动</span></label></div>
-            <div class="setting-row"><div><h3>关闭与退出</h3><p>关闭主窗口只会隐藏窗口，课程同步与提醒继续运行。请使用系统托盘或“数据与退出”页面退出应用。</p></div><span class="setting-value">托盘运行</span></div>
+            <div id="startup-row" class="setting-row"><div><h3>登录 Windows 后自动启动</h3><p>在当前账户登录后静默启动后台。主窗口关闭后，仍可从系统托盘重新打开。</p><p id="startup-status" class="form-note" role="status" aria-live="polite"></p></div><label class="check-row compact" for="startup-enabled"><input id="startup-enabled" type="checkbox"><span>自动启动</span></label></div>
+            <div class="setting-row"><div><h3>关闭与退出</h3><p id="close-behavior-description">关闭主窗口只会隐藏窗口，课程同步与提醒继续运行。请使用系统托盘或“数据与退出”页面退出应用。</p></div><span id="close-behavior-value" class="setting-value">托盘运行</span></div>
           </section>
           <section class="setting-block">
             <h2>首次使用引导</h2>
@@ -115,8 +115,8 @@
             <h2>软件更新</h2>
             <p id="update-status" class="setting-intro" role="status" aria-live="polite">正在检查 GitHub 更新…</p>
             <p id="update-notes" class="update-notes" hidden></p>
-            <div class="update-actions"><button id="check-update" class="secondary-button" type="button">检查更新</button><button id="install-update" class="primary-button" type="button" hidden>立即更新并重启</button></div>
-            <p class="form-note">应用通过 GitHub 公共 HTTPS API 检查并下载更新，无需安装 GitHub CLI 或登录 GitHub。临时网络错误会自动重试；更新会保留当前 Windows 账户下的课程、作业与提醒数据。</p>
+            <div class="update-actions"><button id="check-update" class="secondary-button" type="button">检查更新</button><button id="install-update" class="primary-button" type="button" hidden>立即更新并重启</button><a id="download-update" class="primary-button" href="#" target="_blank" rel="noopener noreferrer" hidden>下载 macOS 安装包</a></div>
+            <p id="update-description" class="form-note">应用通过 GitHub 公共 HTTPS API 检查并下载更新，无需安装 GitHub CLI 或登录 GitHub。临时网络错误会自动重试；更新会保留当前 Windows 账户下的课程、作业与提醒数据。</p>
           </section>
           <section class="setting-block">
             <h2>未完成标记</h2>

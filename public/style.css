@@ -261,6 +261,7 @@ a { color:inherit; }
 .setting-intro a { color:#c4d2eb; text-underline-offset:3px; }
 .setting-intro.error { color:#f1a3ac; }
 .update-actions { display:flex; flex-wrap:wrap; gap:9px; margin:16px 0; }
+.update-actions a { display:inline-flex; align-items:center; text-decoration:none; }
 .update-notes { max-height:130px; overflow:auto; margin:12px 0; padding:11px 13px; border:1px solid var(--border); border-radius:6px; background:#222326; color:var(--muted); font-size:12px; line-height:1.5; white-space:pre-wrap; }
 .wechat-form { display:grid; justify-items:start; gap:8px; padding-bottom:7px; }
 .wechat-form>label:not(.check-row) { margin-top:6px; }
