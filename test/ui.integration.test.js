@@ -18,7 +18,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   ];
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
-  const fixtureState = { version: '1.1.4', courses, syncing: false,
+  const fixtureState = { version: '1.2.0', courses, syncing: false,
     preferences: { requireManualCompletion: false, onboardingDismissed: true },
     startup: { supported: true, enabled: false, configured: false, error: null },
     wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null,
@@ -40,8 +40,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     }
     if (request.url === '/api/update/check' && request.method === 'POST') {
       response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify({ kind: 'available', canInstall: true, currentVersion: '1.1.4',
-        release: { version: '1.2.0', name: '1.2.0', notes: '更新说明' } }));
+      response.end(JSON.stringify({ kind: 'available', canInstall: true, currentVersion: '1.2.0',
+        release: { version: '1.3.0', name: '1.3.0', notes: '更新说明' } }));
       return;
     }
     if (request.url === '/api/sync-all' && request.method === 'POST') {
@@ -201,7 +201,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       await sleep(100);
     }
     assert.equal(await evaluate("document.querySelector('#update-dialog').open"), true);
-    assert.equal(await evaluate("document.querySelector('#update-dialog-text').textContent.includes('1.2.0')"), true);
+    assert.equal(await evaluate("document.querySelector('#update-dialog-text').textContent.includes('1.3.0')"), true);
     await evaluate("document.querySelector('#update-later').click()");
     assert.equal(await evaluate("document.querySelector('#update-dialog').open"), false);
     assert.equal(await evaluate("(() => { const first = AppDialog.push({ id: 'queue-one', level: 'warning', title: '课程确认', body: '请检查课程。', required: true, actions: [{ id: 'continue', label: '继续', kind: 'primary' }] }); const duplicate = AppDialog.push({ id: 'queue-one', title: '不应重复' }); AppDialog.push({ id: 'queue-two', title: '第二条通知' }); window.__dialogResult = first; return first === duplicate; })()"), true);
@@ -244,7 +244,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     }
     assert.equal(await evaluate("document.querySelector('#app-dialog').open"), false);
     assert.equal(await evaluate("Boolean(state.courses[0].accessConfirmedAt)"), true);
-    assert.equal(await evaluate('document.title'), 'UBC作业管理工具 1.1.4');
+    assert.equal(await evaluate('document.title'), 'UBC作业管理工具 1.2.0');
     assert.equal(await evaluate("document.querySelector('#future-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#history-tab-count').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#nav-webwork .notification-dot').hidden"), false);
