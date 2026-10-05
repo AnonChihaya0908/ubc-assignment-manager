@@ -29,7 +29,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       sourceComplete: false, problemCount: 6, completedProblemCount: 2 }),
     makeTask('c', 'ww:1', 'Assignment-04', { sourceStatus: 'future', opensAt: future(3) }),
     makeTask('d', 'ww:1', 'Assignment-02', { sourceStatus: 'past_due' }),
-    makeTask('e', 'pl:1', 'LAB03', { score: '75%', doneOverride: true }),
+    makeTask('e', 'pl:1', '复习作业', { code: 'LAB03', score: '75%', doneOverride: true }),
   ] };
   const publicDir = path.join(__dirname, '..', 'public');
   const server = http.createServer((request, response) => {
@@ -251,6 +251,21 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#toolbar-courses') === null"), true);
     assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'all');
     assert.equal(await evaluate("document.querySelector('#toolbar-scope-mark').getAttribute('aria-label')"), '当前界面：全部作业');
+    await evaluate("document.querySelector('#clear-filters').click()");
+    assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 5);
+    await evaluate("(() => { const input = document.querySelector('#task-search'); input.value = 'STAT_V'; input.dispatchEvent(new Event('input', { bubbles: true })); })()");
+    assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 3);
+    await evaluate("(() => { const input = document.querySelector('#task-search'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); const platform = document.querySelector('#filter-platform'); platform.value = 'prairielearn'; platform.dispatchEvent(new Event('change', { bubbles: true })); const course = document.querySelector('#filter-course'); course.value = 'pl:1'; course.dispatchEvent(new Event('change', { bubbles: true })); const status = document.querySelector('#filter-status'); status.value = 'done'; status.dispatchEvent(new Event('change', { bubbles: true })); const date = document.querySelector('#filter-date'); date.value = 'undated'; date.dispatchEvent(new Event('change', { bubbles: true })); input.value = 'LAB03'; input.dispatchEvent(new Event('input', { bubbles: true })); })()");
+    assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 1);
+    assert.equal(await evaluate("document.querySelector('.assignment-row').textContent.includes('复习作业')"), true);
+    assert.equal(await evaluate("document.querySelector('#filter-result').textContent"), '1 项结果');
+    await evaluate("(() => { const input = document.querySelector('#task-search'); input.value = '不存在'; input.dispatchEvent(new Event('input', { bubbles: true })); })()");
+    assert.equal(await evaluate("document.querySelector('.empty-state h2').textContent"), '没有匹配的作业');
+    assert.equal(await evaluate("document.querySelector('.empty-state').textContent.includes('同步失败')"), false);
+    await evaluate("document.querySelector('.empty-state button').click()");
+    assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 5);
+    assert.equal(await evaluate("document.querySelector('#task-search').value"), '');
+    assert.equal(await evaluate("document.querySelector('#filter-status').value"), 'all');
     const allToolbarBackground = await evaluate("getComputedStyle(document.querySelector('.window-toolbar')).backgroundImage");
     await evaluate("document.querySelector('#nav-prairielearn').click()");
     assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'prairielearn');
@@ -397,6 +412,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#settings-data').hidden"), false);
     assert.equal(await evaluate("document.querySelector('#settings-data').textContent.includes('查询参数会移除')"), true);
     assert.equal(await evaluate("document.querySelector('#backup-import').disabled"), true);
+    await resizeViewport(900, 800);
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
     await resizeViewport(680, 800);
     await evaluate("document.querySelector('#nav-menu').click()");
     assert.equal(await evaluate("document.querySelector('.folder-pane').classList.contains('open')"), true);

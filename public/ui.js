@@ -8,6 +8,7 @@ let wechatFormDirty = false;
 let reminderFormDirty = false;
 let selectedTaskId = null;
 let searchTerm = '';
+let dateFilter = 'all';
 let inspectorTasks = [];
 let updateStatus = { kind: 'checking', currentVersion: '1.1.4' };
 let promptedUpdate = null;
@@ -29,7 +30,7 @@ function categoryOf(task, now = Date.now()) { return taskStatus.categoryOf(task,
 function needsAttention(task, now = Date.now()) { return taskStatus.needsAttention(task, now, completionOptions()); }
 const platformNames = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK' };
 const settingNames = { general: '常规与窗口', reminders: '提醒与同步', courses: '课程与登录', data: '数据与退出' };
-const tabNames = { pending: '待完成', future: '将开放', history: '已过日期', done: '已完成', ignored: '已忽略' };
+const tabNames = { all: '全部', pending: '待完成', future: '将开放', history: '已过日期', done: '已完成', ignored: '已忽略' };
 const syncErrorNames = { login: '需要重新登录', network: '网络连接失败', parse: '页面解析失败', page: '页面不匹配', unknown: '同步失败' };
 const staleAfterMs = 6 * 60 * 60 * 1000;
 
@@ -140,7 +141,40 @@ function visibleTasks() {
   }
   if (searchTerm) tasks = tasks.filter(task => [task.name, task.code, task.section, courseFor(task)?.name, platformNames[coursePlatform(courseFor(task))]]
     .filter(Boolean).some(value => value.toLocaleLowerCase().includes(searchTerm)));
+  if (dateFilter !== 'all') {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(start);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date(start);
+    nextWeek.setDate(nextWeek.getDate() + 8);
+    tasks = tasks.filter(task => {
+      const value = rowDate(task).value;
+      if (dateFilter === 'undated') return !value || !Number.isFinite(Date.parse(value));
+      const time = Date.parse(value || '');
+      if (!Number.isFinite(time)) return false;
+      if (dateFilter === 'today') return time >= start.getTime() && time < tomorrow.getTime();
+      return time >= start.getTime() && time < nextWeek.getTime();
+    });
+  }
   return tasks;
+}
+
+function renderTaskFilters(resultCount) {
+  const selectedCourse = selectedScope.startsWith('course:') ? state.courses.find(course => course.id === selectedScope.slice(7)) : null;
+  const platform = selectedCourse ? coursePlatform(selectedCourse) : selectedScope.startsWith('platform:') ? selectedScope.slice('platform:'.length) : 'all';
+  $('filter-platform').value = platform;
+  const courseSelect = $('filter-course');
+  const currentCourse = selectedCourse?.id || 'all';
+  courseSelect.replaceChildren(new Option('全部课程', 'all'));
+  for (const course of state.courses.filter(course => platform === 'all' || coursePlatform(course) === platform)) {
+    courseSelect.append(new Option(shortCourseName(course), course.id));
+  }
+  courseSelect.value = [...courseSelect.options].some(option => option.value === currentCourse) ? currentCourse : 'all';
+  $('filter-status').value = selectedTab;
+  $('filter-date').value = dateFilter;
+  $('filter-result').textContent = `${resultCount} 项结果`;
+  $('clear-filters').disabled = selectedScope === 'all' && selectedTab === 'all' && dateFilter === 'all' && !searchTerm;
 }
 
 function setDot(element, show) { element.hidden = !show; }
@@ -301,29 +335,29 @@ function taskRow(task) {
   return row;
 }
 
-function taskSection(title, tasks, recent = false) {
+function taskSection(title, tasks, recent = false, category = selectedTab) {
   const section = node('section', 'source-section');
   const heading = node('div', 'source-heading');
   heading.append(node('h2', '', title), node('span', 'source-caption', `${tasks.length} 项`));
   const list = node('div', 'assignment-list');
   const header = node('div', 'list-header');
-  for (const label of ['作业', selectedTab === 'future' && !recent ? '开放时间' : '日期', '状态', '成绩']) header.append(node('span', '', label));
+  for (const label of ['作业', category === 'future' && !recent ? '开放时间' : '日期', '状态', '成绩']) header.append(node('span', '', label));
   list.append(header);
   for (const task of tasks) list.append(taskRow(task));
   section.append(heading, list);
   return section;
 }
 
-function sortTasks(tasks) {
+function sortTasks(tasks, category = selectedTab) {
   return tasks.sort((a, b) => {
-    if (selectedTab === 'pending') {
+    if (category === 'pending') {
       const firstNeedsConfirmation = completionStatus(a).source === 'confirmation_required';
       const secondNeedsConfirmation = completionStatus(b).source === 'confirmation_required';
       if (firstNeedsConfirmation !== secondNeedsConfirmation) return firstNeedsConfirmation ? -1 : 1;
     }
-    const first = selectedTab === 'future' ? a.opensAt : dueOf(a);
-    const second = selectedTab === 'future' ? b.opensAt : dueOf(b);
-    if (first && second) return selectedTab === 'history' ? new Date(second) - new Date(first) : new Date(first) - new Date(second);
+    const first = category === 'future' ? a.opensAt : dueOf(a);
+    const second = category === 'future' ? b.opensAt : dueOf(b);
+    if (first && second) return category === 'history' ? new Date(second) - new Date(first) : new Date(first) - new Date(second);
     if (first) return -1;
     if (second) return 1;
     return a.name.localeCompare(b.name);
@@ -460,10 +494,11 @@ function renderWork() {
     .map(task => new Date(dueOf(task)).getTime()).filter(Number.isFinite).sort((a, b) => a - b)[0];
   $('overview-nearest').textContent = nearest === undefined ? '—' : `${Math.max(0, Math.ceil((nearest - Date.now()) / 86400000))} 天`;
   for (const tab of Object.keys(tabNames)) {
-    $(`${tab}-tab-count`).textContent = tasks.filter(task => categoryOf(task) === tab).length;
+    $(`${tab}-tab-count`).textContent = tab === 'all' ? tasks.length : tasks.filter(task => categoryOf(task) === tab).length;
   }
   for (const button of document.querySelectorAll('.tab')) button.classList.toggle('active', button.dataset.tab === selectedTab);
-  const shown = sortTasks(tasks.filter(task => categoryOf(task) === selectedTab));
+  const shown = selectedTab === 'all' ? [...tasks] : sortTasks(tasks.filter(task => categoryOf(task) === selectedTab), selectedTab);
+  renderTaskFilters(shown.length);
   const groups = $('task-groups');
   groups.replaceChildren();
   const recentDone = selectedTab === 'pending' ? sortTasks(tasks.filter(task => categoryOf(task) === 'done')).slice(0, 3) : [];
@@ -472,14 +507,20 @@ function renderWork() {
   if (!shown.length) {
     const empty = node('div', 'empty-state');
     const hasSuccessfulSync = state.courses.some(item => item.lastSyncedAt);
-    const title = !state.courses.length ? '还没有课程' : !hasSuccessfulSync ? '还没有完成首次同步' : state.tasks.length === 0 ? '同步完成，但没有发现可见作业' : `暂无${tabNames[selectedTab]}的作业`;
+    const filtered = Boolean(searchTerm || selectedScope !== 'all' || selectedTab !== 'all' || dateFilter !== 'all');
+    const title = !state.courses.length ? '还没有课程' : !hasSuccessfulSync ? '还没有完成首次同步' : state.tasks.length === 0 ? '同步完成，但没有发现可见作业' : filtered ? '没有匹配的作业' : '暂无作业';
     empty.append(node('h2', '', title));
     const description = !state.courses.length ? '添加 PrairieLearn Assessments 页面或 UBC WeBWorK 课程首页，即可开始。' :
       !hasSuccessfulSync ? '请打开专用 Edge 登录窗口，完成学校登录并停留在作业列表页，然后返回应用同步。' :
       state.tasks.length === 0 ? '连接已经成功，但课程页面目前没有可见作业。可检查页面内容和登录状态后再次同步。' :
-      '可以在左侧切换课程，或查看其他作业状态。';
+      filtered ? '请调整搜索词或筛选条件，也可以清除筛选恢复完整列表。' : '课程中暂时没有可显示的作业。';
     empty.append(node('p', '', description));
-    if (!state.courses.length || !hasSuccessfulSync || state.tasks.length === 0) {
+    if (filtered && state.tasks.length) {
+      const action = node('button', 'secondary-button', '清除筛选');
+      action.type = 'button';
+      action.addEventListener('click', clearTaskFilters);
+      empty.append(action);
+    } else if (!state.courses.length || !hasSuccessfulSync || state.tasks.length === 0) {
       const action = node('button', 'primary-button', !state.courses.length ? '开始添加课程' : !hasSuccessfulSync ? '前往登录与同步' : '重新同步');
       action.type = 'button';
       action.addEventListener('click', () => {
@@ -490,8 +531,14 @@ function renderWork() {
       empty.append(action);
     }
     groups.append(empty);
+  } else if (selectedTab === 'all') {
+    const groupNames = { pending: '即将截止', future: '将开放', history: '已过日期', done: '已完成', ignored: '已忽略的作业' };
+    for (const category of ['pending', 'future', 'history', 'done', 'ignored']) {
+      const categoryTasks = sortTasks(shown.filter(task => categoryOf(task) === category), category);
+      if (categoryTasks.length) groups.append(taskSection(groupNames[category], categoryTasks, false, category));
+    }
   } else {
-    groups.append(taskSection({ pending: '即将截止', future: '将开放', history: '已过日期', done: '已完成', ignored: '已忽略的作业' }[selectedTab], shown));
+    groups.append(taskSection({ pending: '即将截止', future: '将开放', history: '已过日期', done: '已完成', ignored: '已忽略的作业' }[selectedTab], shown, false, selectedTab));
   }
   if (recentDone.length) groups.append(taskSection('最近完成', recentDone, true));
   renderSelection();
@@ -832,6 +879,15 @@ function navigateWork(scope) {
   closeMobileMenu();
 }
 
+function clearTaskFilters() {
+  selectedScope = 'all';
+  selectedTab = 'all';
+  dateFilter = 'all';
+  searchTerm = '';
+  $('task-search').value = '';
+  render();
+}
+
 function navigateSettings(panel = 'general') {
   settingsPanel = panel;
   const target = `#settings/${panel}`;
@@ -929,6 +985,21 @@ $('task-search').addEventListener('input', event => {
   searchTerm = event.target.value.trim().toLocaleLowerCase();
   if (state) renderWork();
 });
+$('filter-platform').addEventListener('change', event => {
+  selectedScope = event.target.value === 'all' ? 'all' : `platform:${event.target.value}`;
+  render();
+});
+$('filter-course').addEventListener('change', event => {
+  if (event.target.value !== 'all') selectedScope = `course:${event.target.value}`;
+  else {
+    const platform = $('filter-platform').value;
+    selectedScope = platform === 'all' ? 'all' : `platform:${platform}`;
+  }
+  render();
+});
+$('filter-status').addEventListener('change', event => { selectedTab = event.target.value; renderWork(); });
+$('filter-date').addEventListener('change', event => { dateFilter = event.target.value; renderWork(); });
+$('clear-filters').addEventListener('click', clearTaskFilters);
 document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
