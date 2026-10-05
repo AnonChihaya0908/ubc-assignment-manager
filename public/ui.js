@@ -8,8 +8,6 @@ let wechatFormDirty = false;
 let reminderFormDirty = false;
 let selectedTaskId = null;
 let searchTerm = '';
-let dateFilter = 'all';
-let viewMode = 'list';
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let inspectorTasks = [];
 let updateStatus = { kind: 'checking', currentVersion: '1.1.4' };
@@ -144,49 +142,18 @@ function visibleTasks() {
   }
   if (searchTerm) tasks = tasks.filter(task => [task.name, task.code, task.section, courseFor(task)?.name, platformNames[coursePlatform(courseFor(task))]]
     .filter(Boolean).some(value => value.toLocaleLowerCase().includes(searchTerm)));
-  if (dateFilter !== 'all') {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(start);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const nextWeek = new Date(start);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    tasks = tasks.filter(task => {
-      const value = rowDate(task).value;
-      if (dateFilter === 'undated') return !value || !Number.isFinite(Date.parse(value));
-      const time = Date.parse(value || '');
-      if (!Number.isFinite(time)) return false;
-      if (dateFilter === 'today') return time >= start.getTime() && time < tomorrow.getTime();
-      return time >= start.getTime() && time < nextWeek.getTime();
-    });
-  }
   return tasks;
-}
-
-function renderTaskFilters(resultCount) {
-  const selectedCourse = selectedScope.startsWith('course:') ? state.courses.find(course => course.id === selectedScope.slice(7)) : null;
-  const platform = selectedCourse ? coursePlatform(selectedCourse) : selectedScope.startsWith('platform:') ? selectedScope.slice('platform:'.length) : 'all';
-  $('filter-platform').value = platform;
-  const courseSelect = $('filter-course');
-  const currentCourse = selectedCourse?.id || 'all';
-  courseSelect.replaceChildren(new Option('全部课程', 'all'));
-  for (const course of state.courses.filter(course => platform === 'all' || coursePlatform(course) === platform)) {
-    courseSelect.append(new Option(shortCourseName(course), course.id));
-  }
-  courseSelect.value = [...courseSelect.options].some(option => option.value === currentCourse) ? currentCourse : 'all';
-  $('filter-status').value = selectedTab;
-  $('filter-date').value = viewMode === 'calendar' ? 'calendar' : dateFilter;
-  $('filter-result').textContent = `${resultCount} 项结果`;
-  $('clear-filters').disabled = selectedScope === 'all' && selectedTab === 'all' && dateFilter === 'all' && !searchTerm;
 }
 
 function setDot(element, show) { element.hidden = !show; }
 
 function renderFolders() {
+  const workRoute = !location.hash.startsWith('#settings') && !location.hash.startsWith('#calendar');
   const allPending = state.tasks.filter(task => needsAttention(task)).length;
   $('all-count').textContent = allPending || '';
-  $('all-folder').classList.toggle('active', selectedScope === 'all');
-  $('nav-all').classList.toggle('active', !location.hash.startsWith('#settings') && selectedScope === 'all');
+  $('all-folder').classList.toggle('active', workRoute && selectedScope === 'all');
+  $('nav-all').classList.toggle('active', workRoute && selectedScope === 'all');
+  $('nav-calendar').classList.toggle('active', location.hash.startsWith('#calendar'));
   for (const platform of ['prairielearn', 'webwork']) {
     const courses = state.courses.filter(course => coursePlatform(course) === platform);
     const tasks = state.tasks.filter(task => coursePlatform(courseFor(task)) === platform);
@@ -197,7 +164,7 @@ function renderFolders() {
     setDot(rail.querySelector('.notification-dot'), hasPending);
     setDot(group.querySelector('.notification-dot'), hasPending);
     const selectedCourse = selectedScope.startsWith('course:') ? state.courses.find(course => course.id === selectedScope.slice(7)) : null;
-    rail.classList.toggle('active', !location.hash.startsWith('#settings') && (selectedScope === `platform:${platform}` || coursePlatform(selectedCourse) === platform && Boolean(selectedCourse)));
+    rail.classList.toggle('active', workRoute && (selectedScope === `platform:${platform}` || coursePlatform(selectedCourse) === platform && Boolean(selectedCourse)));
     group.classList.toggle('active', selectedScope === `platform:${platform}`);
     const container = $(platform === 'webwork' ? 'ww-courses' : 'pl-courses');
     container.replaceChildren();
@@ -375,17 +342,25 @@ function renderCalendar(tasks, container) {
     legend.append(item);
   }
   const controls = node('div', 'calendar-controls');
+  const todayButton = node('button', '', '今天');
+  todayButton.type = 'button';
+  todayButton.addEventListener('click', () => {
+    const today = new Date();
+    calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+    renderCalendarPage();
+  });
+  controls.append(todayButton);
   for (const [direction, label, text] of [[-1, '上个月', '‹'], [1, '下个月', '›']]) {
     const button = node('button', '', text);
     button.type = 'button';
     button.setAttribute('aria-label', label);
     button.addEventListener('click', () => {
       calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + direction, 1);
-      renderWork();
+      renderCalendarPage();
     });
     controls.append(button);
   }
-  toolbar.append(title, legend, controls);
+  toolbar.append(controls, title, legend);
   calendar.append(toolbar);
 
   const grid = node('div', 'calendar-grid');
@@ -401,10 +376,13 @@ function renderCalendar(tasks, container) {
     cell.setAttribute('role', 'gridcell');
     cell.classList.toggle('outside', day.getMonth() !== calendarCursor.getMonth());
     cell.classList.toggle('today', sameLocalDay(day, today));
-    cell.append(node('time', 'calendar-date', String(day.getDate())));
+    const dateLabel = node('time', 'calendar-date', String(day.getDate()));
+    dateLabel.dateTime = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    cell.append(dateLabel);
     for (const event of events.filter(item => sameLocalDay(day, new Date(item.at)))) {
       const typeName = { due: '截止', open: '开放', manual: '手动日期' }[event.kind];
-      const button = node('button', `calendar-event ${event.kind}`, event.task.name);
+      const time = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(event.at));
+      const button = node('button', `calendar-event ${event.kind}`, `${time}  ${event.task.name}`);
       button.type = 'button';
       button.title = `${typeName} · ${formatDate(event.at)} · ${event.task.name}`;
       button.setAttribute('aria-label', `${event.task.name}，${typeName} ${formatDate(event.at)}`);
@@ -420,7 +398,20 @@ function renderCalendar(tasks, container) {
   container.append(calendar);
 
   const undated = tasks.filter(task => calendarEvents(task).length === 0);
-  if (undated.length) container.append(taskSection('未公布日期', sortTasks([...undated], 'all'), false, 'all'));
+  if (undated.length) container.append(node('div', 'calendar-undated', `${undated.length} 项作业尚未公布有效日期，可在“全部作业”中查看。`));
+}
+
+function renderCalendarPage() {
+  const tasks = state.tasks.filter(task => !searchTerm || [task.name, task.code, task.section, courseFor(task)?.name, platformNames[coursePlatform(courseFor(task))]]
+    .filter(Boolean).some(value => value.toLocaleLowerCase().includes(searchTerm)));
+  $('calendar-breadcrumb').textContent = `日历 / ${new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long' }).format(calendarCursor)}`;
+  $('calendar-today-label').textContent = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
+  inspectorTasks = [...tasks];
+  if (!inspectorTasks.some(task => task.id === selectedTaskId)) selectedTaskId = inspectorTasks[0]?.id || null;
+  const container = $('calendar-content');
+  container.replaceChildren();
+  renderCalendar(tasks, container);
+  renderSelection();
 }
 
 function sortTasks(tasks, category = selectedTab) {
@@ -571,11 +562,11 @@ function renderSelection() {
   renderInspector();
 }
 
-function renderToolbarContext(settings) {
+function renderToolbarContext(settings, calendar = false) {
   const course = selectedScope.startsWith('course:') ? state.courses.find(item => item.id === selectedScope.slice(7)) : null;
   const platform = course ? coursePlatform(course) : selectedScope.startsWith('platform:') ? selectedScope.slice('platform:'.length) : null;
-  const context = settings ? 'settings' : platform || 'all';
-  const labels = { all: '全部作业', prairielearn: 'PrairieLearn', webwork: 'WeBWorK', settings: '设置' };
+  const context = settings ? 'settings' : calendar ? 'calendar' : platform || 'all';
+  const labels = { all: '全部作业', calendar: '作业日历', prairielearn: 'PrairieLearn', webwork: 'WeBWorK', settings: '设置' };
   const marks = { prairielearn: 'PL', webwork: 'W', settings: 'ST' };
   const toolbar = document.querySelector('.window-toolbar');
   const rail = document.querySelector('.app-rail');
@@ -619,19 +610,16 @@ function renderWork() {
   }
   for (const button of document.querySelectorAll('.tab')) button.classList.toggle('active', button.dataset.tab === selectedTab);
   const shown = selectedTab === 'all' ? [...tasks] : sortTasks(tasks.filter(task => categoryOf(task) === selectedTab), selectedTab);
-  renderTaskFilters(shown.length);
   const groups = $('task-groups');
   groups.replaceChildren();
-  $('work-overview').hidden = viewMode === 'calendar';
-  const recentDone = viewMode === 'list' && selectedTab === 'pending' ? sortTasks(tasks.filter(task => categoryOf(task) === 'done')).slice(0, 3) : [];
+  $('work-overview').hidden = false;
+  const recentDone = selectedTab === 'pending' ? sortTasks(tasks.filter(task => categoryOf(task) === 'done')).slice(0, 3) : [];
   inspectorTasks = [...shown, ...recentDone];
   if (!inspectorTasks.some(task => task.id === selectedTaskId)) selectedTaskId = inspectorTasks[0]?.id || null;
-  if (viewMode === 'calendar' && (shown.length || state.tasks.length)) {
-    renderCalendar(shown, groups);
-  } else if (!shown.length) {
+  if (!shown.length) {
     const empty = node('div', 'empty-state');
     const hasSuccessfulSync = state.courses.some(item => item.lastSyncedAt);
-    const filtered = Boolean(searchTerm || selectedScope !== 'all' || selectedTab !== 'all' || dateFilter !== 'all');
+    const filtered = Boolean(searchTerm || selectedScope !== 'all' || selectedTab !== 'all');
     const title = !state.courses.length ? '还没有课程' : !hasSuccessfulSync ? '还没有完成首次同步' : state.tasks.length === 0 ? '同步完成，但没有发现可见作业' : filtered ? '没有匹配的作业' : '暂无作业';
     empty.append(node('h2', '', title));
     const description = !state.courses.length ? '添加 PrairieLearn Assessments 页面或 UBC WeBWorK 课程首页，即可开始。' :
@@ -932,16 +920,19 @@ function render() {
   if (!state) return;
   if (selectedScope.startsWith('course:') && !state.courses.some(course => course.id === selectedScope.slice(7))) selectedScope = 'all';
   const settings = location.hash.startsWith('#settings');
+  const calendar = location.hash.startsWith('#calendar');
   document.body.classList.toggle('settings-view', settings);
   $('work-layout').hidden = settings;
-  $('work-page').hidden = settings;
+  $('work-page').hidden = settings || calendar;
+  $('calendar-page').hidden = settings || !calendar;
   $('settings-page').hidden = !settings;
   $('work-navigation').hidden = settings;
   $('settings-navigation').hidden = !settings;
   $('nav-settings').classList.toggle('active', settings);
-  renderToolbarContext(settings);
+  renderToolbarContext(settings, calendar);
   renderFolders();
-  renderWork();
+  if (calendar) renderCalendarPage();
+  else if (!settings) renderWork();
   renderSettings();
   renderOnboarding();
   showCourseAccessReview();
@@ -999,8 +990,6 @@ function closeMobileMenu() {
 function navigateWork(scope) {
   selectedScope = scope;
   selectedTab = 'pending';
-  dateFilter = 'all';
-  viewMode = 'list';
   if (location.hash !== '#work') location.hash = 'work';
   render();
   closeMobileMenu();
@@ -1009,11 +998,18 @@ function navigateWork(scope) {
 function clearTaskFilters() {
   selectedScope = 'all';
   selectedTab = 'all';
-  dateFilter = 'all';
-  viewMode = 'list';
   searchTerm = '';
   $('task-search').value = '';
   render();
+}
+
+function navigateCalendar() {
+  selectedScope = 'all';
+  const today = new Date();
+  calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+  if (location.hash !== '#calendar') location.hash = 'calendar';
+  render();
+  closeMobileMenu();
 }
 
 function navigateSettings(panel = 'general') {
@@ -1044,6 +1040,7 @@ function routeFromHash() {
 }
 
 $('nav-all').addEventListener('click', () => navigateWork('all'));
+$('nav-calendar').addEventListener('click', navigateCalendar);
 $('nav-prairielearn').addEventListener('click', () => navigateWork('platform:prairielearn'));
 $('nav-webwork').addEventListener('click', () => navigateWork('platform:webwork'));
 $('nav-settings').addEventListener('click', () => navigateSettings(settingsPanel));
@@ -1111,35 +1108,11 @@ $('toolbar-menu').addEventListener('click', () => {
 });
 $('task-search').addEventListener('input', event => {
   searchTerm = event.target.value.trim().toLocaleLowerCase();
-  if (state) renderWork();
-});
-$('filter-platform').addEventListener('change', event => {
-  selectedScope = event.target.value === 'all' ? 'all' : `platform:${event.target.value}`;
-  render();
-});
-$('filter-course').addEventListener('change', event => {
-  if (event.target.value !== 'all') selectedScope = `course:${event.target.value}`;
-  else {
-    const platform = $('filter-platform').value;
-    selectedScope = platform === 'all' ? 'all' : `platform:${platform}`;
+  if (state) {
+    if (location.hash.startsWith('#calendar')) renderCalendarPage();
+    else renderWork();
   }
-  render();
 });
-$('filter-status').addEventListener('change', event => { selectedTab = event.target.value; renderWork(); });
-$('filter-date').addEventListener('change', event => {
-  if (event.target.value === 'calendar') {
-    viewMode = 'calendar';
-    dateFilter = 'all';
-    selectedTab = 'all';
-    calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  } else {
-    viewMode = 'list';
-    dateFilter = event.target.value;
-    if (dateFilter === 'today' || dateFilter === 'week') selectedTab = 'all';
-  }
-  renderWork();
-});
-$('clear-filters').addEventListener('click', clearTaskFilters);
 document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
