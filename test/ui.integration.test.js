@@ -160,7 +160,12 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       '--window-size=1440,810', pageUrl], { stdio: 'ignore' });
     const portFile = path.join(profile, 'DevToolsActivePort');
     for (let i = 0; i < 80; i++) {
-      if (fs.existsSync(portFile)) { debugPort = Number(fs.readFileSync(portFile, 'utf8').split(/\r?\n/)[0]); break; }
+      try {
+        debugPort = Number(fs.readFileSync(portFile, 'utf8').split(/\r?\n/)[0]);
+        if (debugPort) break;
+      } catch (error) {
+        if (error.code !== 'ENOENT' && error.code !== 'EBUSY') throw error;
+      }
       await sleep(250);
     }
     assert.ok(debugPort, 'Edge debugging port should be ready');
@@ -340,7 +345,13 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     }
     assert.equal(fixtureState.tasks.find(task => task.id === 'b').priority, 'high');
     assert.equal(fixtureState.tasks.find(task => task.id === 'b').note, '先复习第三章，再完成第 4 题。');
-    assert.equal(await evaluate("document.querySelector('.priority-badge.high').textContent"), '高优先级');
+    let priorityBadge;
+    for (let i = 0; i < 20; i++) {
+      priorityBadge = await evaluate("document.querySelector('.priority-badge.high')?.textContent");
+      if (priorityBadge === '高优先级') break;
+      await sleep(100);
+    }
+    assert.equal(priorityBadge, '高优先级');
     assert.equal(await evaluate("document.querySelector('.assignment-meta').textContent.includes('有个人备注')"), true);
     if (process.env.UI_PERSONAL_PREVIEW_PATH) {
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
