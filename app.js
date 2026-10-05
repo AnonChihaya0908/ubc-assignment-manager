@@ -4,16 +4,16 @@ const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizePriority, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
   reviewCourseAccess, mergeRows, mergeWebworkRows } = require('./lib/store');
-const { effectiveDue, categoryOf } = require('./lib/deadlines');
 const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } = require('./lib/browser');
 const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
-  shouldSendDaily, buildDailyDigest, sendServerChan, normalizeLeadHours, inQuietHours, appendHistory } = require('./lib/wechat');
+  shouldSendDaily, buildDailyDigest, sendServerChan, normalizeLeadHours, appendHistory } = require('./lib/wechat');
 const { createUpdater, VERSION } = require('./lib/updater');
 const { markSyncAttempt, markSyncSuccess, markSyncFailure } = require('./lib/sync-status');
 const { startupStatus, setStartupEnabled } = require('./lib/windows-startup');
 const { createBackup, validateBackup, writeRestorePoint, applyBackup } = require('./lib/backup');
 const { authorizedNativeRequest } = require('./lib/native-auth');
+const { pendingReminderEvents } = require('./lib/reminders');
 
 let state = loadState();
 let wechatConfig = loadConfig();
@@ -147,34 +147,15 @@ function notify(title, message) {
 }
 
 function checkReminders() {
-  // macOS notification delivery is implemented by the native host in issue #63.
-  // Do not mark reminders as sent while there is no macOS delivery channel.
   if (process.platform !== 'win32') return;
-  if (wechatConfig.remindersPaused || inQuietHours(wechatConfig)) return;
-  const now = Date.now();
   let changed = false;
   let configChanged = false;
-  const disabledCourses = new Set(wechatConfig.disabledCourseIds || []);
-  for (const course of state.courses) if (!courseAccessConfirmed(course)) disabledCourses.add(course.id);
-  const options = taskOptions();
-  for (const task of state.tasks) {
-    if (disabledCourses.has(task.courseId)) continue;
-    if (categoryOf(task, now, options) !== 'pending' || task.deadlineKind === 'credit_window' && !task.deadlineOverride) continue;
-    const due = effectiveDue(task);
-    if (!due) continue;
-    const remaining = new Date(due).getTime() - now;
-    if (!(remaining > 0)) continue;
-    for (const hours of normalizeLeadHours(wechatConfig.leadHours)) {
-      const key = `${hours}h`, ms = hours * 3600000, label = `${hours} 小时内截止`;
-      if (remaining > ms) continue;
-      const notificationKey = `${task.id}:${due}:${key}`;
-      if (state.notified[notificationKey]) continue;
-      state.notified[notificationKey] = new Date().toISOString();
-      changed = true;
-      notify(`${task.name} · ${label}`, `${task.code || task.section || '作业'} · ${new Date(due).toLocaleString('zh-CN')}`);
-      appendHistory(wechatConfig, { type: 'windows', result: 'shown', detail: `${task.name} · ${label}` });
-      configChanged = true;
-    }
+  for (const event of pendingReminderEvents(state, wechatConfig, new Date(), taskOptions())) {
+    state.notified[event.key] = new Date().toISOString();
+    changed = true;
+    notify(event.title, event.message);
+    appendHistory(wechatConfig, { type: 'windows', result: 'shown', detail: event.title });
+    configChanged = true;
   }
   if (changed) saveState(state);
   if (configChanged) saveConfig(wechatConfig);
@@ -234,11 +215,26 @@ async function handle(request, response) {
   if (request.method === 'GET' && url.pathname === '/ui.js') return serveFile(response, 'ui.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, publicState());
   if (request.method === 'GET' && url.pathname === '/api/update') return json(response, 200, updater.status());
+  if (request.method === 'GET' && url.pathname === '/api/native/reminders' && nativeToken && process.platform === 'darwin') {
+    return json(response, 200, { events: pendingReminderEvents(state, wechatConfig, new Date(), taskOptions()) });
+  }
   if (!url.pathname.startsWith('/api/') || request.method === 'GET') return json(response, 404, { error: '未找到。' });
   if (request.headers['content-type']?.split(';')[0] !== 'application/json') return json(response, 415, { error: '需要 JSON 请求。' });
 
   try {
     const body = await readBody(request, url.pathname === '/api/backup/import' ? 5 * 1024 * 1024 : 65536);
+    if (request.method === 'POST' && url.pathname === '/api/native/reminders/ack' && nativeToken && process.platform === 'darwin') {
+      const event = typeof body.key === 'string' && body.key.length <= 400 &&
+        pendingReminderEvents(state, wechatConfig, new Date(), taskOptions()).find(item => item.key === body.key);
+      if (!event) {
+        throw new Error('提醒项目已过期或无效。');
+      }
+      state.notified[body.key] = new Date().toISOString();
+      saveState(state);
+      appendHistory(wechatConfig, { type: 'macos', result: 'shown', detail: event.title });
+      saveConfig(wechatConfig);
+      return json(response, 200, { message: '提醒已记录。' });
+    }
     if (request.method === 'POST' && url.pathname === '/api/update/check') {
       return json(response, 200, await updater.check(true));
     }

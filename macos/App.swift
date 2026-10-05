@@ -1,10 +1,20 @@
 import AppKit
 import Foundation
 import WebKit
+import UserNotifications
 
 private let appURL = URL(string: "http://127.0.0.1:43873/")!
 private let serverURL = URL(string: "http://127.0.0.1:43873/api/state")!
 private let reopenNotification = Notification.Name("com.anonchihaya.ubc-assignment-manager.reopen")
+
+private struct ReminderEvent: Decodable {
+    let key: String
+    let taskId: String
+    let title: String
+    let message: String
+}
+
+private struct ReminderBatch: Decodable { let events: [ReminderEvent] }
 
 @main
 struct AssignmentManagerMain {
@@ -26,7 +36,7 @@ struct AssignmentManagerMain {
 }
 
 final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDelegate,
-    WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+    WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
     private var statusItem: NSStatusItem?
@@ -34,6 +44,8 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     private let token = UUID().uuidString.replacingOccurrences(of: "-", with: "")
     private var isQuitting = false
     private var serverReady = false
+    private var reminderTimer: Timer?
+    private var pendingNativeKeys = Set<String>()
 
     private var menuBarVisible: Bool {
         get { UserDefaults.standard.object(forKey: "menuBarVisible") as? Bool ?? true }
@@ -48,6 +60,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     func applicationDidFinishLaunching(_ notification: Notification) {
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(handleReopen),
                                                              name: reopenNotification, object: Bundle.main.bundleIdentifier)
+        UNUserNotificationCenter.current().delegate = self
         configureAppMenu()
         configureWindow()
         configureStatusItem()
@@ -65,6 +78,9 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     func applicationWillTerminate(_ notification: Notification) {
         isQuitting = true
         DistributedNotificationCenter.default().removeObserver(self)
+        reminderTimer?.invalidate()
+        UNUserNotificationCenter.current().delegate = nil
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "nativeHost")
         if let process = nodeProcess, process.isRunning { process.terminate() }
     }
@@ -200,6 +216,10 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
                 if (response as? HTTPURLResponse)?.statusCode == 200 {
                     self.serverReady = true
                     self.webView.load(URLRequest(url: appURL))
+                    self.reminderTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+                        self?.pollReminders()
+                    }
+                    self.pollReminders()
                 } else if attempt < 100, self.nodeProcess?.isRunning == true {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                         self.waitForServer(attempt: attempt + 1)
@@ -228,6 +248,12 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
             showWindow()
         } else if action == "quitApp" {
             quitApp()
+        } else if action == "notificationStatus" {
+            refreshNotificationStatus()
+        } else if action == "requestNotificationPermission" {
+            requestNotificationPermission()
+        } else if action == "testNotification" {
+            sendTestNotification()
         }
     }
 
@@ -262,5 +288,101 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
         alert.addButton(withTitle: "确认")
         alert.addButton(withTitle: "取消")
         completionHandler(alert.runModal() == .alertFirstButtonReturn)
+    }
+
+    private func refreshNotificationStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            let status: String
+            switch settings.authorizationStatus {
+            case .authorized, .provisional: status = "authorized"
+            case .denied: status = "denied"
+            case .notDetermined: status = "notDetermined"
+            default: status = "unsupported"
+            }
+            DispatchQueue.main.async {
+                self?.webView.evaluateJavaScript("window.UBC_SET_NOTIFICATION_STATUS?.('\(status)')")
+            }
+        }
+    }
+
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.refreshNotificationStatus() }
+        }
+    }
+
+    private func sendTestNotification() {
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+                DispatchQueue.main.async { self?.refreshNotificationStatus() }
+                return
+            }
+            let content = UNMutableNotificationContent()
+            content.title = "UBC作业管理工具"
+            content.body = "这是一条 macOS 作业提醒测试。"
+            content.sound = .default
+            let request = UNNotificationRequest(identifier: "test-\(UUID().uuidString)", content: content, trigger: nil)
+            UNUserNotificationCenter.current().add(request)
+        }
+    }
+
+    private func pollReminders() {
+        guard serverReady, !isQuitting else { return }
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional,
+                  let self else { return }
+            var request = URLRequest(url: URL(string: "http://127.0.0.1:43873/api/native/reminders")!)
+            request.addValue(self.token, forHTTPHeaderField: "X-UBC-Native-Token")
+            URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+                guard let self, (response as? HTTPURLResponse)?.statusCode == 200,
+                      let data, let batch = try? JSONDecoder().decode(ReminderBatch.self, from: data) else { return }
+                DispatchQueue.main.async {
+                    for event in batch.events where !self.pendingNativeKeys.contains(event.key) {
+                        self.deliverReminder(event)
+                    }
+                }
+            }.resume()
+        }
+    }
+
+    private func deliverReminder(_ event: ReminderEvent) {
+        pendingNativeKeys.insert(event.key)
+        let content = UNMutableNotificationContent()
+        content.title = event.title
+        content.body = event.message
+        content.sound = .default
+        content.userInfo = ["taskId": event.taskId]
+        let request = UNNotificationRequest(identifier: event.key, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if error == nil { self?.acknowledgeReminder(event.key) }
+            DispatchQueue.main.async { self?.pendingNativeKeys.remove(event.key) }
+        }
+    }
+
+    private func acknowledgeReminder(_ key: String) {
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:43873/api/native/reminders/ack")!)
+        request.httpMethod = "POST"
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["key": key])
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue(token, forHTTPHeaderField: "X-UBC-Native-Token")
+        URLSession.shared.dataTask(with: request).resume()
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler completionHandler: @escaping () -> Void) {
+        DispatchQueue.main.async {
+            self.showWindow()
+            if let taskId = response.notification.request.content.userInfo["taskId"] as? String,
+               let encoded = try? JSONSerialization.data(withJSONObject: [taskId]),
+               let json = String(data: encoded, encoding: .utf8) {
+                self.webView.evaluateJavaScript("window.UBC_OPEN_TASK?.(\(json)[0])")
+            }
+            completionHandler()
+        }
     }
 }
