@@ -9,6 +9,8 @@ let reminderFormDirty = false;
 let selectedTaskId = null;
 let searchTerm = '';
 let dateFilter = 'all';
+let viewMode = 'list';
+let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let inspectorTasks = [];
 let updateStatus = { kind: 'checking', currentVersion: '1.1.4' };
 let promptedUpdate = null;
@@ -147,7 +149,7 @@ function visibleTasks() {
     const tomorrow = new Date(start);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const nextWeek = new Date(start);
-    nextWeek.setDate(nextWeek.getDate() + 8);
+    nextWeek.setDate(nextWeek.getDate() + 7);
     tasks = tasks.filter(task => {
       const value = rowDate(task).value;
       if (dateFilter === 'undated') return !value || !Number.isFinite(Date.parse(value));
@@ -172,7 +174,7 @@ function renderTaskFilters(resultCount) {
   }
   courseSelect.value = [...courseSelect.options].some(option => option.value === currentCourse) ? currentCourse : 'all';
   $('filter-status').value = selectedTab;
-  $('filter-date').value = dateFilter;
+  $('filter-date').value = viewMode === 'calendar' ? 'calendar' : dateFilter;
   $('filter-result').textContent = `${resultCount} 项结果`;
   $('clear-filters').disabled = selectedScope === 'all' && selectedTab === 'all' && dateFilter === 'all' && !searchTerm;
 }
@@ -348,6 +350,77 @@ function taskSection(title, tasks, recent = false, category = selectedTab) {
   return section;
 }
 
+function calendarEvents(task) {
+  const events = [];
+  if (task.opensAt && Number.isFinite(Date.parse(task.opensAt))) events.push({ kind: 'open', at: task.opensAt, task });
+  if (task.deadlineOverride && Number.isFinite(Date.parse(task.deadlineOverride))) events.push({ kind: 'manual', at: task.deadlineOverride, task });
+  else if (task.dueAt && Number.isFinite(Date.parse(task.dueAt))) events.push({ kind: 'due', at: task.dueAt, task });
+  return events;
+}
+
+function sameLocalDay(first, second) {
+  return first.getFullYear() === second.getFullYear() && first.getMonth() === second.getMonth() && first.getDate() === second.getDate();
+}
+
+function renderCalendar(tasks, container) {
+  const calendar = node('section', 'calendar-view');
+  const toolbar = node('div', 'calendar-toolbar');
+  const title = node('h2', '', new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long' }).format(calendarCursor));
+  const legend = node('div', 'calendar-legend');
+  for (const [kind, label] of [['due', '截止'], ['open', '开放'], ['manual', '手动日期']]) {
+    const item = node('span');
+    item.append(node('i', kind), document.createTextNode(label));
+    legend.append(item);
+  }
+  const controls = node('div', 'calendar-controls');
+  for (const [direction, label, text] of [[-1, '上个月', '‹'], [1, '下个月', '›']]) {
+    const button = node('button', '', text);
+    button.type = 'button';
+    button.setAttribute('aria-label', label);
+    button.addEventListener('click', () => {
+      calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + direction, 1);
+      renderWork();
+    });
+    controls.append(button);
+  }
+  toolbar.append(title, legend, controls);
+  calendar.append(toolbar);
+
+  const grid = node('div', 'calendar-grid');
+  grid.setAttribute('role', 'grid');
+  for (const weekday of ['日', '一', '二', '三', '四', '五', '六']) grid.append(node('div', 'calendar-weekday', weekday));
+  const first = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+  const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay());
+  const events = tasks.flatMap(calendarEvents);
+  const today = new Date();
+  for (let index = 0; index < 42; index++) {
+    const day = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index);
+    const cell = node('div', 'calendar-day');
+    cell.setAttribute('role', 'gridcell');
+    cell.classList.toggle('outside', day.getMonth() !== calendarCursor.getMonth());
+    cell.classList.toggle('today', sameLocalDay(day, today));
+    cell.append(node('time', 'calendar-date', String(day.getDate())));
+    for (const event of events.filter(item => sameLocalDay(day, new Date(item.at)))) {
+      const typeName = { due: '截止', open: '开放', manual: '手动日期' }[event.kind];
+      const button = node('button', `calendar-event ${event.kind}`, event.task.name);
+      button.type = 'button';
+      button.title = `${typeName} · ${formatDate(event.at)} · ${event.task.name}`;
+      button.setAttribute('aria-label', `${event.task.name}，${typeName} ${formatDate(event.at)}`);
+      button.addEventListener('click', () => {
+        selectedTaskId = event.task.id;
+        renderSelection();
+      });
+      cell.append(button);
+    }
+    grid.append(cell);
+  }
+  calendar.append(grid);
+  container.append(calendar);
+
+  const undated = tasks.filter(task => calendarEvents(task).length === 0);
+  if (undated.length) container.append(taskSection('未公布日期', sortTasks([...undated], 'all'), false, 'all'));
+}
+
 function sortTasks(tasks, category = selectedTab) {
   return tasks.sort((a, b) => {
     if (category === 'pending') {
@@ -501,10 +574,13 @@ function renderWork() {
   renderTaskFilters(shown.length);
   const groups = $('task-groups');
   groups.replaceChildren();
-  const recentDone = selectedTab === 'pending' ? sortTasks(tasks.filter(task => categoryOf(task) === 'done')).slice(0, 3) : [];
+  $('work-overview').hidden = viewMode === 'calendar';
+  const recentDone = viewMode === 'list' && selectedTab === 'pending' ? sortTasks(tasks.filter(task => categoryOf(task) === 'done')).slice(0, 3) : [];
   inspectorTasks = [...shown, ...recentDone];
   if (!inspectorTasks.some(task => task.id === selectedTaskId)) selectedTaskId = inspectorTasks[0]?.id || null;
-  if (!shown.length) {
+  if (viewMode === 'calendar' && (shown.length || state.tasks.length)) {
+    renderCalendar(shown, groups);
+  } else if (!shown.length) {
     const empty = node('div', 'empty-state');
     const hasSuccessfulSync = state.courses.some(item => item.lastSyncedAt);
     const filtered = Boolean(searchTerm || selectedScope !== 'all' || selectedTab !== 'all' || dateFilter !== 'all');
@@ -874,6 +950,8 @@ function closeMobileMenu() {
 function navigateWork(scope) {
   selectedScope = scope;
   selectedTab = 'pending';
+  dateFilter = 'all';
+  viewMode = 'list';
   if (location.hash !== '#work') location.hash = 'work';
   render();
   closeMobileMenu();
@@ -883,6 +961,7 @@ function clearTaskFilters() {
   selectedScope = 'all';
   selectedTab = 'all';
   dateFilter = 'all';
+  viewMode = 'list';
   searchTerm = '';
   $('task-search').value = '';
   render();
@@ -998,7 +1077,19 @@ $('filter-course').addEventListener('change', event => {
   render();
 });
 $('filter-status').addEventListener('change', event => { selectedTab = event.target.value; renderWork(); });
-$('filter-date').addEventListener('change', event => { dateFilter = event.target.value; renderWork(); });
+$('filter-date').addEventListener('change', event => {
+  if (event.target.value === 'calendar') {
+    viewMode = 'calendar';
+    dateFilter = 'all';
+    selectedTab = 'all';
+    calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  } else {
+    viewMode = 'list';
+    dateFilter = event.target.value;
+    if (dateFilter === 'today' || dateFilter === 'week') selectedTab = 'all';
+  }
+  renderWork();
+});
 $('clear-filters').addEventListener('click', clearTaskFilters);
 document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {

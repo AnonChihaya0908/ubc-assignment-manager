@@ -266,6 +266,28 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 5);
     assert.equal(await evaluate("document.querySelector('#task-search').value"), '');
     assert.equal(await evaluate("document.querySelector('#filter-status').value"), 'all');
+    await evaluate("(() => { window.__calendarDates = { b: state.tasks.find(task => task.id === 'b').dueAt, c: state.tasks.find(task => task.id === 'c').opensAt, e: state.tasks.find(task => task.id === 'e').deadlineOverride }; const now = new Date().toISOString(); state.tasks.find(task => task.id === 'b').dueAt = now; state.tasks.find(task => task.id === 'c').opensAt = now; state.tasks.find(task => task.id === 'e').deadlineOverride = now; const view = document.querySelector('#filter-date'); view.value = 'calendar'; view.dispatchEvent(new Event('change', { bubbles: true })); })()");
+    assert.equal(await evaluate("document.querySelectorAll('.calendar-day').length"), 42);
+    assert.equal(await evaluate("document.querySelector('.calendar-event.due') !== null"), true);
+    assert.equal(await evaluate("document.querySelector('.calendar-event.open') !== null"), true);
+    assert.equal(await evaluate("document.querySelector('.calendar-event.manual') !== null"), true);
+    assert.equal(await evaluate("document.querySelector('#task-groups').textContent.includes('未公布日期')"), true);
+    assert.equal(await evaluate("document.querySelector('#task-groups').textContent.includes('Assignment-02')"), true);
+    await evaluate("document.querySelector('.calendar-event.manual').click()");
+    assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('手动提醒日期')"), true);
+    if (process.env.UI_CALENDAR_PREVIEW_PATH) {
+      const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(process.env.UI_CALENDAR_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
+    }
+    const calendarMonth = await evaluate("document.querySelector('.calendar-toolbar h2').textContent");
+    await evaluate("document.querySelector('[aria-label=\"下个月\"]').click()");
+    assert.notEqual(await evaluate("document.querySelector('.calendar-toolbar h2').textContent"), calendarMonth);
+    await evaluate("(() => { const view = document.querySelector('#filter-date'); view.value = 'today'; view.dispatchEvent(new Event('change', { bubbles: true })); })()");
+    assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length"), 3);
+    assert.equal(await evaluate("document.querySelector('#filter-status').value"), 'all');
+    await evaluate("(() => { const view = document.querySelector('#filter-date'); view.value = 'week'; view.dispatchEvent(new Event('change', { bubbles: true })); })()");
+    assert.equal(await evaluate("document.querySelectorAll('.assignment-row').length >= 3"), true);
+    await evaluate("(() => { const b = state.tasks.find(task => task.id === 'b'); const c = state.tasks.find(task => task.id === 'c'); const e = state.tasks.find(task => task.id === 'e'); b.dueAt = window.__calendarDates.b; c.opensAt = window.__calendarDates.c; e.deadlineOverride = window.__calendarDates.e; clearTaskFilters(); })()");
     const allToolbarBackground = await evaluate("getComputedStyle(document.querySelector('.window-toolbar')).backgroundImage");
     await evaluate("document.querySelector('#nav-prairielearn').click()");
     assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'prairielearn');
