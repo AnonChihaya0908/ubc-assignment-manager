@@ -702,6 +702,15 @@ function renderSettings() {
   document.querySelector('.toolbar-version').textContent = state.version || '1.2.1';
   renderUpdateStatus();
   const startup = state.startup || { supported: false, enabled: false, error: '无法读取开机启动状态。' };
+  const mac = state.platform === 'darwin';
+  $('startup-row').hidden = mac;
+  $('close-behavior-description').textContent = mac
+    ? '关闭主窗口后应用可继续运行，并从菜单栏重新打开。完全退出请使用应用菜单或“数据与退出”。'
+    : '关闭主窗口只会隐藏窗口，课程同步与提醒继续运行。请使用系统托盘或“数据与退出”页面退出应用。';
+  $('close-behavior-value').textContent = mac ? '菜单栏运行' : '托盘运行';
+  $('update-description').textContent = mac
+    ? '应用通过 GitHub 公共 HTTPS API 检查更新。Mac 版下载对应架构的 .pkg 后手动安装；课程、作业与提醒设置保存在独立数据目录。'
+    : '应用通过 GitHub 公共 HTTPS API 检查并下载更新，无需安装 GitHub CLI 或登录 GitHub。临时网络错误会自动重试；更新会保留当前 Windows 账户下的课程、作业与提醒数据。';
   $('startup-enabled').checked = Boolean(startup.enabled);
   $('startup-enabled').disabled = !startup.supported;
   $('startup-status').textContent = startup.error || (startup.enabled ? '已为当前 Windows 账户启用。' : '当前未启用。');
@@ -864,6 +873,7 @@ function renderSettings() {
 }
 
 function renderUpdateStatus() {
+  const manual = updateStatus.updateMode === 'manual';
   const labels = {
     idle: '尚未检查更新。', checking: '正在检查 GitHub 更新…', current: '当前已是最新版本。',
     available: `发现新版本 ${updateStatus.release?.version || ''}。`,
@@ -874,13 +884,17 @@ function renderUpdateStatus() {
     updateStatus.lastResult.version === updateStatus.release?.version;
   $('update-status').textContent = lastFailure
     ? `上次更新 ${updateStatus.lastResult.version} 失败，已恢复旧版：${updateStatus.lastResult.detail}`
+    : updateStatus.kind === 'available' && manual
+      ? '发现新版本。请下载对应架构的 .pkg 并手动安装。'
     : updateStatus.kind === 'available' && updateStatus.canInstall === false
       ? '发现新版本。当前位于 Git 开发目录，请在独立的便携包中使用应用内更新。'
     : labels[updateStatus.kind] || '更新状态未知。';
   $('update-status').classList.toggle('error', updateStatus.kind === 'error' || lastFailure);
   const available = updateStatus.kind === 'available';
-  $('install-update').hidden = !available || updateStatus.canInstall === false;
-  $('install-update').disabled = !available || updateStatus.canInstall === false;
+  $('install-update').hidden = !available || updateStatus.canInstall === false || manual;
+  $('install-update').disabled = !available || updateStatus.canInstall === false || manual;
+  $('download-update').hidden = !available || !manual || !updateStatus.release?.assetUrl;
+  $('download-update').href = available && manual ? updateStatus.release?.assetUrl || '#' : '#';
   $('check-update').disabled = updateStatus.kind === 'checking' || updateStatus.kind === 'installing';
   $('update-notes').hidden = !available || !updateStatus.release?.notes;
   $('update-notes').textContent = available ? updateStatus.release?.notes || '' : '';
@@ -892,7 +906,7 @@ async function checkUpdate(showMessage = false) {
   try {
     updateStatus = await api('/api/update/check', 'POST', {});
     if (state) renderUpdateStatus();
-    if (updateStatus.kind === 'available' && updateStatus.canInstall !== false && promptedUpdate !== updateStatus.release.version &&
+    if (updateStatus.kind === 'available' && updateStatus.updateMode !== 'manual' && updateStatus.canInstall !== false && promptedUpdate !== updateStatus.release.version &&
         !(updateStatus.lastResult?.state === 'failed' && updateStatus.lastResult.version === updateStatus.release.version)) {
       promptedUpdate = updateStatus.release.version;
       $('update-dialog-text').textContent = `已发现 ${updateStatus.release.name}。现在更新会关闭应用，安装完成后自动重新打开；本地作业和提醒设置会保留。`;
