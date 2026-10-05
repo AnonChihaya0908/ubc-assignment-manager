@@ -17,14 +17,19 @@ let pendingBackup = null;
 const $ = id => document.getElementById(id);
 const taskStatus = window.TaskStatus;
 const dueOf = taskStatus.effectiveDue;
-function completionOptions() { return state?.preferences || {}; }
+function completionOptions() {
+  return {
+    ...(state?.preferences || {}),
+    ignoredSectionsByCourse: Object.fromEntries((state?.courses || []).map(course => [course.id, course.ignoredSections || []])),
+  };
+}
 function completionStatus(task) { return taskStatus.completionStatus(task, completionOptions()); }
 function isDone(task) { return taskStatus.isComplete(task, completionOptions()); }
 function categoryOf(task, now = Date.now()) { return taskStatus.categoryOf(task, now, completionOptions()); }
 function needsAttention(task, now = Date.now()) { return taskStatus.needsAttention(task, now, completionOptions()); }
 const platformNames = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK' };
 const settingNames = { general: '常规与窗口', reminders: '提醒与同步', courses: '课程与登录', data: '数据与退出' };
-const tabNames = { pending: '待完成', future: '将开放', history: '已过日期', done: '已完成' };
+const tabNames = { pending: '待完成', future: '将开放', history: '已过日期', done: '已完成', ignored: '已忽略' };
 const syncErrorNames = { login: '需要重新登录', network: '网络连接失败', parse: '页面解析失败', page: '页面不匹配', unknown: '同步失败' };
 const staleAfterMs = 6 * 60 * 60 * 1000;
 
@@ -71,6 +76,7 @@ function completionInfo(task) {
 
 function statusName(task) {
   const category = categoryOf(task);
+  if (category === 'ignored') return '已忽略';
   if (category === 'history' && task.sourceStatus === 'past_due') return '已截止';
   if (category === 'pending' && completionStatus(task).source === 'confirmation_required') return '待确认';
   if (category === 'pending' && task.sourceStatus === 'open' && task.sourceComplete === false) return '完成中';
@@ -221,6 +227,11 @@ async function restoreTaskCompletion(task) {
   } catch (error) { message(error.message, true); }
 }
 
+async function setSectionIgnored(courseId, section, ignored) {
+  state = await api('/api/course/category', 'PATCH', { courseId, section, ignored });
+  render();
+}
+
 function taskRow(task) {
   const row = node('article', 'assignment-row');
   row.dataset.taskId = task.id;
@@ -253,13 +264,20 @@ function taskRow(task) {
   const category = categoryOf(task);
   const status = node('span', `status-label ${category === 'history' ? 'late' : category}`, statusName(task));
   const actions = node('div', 'row-actions');
-  const edit = node('button', '', '改日期');
-  edit.type = 'button';
-  edit.addEventListener('click', () => editDeadline(task));
-  const toggle = node('button', '', isDone(task) ? '标为未完成' : '标为完成');
-  toggle.type = 'button';
-  toggle.addEventListener('click', () => toggleTaskCompletion(task));
-  actions.append(edit, toggle);
+  if (category === 'ignored') {
+    const restore = node('button', '', '恢复管理');
+    restore.type = 'button';
+    restore.addEventListener('click', () => setSectionIgnored(task.courseId, task.section, false).catch(error => message(error.message, true)));
+    actions.append(restore);
+  } else {
+    const edit = node('button', '', '改日期');
+    edit.type = 'button';
+    edit.addEventListener('click', () => editDeadline(task));
+    const toggle = node('button', '', isDone(task) ? '标为未完成' : '标为完成');
+    toggle.type = 'button';
+    toggle.addEventListener('click', () => toggleTaskCompletion(task));
+    actions.append(edit, toggle);
+  }
   row.append(main, date, status, scoreBar(task), actions);
   row.addEventListener('click', event => {
     if (event.target.closest('a,button')) return;
@@ -355,6 +373,15 @@ function renderInspector() {
     container.append(link);
   }
   const actions = node('div', 'inspector-actions');
+  if (categoryOf(task) === 'ignored') {
+    container.append(node('p', 'inspector-hint', `“${task.section}”类别已由你设为忽略。原始成绩、日期和手动设置仍保留。`));
+    const restoreSection = node('button', 'primary-button', '恢复管理此类别');
+    restoreSection.type = 'button';
+    restoreSection.addEventListener('click', () => setSectionIgnored(task.courseId, task.section, false).catch(error => message(error.message, true)));
+    actions.append(restoreSection);
+    container.append(actions);
+    return;
+  }
   const edit = node('button', 'secondary-button', '修改提醒日期');
   edit.type = 'button';
   edit.addEventListener('click', () => editDeadline(task));
@@ -438,7 +465,7 @@ function renderWork() {
     }
     groups.append(empty);
   } else {
-    groups.append(taskSection({ pending: '即将截止', future: '将开放', history: '已过日期', done: '已完成' }[selectedTab], shown));
+    groups.append(taskSection({ pending: '即将截止', future: '将开放', history: '已过日期', done: '已完成', ignored: '已忽略的作业' }[selectedTab], shown));
   }
   if (recentDone.length) groups.append(taskSection('最近完成', recentDone, true));
   renderSelection();
@@ -556,6 +583,32 @@ function renderSettings() {
     });
     actions.append(login, retry, remove);
     row.append(description, actions);
+    const sectionMap = new Map();
+    for (const value of [...state.tasks.filter(task => task.courseId === course.id).map(task => task.section), ...(course.ignoredSections || [])]) {
+      const section = String(value || '').trim().replace(/\s+/g, ' ');
+      if (section && !sectionMap.has(section.toLocaleLowerCase())) sectionMap.set(section.toLocaleLowerCase(), section);
+    }
+    const sections = [...sectionMap.values()].sort((a, b) => a.localeCompare(b));
+    const categories = node('div', 'course-categories');
+    if (!sections.length) categories.append(node('span', 'form-note', '课程页面尚未提供可区分的作业类别。'));
+    const ignoredSections = new Set((course.ignoredSections || []).map(value => value.toLocaleLowerCase()));
+    for (const section of sections) {
+      const label = node('label', 'check-row');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox'; checkbox.checked = !ignoredSections.has(section.toLocaleLowerCase());
+      checkbox.setAttribute('aria-label', `${course.name} 管理 ${section}`);
+      checkbox.addEventListener('change', async () => {
+        checkbox.disabled = true;
+        try {
+          await setSectionIgnored(course.id, section, !checkbox.checked);
+          message(checkbox.checked ? `已恢复管理 ${section}。` : `已忽略 ${section}，该类别不再触发提醒。`);
+        } catch (error) { checkbox.checked = !checkbox.checked; message(error.message, true); }
+        finally { checkbox.disabled = false; }
+      });
+      label.append(checkbox, node('span', '', `管理 ${section}`));
+      categories.append(label);
+    }
+    row.append(categories);
     $('course-list').append(row);
   }
   const wechat = state.wechat || { enabled: false, time: '09:00', hasKey: false };

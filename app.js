@@ -26,6 +26,14 @@ let trayProcess = null;
 let startup = startupStatus();
 const updater = createUpdater();
 
+function taskOptions() {
+  return { ...state.preferences, ignoredSectionsByCourse: Object.fromEntries(state.courses.map(course => [course.id, course.ignoredSections || []])) };
+}
+
+function sectionKey(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
 function publicState() {
   return { version: VERSION, courses: state.courses, tasks: state.tasks, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
@@ -133,9 +141,10 @@ function checkReminders() {
   let changed = false;
   let configChanged = false;
   const disabledCourses = new Set(wechatConfig.disabledCourseIds || []);
+  const options = taskOptions();
   for (const task of state.tasks) {
     if (disabledCourses.has(task.courseId)) continue;
-    if (categoryOf(task, now, state.preferences) !== 'pending' || task.deadlineKind === 'credit_window' && !task.deadlineOverride) continue;
+    if (categoryOf(task, now, options) !== 'pending' || task.deadlineKind === 'credit_window' && !task.deadlineOverride) continue;
     const due = effectiveDue(task);
     if (!due) continue;
     const remaining = new Date(due).getTime() - now;
@@ -334,7 +343,7 @@ async function handle(request, response) {
       if (state.courses.some(item => item.id === parsed.id)) throw new Error('这门课已经添加。');
       state.courses.push({ id: parsed.id, name: parsed.platform === 'webwork' ? `WeBWorK · ${parsed.instanceId}` : `课程 ${parsed.instanceId}`,
         platform: parsed.platform, url: parsed.url, lastSyncedAt: null, lastSyncAttemptAt: null,
-        lastSyncError: null, lastSyncErrorKind: null });
+        lastSyncError: null, lastSyncErrorKind: null, ignoredSections: [] });
       saveState(state);
       return json(response, 200, publicState());
     }
@@ -342,6 +351,24 @@ async function handle(request, response) {
       if (!state.courses.some(item => item.id === body.id)) throw new Error('课程不存在。');
       state.courses = state.courses.filter(item => item.id !== body.id);
       state.tasks = state.tasks.filter(item => item.courseId !== body.id);
+      saveState(state);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/course/category') {
+      const course = state.courses.find(item => item.id === body.courseId);
+      if (!course || typeof body.section !== 'string' || !body.section.trim() || body.section.length > 200 || typeof body.ignored !== 'boolean') {
+        throw new Error('课程类别设置无效。');
+      }
+      const section = body.section.trim().replace(/\s+/g, ' ');
+      const key = sectionKey(section);
+      const sectionExists = state.tasks.some(task => task.courseId === course.id && sectionKey(task.section) === key);
+      const ruleExists = (course.ignoredSections || []).some(value => sectionKey(value) === key);
+      if (!sectionExists && (body.ignored || !ruleExists)) {
+        throw new Error('这门课程中没有找到该类别。');
+      }
+      const ignored = new Map((course.ignoredSections || []).map(value => [sectionKey(value), value]));
+      if (body.ignored) ignored.set(key, section); else ignored.delete(key);
+      course.ignoredSections = [...ignored.values()];
       saveState(state);
       return json(response, 200, publicState());
     }

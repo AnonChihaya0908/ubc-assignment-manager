@@ -13,8 +13,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   const future = days => new Date(Date.now() + days * 86400000).toISOString();
   const courses = [
     { id: 'pl:1', platform: 'prairielearn', name: 'CPSC 310 · 2026W1', url: 'https://us.prairielearn.com/pl/course_instance/1/assessments',
-      lastSyncedAt: new Date().toISOString(), lastSyncError: '专用 Edge 窗口尚未登录', lastSyncErrorKind: 'login' },
-    { id: 'ww:1', platform: 'webwork', name: 'STAT_V 251 101 2026W1 Introductory Probability and Statistics', url: 'https://webwork.elearning.ubc.ca/webwork2/example', lastSyncedAt: new Date().toISOString() },
+      lastSyncedAt: new Date().toISOString(), lastSyncError: '专用 Edge 窗口尚未登录', lastSyncErrorKind: 'login', ignoredSections: [] },
+    { id: 'ww:1', platform: 'webwork', name: 'STAT_V 251 101 2026W1 Introductory Probability and Statistics', url: 'https://webwork.elearning.ubc.ca/webwork2/example', lastSyncedAt: new Date().toISOString(), ignoredSections: [] },
   ];
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
@@ -24,7 +24,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null,
       leadHours: [24, 3], quietEnabled: false, quietStart: '22:00', quietEnd: '08:00', disabledCourseIds: [], nextSendAt: null,
       history: [{ at: new Date().toISOString(), type: 'test', result: 'accepted', detail: 'Server酱已接受测试消息' }] }, tasks: [
-    makeTask('a', 'pl:1', 'LAB04', { dueAt: future(10), score: '100%' }),
+    makeTask('a', 'pl:1', 'LAB04', { section: 'In Class Assignment', dueAt: future(10), score: '100%' }),
     makeTask('b', 'ww:1', 'Assignment-03', { sourceStatus: 'open', dueAt: future(8), score: '40%',
       sourceComplete: false, problemCount: 6, completedProblemCount: 2 }),
     makeTask('c', 'ww:1', 'Assignment-04', { sourceStatus: 'future', opensAt: future(3) }),
@@ -92,6 +92,18 @@ test('desktop navigation separates sources, settings, and clears red dots after 
         const update = JSON.parse(body);
         const task = fixtureState.tasks.find(item => item.id === update.id);
         task.doneOverride = update.doneOverride;
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify(fixtureState));
+      });
+      return;
+    }
+    if (request.url === '/api/course/category' && request.method === 'PATCH') {
+      let body = '';
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        const update = JSON.parse(body);
+        const course = fixtureState.courses.find(item => item.id === update.courseId);
+        course.ignoredSections = update.ignored ? [update.section] : [];
         response.writeHead(200, { 'Content-Type': 'application/json' });
         response.end(JSON.stringify(fixtureState));
       });
@@ -279,6 +291,23 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelectorAll('.settings-course').length"), 2);
     assert.equal(await evaluate("document.querySelector('.settings-course').textContent.includes('需要重新登录')"), true);
     assert.equal(await evaluate("document.querySelector('.settings-course').textContent.includes('保留')"), true);
+    assert.equal(await evaluate("document.querySelector('[aria-label=\"CPSC 310 · 2026W1 管理 In Class Assignment\"]') !== null"), true);
+    await evaluate("document.querySelector('[aria-label=\"CPSC 310 · 2026W1 管理 In Class Assignment\"]').click()");
+    for (let i = 0; i < 20; i++) {
+      if (fixtureState.courses[0].ignoredSections.length) break;
+      await sleep(100);
+    }
+    assert.deepEqual(fixtureState.courses[0].ignoredSections, ['In Class Assignment']);
+    await evaluate("document.querySelector('#nav-all').click(); document.querySelector('[data-tab=ignored]').click()");
+    assert.equal(await evaluate("document.querySelector('.assignment-row').dataset.taskId"), 'a');
+    assert.equal(await evaluate("document.querySelector('#all-count').textContent"), '');
+    assert.equal(await evaluate("document.querySelector('#nav-prairielearn .notification-dot').hidden"), true);
+    await evaluate("document.querySelector('[data-task-id=a] .row-actions button').click()");
+    for (let i = 0; i < 20; i++) {
+      if (!fixtureState.courses[0].ignoredSections.length) break;
+      await sleep(100);
+    }
+    assert.deepEqual(fixtureState.courses[0].ignoredSections, []);
     await evaluate("document.querySelector('[data-settings=data]').click()");
     assert.equal(await evaluate("document.querySelector('#settings-data').hidden"), false);
     assert.equal(await evaluate("document.querySelector('#settings-data').textContent.includes('查询参数会移除')"), true);

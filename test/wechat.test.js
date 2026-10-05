@@ -83,6 +83,26 @@ test('daily digest contains actionable assignments and does not include private 
   assert.doesNotMatch(filtered.desp, /Assignment-03/);
 });
 
+test('ignored category is removed only from its course digest', () => {
+  const now = new Date(2026, 9, 2, 9);
+  const dueAt = new Date(2026, 9, 8, 23, 59).toISOString();
+  const state = {
+    preferences: {},
+    courses: [
+      { id: 'c317', name: 'CPSC 317', ignoredSections: ['In Class Assignment'] },
+      { id: 'c310', name: 'CPSC 310', ignoredSections: [] },
+    ],
+    tasks: [
+      { courseId: 'c317', section: 'In Class Assignment', name: 'ICA 03', sourceComplete: false, dueAt },
+      { courseId: 'c310', section: 'In Class Assignment', name: 'Practice 03', sourceComplete: false, dueAt },
+    ],
+  };
+  const digest = buildDailyDigest(state, now);
+  assert.equal(digest.count, 1);
+  assert.doesNotMatch(digest.desp, /ICA 03/);
+  assert.match(digest.desp, /Practice 03/);
+});
+
 test('the public reminder state does not expose SendKey', () => {
   assert.equal(validateSendKey(` ${sendKey} `), sendKey);
   assert.throws(() => validateSendKey('bad-key'));
