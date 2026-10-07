@@ -76,6 +76,7 @@
     '备份包含课程、缓存作业、优先级、个人备注、手动完成状态、手动提醒日期和普通设置。不会包含 Server酱 SendKey、Cookie、Edge 登录资料、发送记录；课程和作业网址中的查询参数会移除。': 'Backups include courses, cached assignments, priorities, notes, manual completion and reminder dates, and ordinary settings. They exclude the ServerChan SendKey, cookies, Edge profile, and delivery history. URL query parameters are removed.',
     '导出 JSON 备份': 'Export JSON backup', '适合换电脑或在重要修改前保存。文件带有格式版本和内容范围说明。': 'Useful when changing computers or before major changes. The file includes a format version and scope.',
     '导出备份': 'Export backup', '选择备份文件': 'Select backup file',
+    '选择文件': 'Choose file', '未选择文件': 'No file selected',
     '导入会替换当前课程、作业和普通设置；写入前会在本机自动创建恢复点。现有 SendKey 和浏览器登录资料不会从文件导入，也不会被删除。': 'Import replaces courses, assignments, and ordinary settings after creating a local restore point. Your SendKey and browser sign-in data are neither imported nor deleted.',
     '验证并恢复': 'Validate and restore', '本地数据': 'Local data', '退出应用': 'Quit app',
     '发现新版本': 'New version available', '稍后': 'Later', '首次设置': 'Initial setup',
@@ -402,6 +403,8 @@
   function translate(value) {
     if (locale() === 'zh-CN' || typeof value !== 'string') return value;
     if (Object.hasOwn(english, value)) return english[value];
+    const trimmed = value.trim();
+    if (trimmed && Object.hasOwn(english, trimmed)) return value.replace(trimmed, english[trimmed]);
     for (const [pattern, replacement] of patterns) {
       if (pattern.test(value)) return value.replace(pattern, replacement);
     }

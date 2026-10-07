@@ -206,7 +206,8 @@
             <p class="setting-intro">备份包含课程、缓存作业、优先级、个人备注、手动完成状态、手动提醒日期和普通设置。不会包含 Server酱 SendKey、Cookie、Edge 登录资料、发送记录；课程和作业网址中的查询参数会移除。</p>
             <div class="setting-row"><div><h3>导出 JSON 备份</h3><p>适合换电脑或在重要修改前保存。文件带有格式版本和内容范围说明。</p></div><button id="backup-export" class="secondary-button" type="button">导出备份</button></div>
             <div class="backup-import">
-              <label for="backup-file">选择备份文件</label><input id="backup-file" type="file" accept="application/json,.json">
+              <label for="backup-file">选择备份文件</label>
+              <div class="file-picker"><input id="backup-file" type="file" accept="application/json,.json"><label for="backup-file" class="secondary-button">选择文件</label><span id="backup-file-name">未选择文件</span></div>
               <p id="backup-summary" class="form-note">导入会替换当前课程、作业和普通设置；写入前会在本机自动创建恢复点。现有 SendKey 和浏览器登录资料不会从文件导入，也不会被删除。</p>
               <button id="backup-import" class="primary-button" type="button" disabled>验证并恢复</button>
             </div>

@@ -515,7 +515,12 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('[data-settings=general]').textContent"), 'General and window');
     assert.equal(await evaluate("document.querySelector('#app-language').value"), 'en-US');
     assert.equal(await evaluate("document.querySelector('#task-search').placeholder"), 'Search assignments and courses');
+    await evaluate("document.querySelector('[data-settings=data]').click()");
+    assert.equal(await evaluate("document.querySelector('.file-picker label').textContent"), 'Choose file');
+    assert.equal(await evaluate("document.querySelector('#backup-file-name').textContent"), 'No file selected');
     assert.deepEqual(await evaluate("[...document.querySelectorAll('#settings-page *')].filter(e => e.children.length === 0 && /[\\u3400-\\u9fff]/.test(e.textContent || '')).map(e => e.textContent.trim()).filter(Boolean)"), []);
+    await evaluate("(() => { const input = document.querySelector('#backup-file'); Object.defineProperty(input, 'files', { configurable: true, value: [new File(['{}'], '测试备份.json')] }); input.dispatchEvent(new Event('change', { bubbles: true })); })()");
+    assert.equal(await evaluate("document.querySelector('#backup-file-name').textContent"), '测试备份.json');
     await evaluate("openOnboarding()");
     await sleep(100);
     assert.equal(await evaluate("document.querySelector('#onboarding-dialog').open"), true);
@@ -527,6 +532,10 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     }
     await evaluate("document.querySelector('#nav-all').click()");
     assert.equal(await evaluate("document.querySelector('#work-heading').textContent"), 'Assignment overview');
+    await evaluate("document.querySelector('[data-tab=all]').click()");
+    assert.match(await evaluate("document.querySelector('[data-tab=all]').textContent.trim()"), /^All\s+\d+$/);
+    await resizeViewport(1440, 810);
+    assert.equal(await evaluate("(() => { const row = document.querySelector('[data-task-id=a]'); const status = row.querySelector('.status-label'); const score = row.querySelector('.score-bar'); return status.textContent === 'Awaiting confirmation' && status.getBoundingClientRect().right < score.getBoundingClientRect().left; })()"), true);
     assert.deepEqual(await evaluate("[...document.querySelectorAll('#work-page *,#task-inspector *')].filter(e => e.children.length === 0 && /[\\u3400-\\u9fff]/.test(e.textContent || '')).map(e => e.textContent.trim()).filter(Boolean)"), ['复习作业']);
     await evaluate("state.tasks.find(task => task.id === 'e').name = '作业日历'; render()");
     assert.equal(await evaluate("document.querySelector('[data-task-id=e] .assignment-title').textContent"), '作业日历');
