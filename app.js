@@ -220,8 +220,8 @@ async function checkDailyEmail() {
   if (emailConfig.attemptDate !== today) { emailConfig.attemptDate = today; emailConfig.attemptCount = 0; }
   emailConfig.attemptCount += 1;
   emailConfig.lastAttemptAt = now.toISOString();
-  saveEmailConfig(emailConfig);
   try {
+    saveEmailConfig(emailConfig);
     const password = readEmailSecret();
     if (!password) { emailConnected = false; throw new Error('发件账户已断开，请重新连接。'); }
     const digest = buildEmailDigest(state, emailConfig, now);
@@ -234,8 +234,8 @@ async function checkDailyEmail() {
     emailConfig.lastError = error.message || '邮件发送失败，请稍后重试。';
     console.error(`每日邮件提醒失败：${emailConfig.lastError}`);
   } finally {
-    saveEmailConfig(emailConfig);
-    sendingEmail = false;
+    try { saveEmailConfig(emailConfig); }
+    finally { sendingEmail = false; }
   }
 }
 
