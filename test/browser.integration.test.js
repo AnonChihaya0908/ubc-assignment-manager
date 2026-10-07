@@ -40,6 +40,58 @@ test('browser work is cancelled when the sync deadline expires', async () => {
   assert.ok(Date.now() - started < 1000, 'deadline should stop waiting promptly');
 });
 
+test('dedicated background Edge keeps a headless session for both course sources and closes on exit', { timeout: 45000 }, async () => {
+  const httpServer = http.createServer((request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(request.url.includes('Assignment-03') ? webworkDetailFixture :
+      request.url.includes('Assignment-02') ? webworkPastDetailFixture : request.url.startsWith('/webwork2/') ? webworkFixture : fixture);
+  });
+  await new Promise(resolve => httpServer.listen(0, '127.0.0.1', resolve));
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'pl-background-fixture-'));
+  const priorDataDir = process.env.PRAIRIELEARN_DATA_DIR;
+  process.env.PRAIRIELEARN_DATA_DIR = temporary;
+  delete require.cache[require.resolve('../lib/browser')];
+  const browser = require('../lib/browser');
+  const base = `http://127.0.0.1:${httpServer.address().port}`;
+  try {
+    const prairieUrl = `${base}/pl/course_instance/231184/assessments`;
+    const webworkUrl = `${base}/webwork2/course`;
+    const port = await browser.ensureBrowser(prairieUrl);
+    assert.equal(browser.browserMode(), 'background');
+    assert.equal(await browser.activePort(), port);
+    assert.equal((await browser.readCoursePage(prairieUrl)).rows.length, 2);
+    const target = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json())
+      .find(item => item.url.startsWith(prairieUrl));
+    await browser.cdp(target.webSocketDebuggerUrl, 'Runtime.evaluate', {
+      expression: 'document.cookie = "ubc_fixture_session=kept; SameSite=Lax"', returnByValue: true,
+    });
+    const webwork = await browser.readWebworkPage(webworkUrl);
+    assert.equal(webwork.rows.find(row => row.name === 'Assignment-03').score, '100%');
+    assert.equal(await browser.hideBrowser(webworkUrl), port);
+    await browser.closeBrowser();
+    const restartedPort = await browser.ensureBrowser(prairieUrl);
+    await browser.readCoursePage(prairieUrl);
+    const restartedTarget = (await (await fetch(`http://127.0.0.1:${restartedPort}/json/list`)).json())
+      .find(item => item.url.startsWith(prairieUrl));
+    const cookie = await browser.cdp(restartedTarget.webSocketDebuggerUrl, 'Runtime.evaluate', {
+      expression: 'document.cookie', returnByValue: true,
+    });
+    assert.match(cookie.result.value, /ubc_fixture_session=kept/);
+  } finally {
+    await browser.closeBrowser();
+    assert.equal(await browser.activePort(), null);
+    if (priorDataDir === undefined) delete process.env.PRAIRIELEARN_DATA_DIR;
+    else process.env.PRAIRIELEARN_DATA_DIR = priorDataDir;
+    delete require.cache[require.resolve('../lib/browser')];
+    httpServer.closeAllConnections();
+    await new Promise(resolve => httpServer.close(resolve));
+    if (path.dirname(temporary) === os.tmpdir() && path.basename(temporary).startsWith('pl-background-fixture-')) {
+      try { fs.rmSync(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 }); }
+      catch (error) { if (error.code !== 'EPERM') throw error; }
+    }
+  }
+});
+
 test('Edge reads assignment rows from a rendered student-style table', { timeout: 30000 }, async () => {
   const httpServer = http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });

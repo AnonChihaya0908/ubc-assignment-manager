@@ -779,6 +779,8 @@ function renderSettings() {
   const settingsCourse = selectedSettingsCourse();
   select.disabled = !state.courses.length;
   $('open-browser').disabled = !courseAccessConfirmed(settingsCourse);
+  $('hide-browser').hidden = state.browserMode !== 'visible';
+  $('hide-browser').disabled = !courseAccessConfirmed(settingsCourse);
   $('import-text').disabled = !courseAccessConfirmed(settingsCourse);
   $('course-list').replaceChildren();
   if (!state.courses.length) $('course-list').append(node('p', 'setting-intro', '尚未添加课程。'));
@@ -797,7 +799,9 @@ function renderSettings() {
     login.disabled = !courseAccessConfirmed(course);
     login.addEventListener('click', async () => {
       try {
-        await api('/api/open-browser', 'POST', { courseId: course.id });
+        const result = await api('/api/open-browser', 'POST', { courseId: course.id });
+        state = result.state;
+        renderSettings();
         message('登录窗口已打开。完成登录后点击“重试同步”。');
       } catch (error) { message(error.message, true); }
     });
@@ -1166,6 +1170,7 @@ $('onboarding-open-login').addEventListener('click', async () => {
   if (!course) return;
   try {
     const result = await api('/api/open-browser', 'POST', { courseId: course.id });
+    state = result.state;
     $('onboarding-error').textContent = result.message;
   } catch (error) { $('onboarding-error').textContent = error.message; }
 });
@@ -1244,6 +1249,18 @@ $('open-browser').addEventListener('click', async () => {
   if (!course) return;
   try {
     const result = await api('/api/open-browser', 'POST', { courseId: course.id });
+    state = result.state;
+    renderSettings();
+    message(result.message);
+  } catch (error) { message(error.message, true); }
+});
+$('hide-browser').addEventListener('click', async () => {
+  const course = selectedSettingsCourse();
+  if (!course) return;
+  try {
+    const result = await api('/api/browser/hide', 'POST', { courseId: course.id });
+    state = result.state;
+    renderSettings();
     message(result.message);
   } catch (error) { message(error.message, true); }
 });

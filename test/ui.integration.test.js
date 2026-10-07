@@ -140,6 +140,12 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       });
       return;
     }
+    if ((request.url === '/api/open-browser' || request.url === '/api/browser/hide') && request.method === 'POST') {
+      fixtureState.browserMode = request.url === '/api/open-browser' ? 'visible' : 'background';
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ message: '浏览器状态已更新。', state: fixtureState }));
+      return;
+    }
     const files = { '/': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'],
       '/task-status.js': ['task-status.js', 'text/javascript'], '/i18n.js': ['i18n.js', 'text/javascript'], '/dialogs.js': ['dialogs.js', 'text/javascript'],
       '/ui.js': ['ui.js', 'text/javascript'] };
@@ -423,6 +429,14 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       await sleep(100);
     }
     assert.equal(fixtureState.preferences.onboardingDismissed, true);
+    await evaluate("document.querySelector('[data-settings=courses]').click()");
+    assert.equal(await evaluate("document.querySelector('#hide-browser').hidden"), true);
+    await evaluate("document.querySelector('#open-browser').click()");
+    for (let i = 0; i < 20 && fixtureState.browserMode !== 'visible'; i++) await sleep(50);
+    assert.equal(await evaluate("document.querySelector('#hide-browser').hidden"), false);
+    await evaluate("document.querySelector('#hide-browser').click()");
+    for (let i = 0; i < 20 && fixtureState.browserMode !== 'background'; i++) await sleep(50);
+    assert.equal(await evaluate("document.querySelector('#hide-browser').hidden"), true);
     if (process.env.UI_SETTINGS_PREVIEW_PATH) {
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
       fs.writeFileSync(process.env.UI_SETTINGS_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
