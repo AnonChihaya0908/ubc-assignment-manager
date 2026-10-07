@@ -78,6 +78,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
             "请确认操作": "Confirm action", "确认": "Confirm", "取消": "Cancel",
             "这是一条 macOS 作业提醒测试。": "This is a macOS assignment reminder test.",
             "正在启动 UBC作业管理工具…": "Starting UBC Assignment Manager…",
+            "课程登录": "Course sign-in",
             "无法启动后台服务：": "Could not start the background service: ",
         ]
         return labels[chinese] ?? chinese
@@ -416,6 +417,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
             configureAppMenu()
             configureStatusItem()
             window.title = tr("UBC作业管理工具")
+            courseWindow?.title = tr("课程登录")
         } else if action == "showWindow" {
             showWindow()
         } else if action == "quitApp" {

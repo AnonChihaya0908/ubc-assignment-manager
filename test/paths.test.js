@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { dataDir } = require('../lib/paths');
-const { edgePath, chromePath } = require('../lib/browser');
+const { edgePath, chromePath, chromiumExecutable } = require('../lib/browser');
 const { NativeBrowserBridge } = require('../lib/native-browser');
 
 test('Windows user data uses a stable LocalAppData directory', () => {
@@ -34,6 +34,14 @@ test('Chrome is discovered independently of Edge on both desktop platforms', () 
   const windows = path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe');
   assert.equal(chromePath({ platform: 'win32', exists: file => file === windows }), windows);
   assert.throws(() => chromePath({ platform: 'darwin', exists: () => false }), /Chrome/);
+});
+
+test('automatic browser selection falls back to Chrome when Edge is absent', () => {
+  const chrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  const chosen = chromiumExecutable({ preference: 'auto', pathOptions: {
+    platform: 'darwin', homeDir: '/Users/student', exists: file => file === chrome,
+  } });
+  assert.deepEqual(chosen, { name: 'Chrome', executable: chrome, directory: 'chrome-profile' });
 });
 
 test('native browser bridge returns one command and completes only its matching request', async () => {

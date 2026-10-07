@@ -1514,7 +1514,7 @@ $('backup-file').addEventListener('change', async event => {
     const parsed = JSON.parse(await file.text());
     if (parsed.format !== 'ubc-assignment-manager-backup' || parsed.formatVersion !== 1 || !parsed.scope) throw new Error('文件格式或版本不受支持。');
     pendingBackup = parsed;
-    $('backup-summary').textContent = `文件包含 ${Number(parsed.scope.courses) || 0} 门课程、${Number(parsed.scope.tasks) || 0} 项作业。恢复会替换当前课程和作业，并先创建本机恢复点；SendKey、Cookie、Edge 登录资料不会从文件导入。`;
+    $('backup-summary').textContent = `文件包含 ${Number(parsed.scope.courses) || 0} 门课程、${Number(parsed.scope.tasks) || 0} 项作业。恢复会替换当前课程和作业，并先创建本机恢复点；SendKey、Cookie、浏览器登录资料不会从文件导入。`;
     $('backup-import').disabled = false;
   } catch (error) { $('backup-summary').textContent = `无法读取备份：${error.message}`; }
 });

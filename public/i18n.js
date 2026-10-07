@@ -113,6 +113,7 @@
     '登录窗口使用应用专用的登录资料。登录完成后可隐藏窗口，再从后台同步课程。': 'The sign-in window keeps a separate app profile. After signing in, hide it and sync in the background.',
     '作业清单、提醒设置与专用浏览器登录资料保存在当前 Mac 账户的“应用程序支持”目录中，覆盖升级不会删除。关闭主窗口不会停止后台提醒。': 'Assignments, reminders, and dedicated browser sign-in data are stored in this Mac account’s Application Support folder. Updating does not remove them. Closing the main window does not stop background reminders.',
     '作业清单、提醒设置与专用浏览器登录资料保存在当前 Windows 账户的本地应用数据目录中，覆盖升级不会删除。关闭网页不会停止后台提醒。': 'Assignments, reminders, and dedicated browser sign-in data are stored in this Windows account’s local app data. Updating does not remove them. Closing the window does not stop background reminders.',
+    '备份包含课程、缓存作业、优先级、个人备注、手动完成状态、手动提醒日期和普通设置。不会包含 Server酱 SendKey、Cookie、浏览器登录资料、发送记录；课程和作业网址中的查询参数会移除。': 'Backups include courses, cached assignments, priorities, notes, manual completion and reminder dates, and ordinary settings. They exclude the ServerChan SendKey, cookies, browser sign-in data, and delivery history. URL query parameters are removed.',
     '登录窗口使用独立 Edge 资料。登录完成后可隐藏窗口，再从后台同步课程。': 'The sign-in window uses a separate Edge profile. After signing in, hide the window and sync in the background.',
     '选择课程': 'Choose course', '打开登录窗口': 'Open sign-in window', '隐藏登录窗口': 'Hide sign-in window',
     '登录窗口已隐藏，后台同步可继续。': 'Sign-in window hidden; background sync can continue.',
@@ -448,7 +449,7 @@
     [/^(\d+) 门同步失败$/, (_, count) => `${count} sync failures`],
     [/^(\d+) 门数据可能过旧$/, (_, count) => `${count} courses may be stale`],
     [/^PrairieLearn (\d+) 门课程 · WeBWorK (\d+) 门课程$/, (_, pl, ww) => `PrairieLearn ${pl} courses · WeBWorK ${ww} courses`],
-    [/^文件包含 (\d+) 门课程、(\d+) 项作业。恢复会替换当前课程和作业，并先创建本机恢复点；SendKey、Cookie、Edge 登录资料不会从文件导入。$/, (_, courses, tasks) => `File contains ${courses} courses and ${tasks} assignments. Restore replaces current data after creating a local restore point. SendKey, cookies, and Edge sign-in data are not imported.`],
+    [/^文件包含 (\d+) 门课程、(\d+) 项作业。恢复会替换当前课程和作业，并先创建本机恢复点；SendKey、Cookie、浏览器登录资料不会从文件导入。$/, (_, courses, tasks) => `File contains ${courses} courses and ${tasks} assignments. Restore replaces current data after creating a local restore point. SendKey, cookies, and browser sign-in data are not imported.`],
     [/^已导出 (\d+) 门课程和 (\d+) 项作业；凭证和个人查询参数未写入文件。$/, (_, courses, tasks) => `Exported ${courses} courses and ${tasks} assignments. Credentials and personal URL query parameters were excluded.`],
   ];
 
