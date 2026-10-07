@@ -8,6 +8,7 @@
   <title>UBC作业管理工具 1.3.0</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/task-status.js" defer></script>
+  <script src="/i18n.js" defer></script>
   <script src="/dialogs.js" defer></script>
   <script src="/ui.js" defer></script>
 </head>
@@ -101,6 +102,7 @@
           <section class="setting-block">
             <h2>应用信息</h2>
             <div class="setting-row"><div><h3>应用版本</h3><p>UBC作业管理工具</p></div><span id="app-version" class="setting-value">1.3.0</span></div>
+            <div class="setting-row"><div><h3>界面语言</h3><p>首次使用跟随设备语言；切换后立即生效。</p></div><select id="app-language" class="setting-value" aria-label="界面语言"><option value="auto">跟随系统</option><option value="zh-CN">简体中文</option><option value="en-US">English</option></select></div>
           </section>
           <section class="setting-block">
             <h2>后台运行</h2>
@@ -235,11 +237,11 @@
       <div class="dialog-actions"><button id="onboarding-open-login" class="secondary-button" type="button">打开登录窗口</button><button id="onboarding-sync" class="primary-button" type="button">我已登录，立即同步</button></div>
     </section>
     <section id="onboarding-finish-panel" hidden>
-      <h2>首次同步完成</h2><p id="onboarding-finish-text"></p><p>Windows 截止提醒可以直接使用；个人微信每日汇总是可选功能，稍后也能在设置中配置。</p>
+      <h2>首次同步完成</h2><p id="onboarding-finish-text"></p><p id="onboarding-reminder-note">Windows 截止提醒可以直接使用；个人微信每日汇总是可选功能，稍后也能在设置中配置。</p>
       <div class="dialog-actions"><button id="onboarding-complete" class="secondary-button" type="button">完成，稍后配置微信</button><button id="onboarding-reminders" class="primary-button" type="button">前往提醒设置</button></div>
     </section>
   </dialog>
-  <dialog id="deadline-dialog"><form method="dialog" id="deadline-form"><h2>修改提醒日期</h2><p id="deadline-task-name"></p><label for="deadline-input">电脑当地时间</label><input id="deadline-input" type="datetime-local"><div class="dialog-actions"><button type="button" id="clear-deadline" class="text-button">恢复网页日期</button><button type="button" id="cancel-deadline" class="secondary-button">取消</button><button class="primary-button" value="save">保存</button></div></form></dialog>
+  <dialog id="deadline-dialog"><form method="dialog" id="deadline-form"><h2>修改提醒日期</h2><p id="deadline-task-name" data-i18n-skip></p><label for="deadline-input">电脑当地时间</label><input id="deadline-input" type="datetime-local"><div class="dialog-actions"><button type="button" id="clear-deadline" class="text-button">恢复网页日期</button><button type="button" id="cancel-deadline" class="secondary-button">取消</button><button class="primary-button" value="save">保存</button></div></form></dialog>
   <dialog id="app-dialog" class="app-dialog" data-level="info" aria-labelledby="app-dialog-title" aria-describedby="app-dialog-body">
     <div class="app-dialog-heading"><span class="app-dialog-emblem" aria-hidden="true"><i></i></span><div><span id="app-dialog-level" class="app-dialog-level">应用通知</span><h2 id="app-dialog-title"></h2></div></div>
     <p id="app-dialog-body"></p>

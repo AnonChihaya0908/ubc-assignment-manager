@@ -10,7 +10,7 @@ function fixture() {
   const courseId = 'webwork.elearning.ubc.ca:STAT_251';
   return {
     state: {
-      version: 1, notified: { private: true }, preferences: { requireManualCompletion: true, onboardingDismissed: true },
+      version: 1, notified: { private: true }, preferences: { requireManualCompletion: true, onboardingDismissed: true, language: 'en-US' },
       courses: [{ id: courseId, platform: 'webwork', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/STAT_251?effectiveUser=PRIVATE123', ignoredSections: ['Practice'] }],
       tasks: [{ id: 'abcdef0123456789abcdef01', courseId, name: 'Assignment-03', code: 'A03', section: '',
         url: 'https://webwork.elearning.ubc.ca/webwork2/STAT_251/Assignment-03?effectiveUser=PRIVATE123&token=secret',
@@ -45,6 +45,7 @@ test('exported backup restores managed data without credentials or personal quer
     courseId: restored.state.tasks[0].courseId, priority: 'low', note: '网站暂时隐藏时仍需保留。',
   });
   assert.deepEqual(restored.state.courses[0].ignoredSections, ['Practice']);
+  assert.equal(restored.state.preferences.language, 'en-US');
   assert.equal(restored.state.courses[0].accessConfirmedAt, null);
   assert.equal(restored.state.courses[0].origin, 'backup');
   assert.deepEqual(restored.config.leadHours, [48, 6]);

@@ -46,6 +46,27 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     private var serverReady = false
     private var reminderTimer: Timer?
     private var pendingNativeKeys = Set<String>()
+    private var useEnglish: Bool {
+        let value = UserDefaults.standard.string(forKey: "language") ?? Locale.preferredLanguages.first ?? "en"
+        return !value.lowercased().hasPrefix("zh")
+    }
+    private func tr(_ chinese: String) -> String {
+        if !useEnglish { return chinese }
+        let labels: [String: String] = [
+            "UBC作业管理工具": "UBC Assignment Manager", "显示窗口": "Show window",
+            "切换菜单栏图标": "Toggle menu bar icon", "退出 UBC作业管理工具": "Quit UBC Assignment Manager",
+            "立即同步": "Sync now", "退出": "Quit", "应用资源不完整。": "App resources are incomplete.",
+            "缺少随包 Node.js 或应用脚本，请重新安装完整的 Mac 版本。": "Bundled Node.js or app scripts are missing. Reinstall the complete Mac app.",
+            "后台服务已退出，请退出应用后重新打开。": "The background service stopped. Quit and reopen the app.",
+            "本机服务未能启动。请确认端口 43873 未被其他程序占用。": "The local service could not start. Check whether another program is using port 43873.",
+            "UBC作业管理工具无法启动": "UBC Assignment Manager could not start",
+            "请确认操作": "Confirm action", "确认": "Confirm", "取消": "Cancel",
+            "这是一条 macOS 作业提醒测试。": "This is a macOS assignment reminder test.",
+            "正在启动 UBC作业管理工具…": "Starting UBC Assignment Manager…",
+            "无法启动后台服务：": "Could not start the background service: ",
+        ]
+        return labels[chinese] ?? chinese
+    }
 
     private var menuBarVisible: Bool {
         get { UserDefaults.standard.object(forKey: "menuBarVisible") as? Bool ?? true }
@@ -89,10 +110,10 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
         let mainMenu = NSMenu()
         let appItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(actionItem("显示窗口", #selector(showWindow), key: "1"))
-        appMenu.addItem(actionItem("切换菜单栏图标", #selector(toggleMenuBar)))
+        appMenu.addItem(actionItem(tr("显示窗口"), #selector(showWindow), key: "1"))
+        appMenu.addItem(actionItem(tr("切换菜单栏图标"), #selector(toggleMenuBar)))
         appMenu.addItem(.separator())
-        appMenu.addItem(actionItem("退出 UBC作业管理工具", #selector(quitApp), key: "q"))
+        appMenu.addItem(actionItem(tr("退出 UBC作业管理工具"), #selector(quitApp), key: "q"))
         appItem.submenu = appMenu
         mainMenu.addItem(appItem)
         NSApp.mainMenu = mainMenu
@@ -112,7 +133,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
                           width: size.width, height: size.height)
         window = NSWindow(contentRect: rect, styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
-        window.title = "UBC作业管理工具"
+        window.title = tr("UBC作业管理工具")
         window.minSize = NSSize(width: 680, height: 440)
         window.delegate = self
 
@@ -130,7 +151,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
         webView.navigationDelegate = self
         webView.uiDelegate = self
         window.contentView = webView
-        webView.loadHTMLString("<html><body style='background:#202124;color:#eee;font:14px system-ui;padding:28px'>正在启动 UBC作业管理工具…</body></html>", baseURL: nil)
+        webView.loadHTMLString("<html><body style='background:#202124;color:#eee;font:14px system-ui;padding:28px'>\(tr("正在启动 UBC作业管理工具…"))</body></html>", baseURL: nil)
     }
 
     private func configureStatusItem() {
@@ -139,15 +160,14 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
             statusItem = nil
             return
         }
-        if statusItem != nil { return }
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        let item = statusItem ?? NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.title = "U"
-        item.button?.toolTip = "UBC作业管理工具"
+        item.button?.toolTip = tr("UBC作业管理工具")
         let menu = NSMenu()
-        menu.addItem(actionItem("显示窗口", #selector(showWindow)))
-        menu.addItem(actionItem("立即同步", #selector(syncCourses)))
+        menu.addItem(actionItem(tr("显示窗口"), #selector(showWindow)))
+        menu.addItem(actionItem(tr("立即同步"), #selector(syncCourses)))
         menu.addItem(.separator())
-        menu.addItem(actionItem("退出", #selector(quitApp)))
+        menu.addItem(actionItem(tr("退出"), #selector(quitApp)))
         item.menu = menu
         statusItem = item
     }
@@ -175,12 +195,12 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     }
 
     private func startServer() {
-        guard let resources = Bundle.main.resourceURL else { showError("应用资源不完整。") ; return }
+        guard let resources = Bundle.main.resourceURL else { showError(tr("应用资源不完整。")) ; return }
         let executable = resources.appendingPathComponent("runtime/node")
         let script = resources.appendingPathComponent("app.js")
         guard FileManager.default.isExecutableFile(atPath: executable.path),
               FileManager.default.fileExists(atPath: script.path) else {
-            showError("缺少随包 Node.js 或应用脚本，请重新安装完整的 Mac 版本。")
+            showError(tr("缺少随包 Node.js 或应用脚本，请重新安装完整的 Mac 版本。"))
             return
         }
         let process = Process()
@@ -195,7 +215,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
         process.terminationHandler = { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self, !self.isQuitting else { return }
-                self.showError("后台服务已退出，请退出应用后重新打开。")
+                self.showError(self.tr("后台服务已退出，请退出应用后重新打开。"))
             }
         }
         do {
@@ -203,7 +223,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
             nodeProcess = process
             waitForServer(attempt: 0)
         } catch {
-            showError("无法启动后台服务：\(error.localizedDescription)")
+            showError("\(tr("无法启动后台服务："))\(error.localizedDescription)")
         }
     }
 
@@ -225,7 +245,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
                         self.waitForServer(attempt: attempt + 1)
                     }
                 } else {
-                    self.showError("本机服务未能启动。请确认端口 43873 未被其他程序占用。")
+                    self.showError(self.tr("本机服务未能启动。请确认端口 43873 未被其他程序占用。"))
                 }
             }
         }.resume()
@@ -233,7 +253,7 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
 
     private func showError(_ message: String) {
         let alert = NSAlert()
-        alert.messageText = "UBC作业管理工具无法启动"
+        alert.messageText = tr("UBC作业管理工具无法启动")
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
@@ -244,6 +264,12 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
               let action = payload["action"] as? String else { return }
         if action == "setMenuBarVisible", let visible = payload["visible"] as? Bool {
             menuBarVisible = visible
+        } else if action == "setLanguage", let language = payload["language"] as? String,
+                  ["zh-CN", "en-US"].contains(language) {
+            UserDefaults.standard.set(language, forKey: "language")
+            configureAppMenu()
+            configureStatusItem()
+            window.title = tr("UBC作业管理工具")
         } else if action == "showWindow" {
             showWindow()
         } else if action == "quitApp" {
@@ -283,10 +309,10 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         let alert = NSAlert()
-        alert.messageText = "请确认操作"
+        alert.messageText = tr("请确认操作")
         alert.informativeText = message
-        alert.addButton(withTitle: "确认")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: tr("确认"))
+        alert.addButton(withTitle: tr("取消"))
         completionHandler(alert.runModal() == .alertFirstButtonReturn)
     }
 
@@ -318,8 +344,8 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
                 return
             }
             let content = UNMutableNotificationContent()
-            content.title = "UBC作业管理工具"
-            content.body = "这是一条 macOS 作业提醒测试。"
+            content.title = self?.tr("UBC作业管理工具") ?? "UBC Assignment Manager"
+            content.body = self?.tr("这是一条 macOS 作业提醒测试。") ?? "This is a macOS assignment reminder test."
             content.sound = .default
             let request = UNNotificationRequest(identifier: "test-\(UUID().uuidString)", content: content, trigger: nil)
             UNUserNotificationCenter.current().add(request)

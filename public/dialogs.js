@@ -113,7 +113,9 @@
       input.value = choice.id;
       input.checked = Boolean(choice.checked);
       const copy = make('span', 'app-dialog-choice-copy');
-      copy.append(make('strong', '', String(choice.label || choice.id)));
+      const choiceName = make('strong', '', String(choice.label || choice.id));
+      choiceName.dataset.i18nSkip = '';
+      copy.append(choiceName);
       if (choice.description) copy.append(make('small', '', String(choice.description)));
       label.append(input, copy);
       choices.append(label);

@@ -18,6 +18,7 @@ let macNotificationStatus = 'checking';
 
 const $ = id => document.getElementById(id);
 const taskStatus = window.TaskStatus;
+const i18n = window.UBCI18n;
 const dueOf = taskStatus.effectiveDue;
 function completionOptions() {
   return {
@@ -98,7 +99,7 @@ function formatDate(iso) {
   if (!iso) return '暂无日期';
   const date = new Date(iso);
   if (!Number.isFinite(date.getTime())) return '暂无日期';
-  return new Intl.DateTimeFormat('zh-CN', {
+  return new Intl.DateTimeFormat(i18n.locale(), {
     year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(date);
 }
@@ -174,13 +175,16 @@ function renderFolders() {
     for (const course of courses) {
       const button = node('button', 'course-folder');
       button.type = 'button';
+      button.dataset.i18nSkip = '';
       button.title = course.name;
       const syncStatus = courseSyncStatus(course);
-      button.title = `${course.name} · ${syncStatus.text}`;
+      button.title = `${course.name} · ${i18n.translate(syncStatus.text)}`;
       button.classList.toggle('sync-warning', ['error', 'stale', 'never', 'review'].includes(syncStatus.kind));
       button.classList.toggle('active', selectedScope === `course:${course.id}`);
       button.append(node('span', `source-mark ${platform === 'webwork' ? 'ww' : 'pl'}`, platform === 'webwork' ? 'W' : 'PL'));
-      button.append(node('span', 'course-name', shortCourseName(course)));
+      const name = node('span', 'course-name', shortCourseName(course));
+      name.dataset.i18nSkip = '';
+      button.append(name);
       const dot = node('span', 'notification-dot');
       const pendingCount = state.tasks.filter(task => task.courseId === course.id && needsAttention(task)).length;
       dot.hidden = pendingCount === 0;
@@ -253,8 +257,13 @@ function taskRow(task) {
   const course = courseFor(task);
   main.append(node('span', `source-mark ${coursePlatform(course) === 'webwork' ? 'ww' : 'pl'}`, coursePlatform(course) === 'webwork' ? 'W' : 'PL'));
   const description = node('div', 'assignment-description');
-  if (task.code && task.code !== task.name) description.append(node('span', 'assignment-code', task.code));
+  if (task.code && task.code !== task.name) {
+    const code = node('span', 'assignment-code', task.code);
+    code.dataset.i18nSkip = '';
+    description.append(code);
+  }
   const title = node(courseAccessConfirmed(course) ? 'a' : 'span', 'assignment-title', task.name);
+  title.dataset.i18nSkip = '';
   if (courseAccessConfirmed(course)) {
     title.href = task.url;
     title.target = '_blank';
@@ -262,7 +271,9 @@ function taskRow(task) {
   }
   description.append(title);
   if (task.priority) description.append(node('span', `priority-badge ${task.priority}`, priorityNames[task.priority]));
-  description.append(node('div', 'assignment-meta', [course ? shortCourseName(course) : '', platformNames[coursePlatform(course)], task.section, task.note ? '有个人备注' : ''].filter(Boolean).join(' · ')));
+  const meta = node('div', 'assignment-meta', [course ? shortCourseName(course) : '', platformNames[coursePlatform(course)], task.section, task.note ? i18n.translate('有个人备注') : ''].filter(Boolean).join(' · '));
+  meta.dataset.i18nSkip = '';
+  description.append(meta);
   main.append(description);
 
   const dateInfo = rowDate(task);
@@ -337,7 +348,7 @@ function sameLocalDay(first, second) {
 function renderCalendar(tasks, container) {
   const calendar = node('section', 'calendar-view');
   const toolbar = node('div', 'calendar-toolbar');
-  const title = node('h2', '', new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long' }).format(calendarCursor));
+  const title = node('h2', '', new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long' }).format(calendarCursor));
   const legend = node('div', 'calendar-legend');
   for (const [kind, label] of [['due', '截止'], ['open', '开放'], ['manual', '手动日期']]) {
     const item = node('span');
@@ -384,11 +395,12 @@ function renderCalendar(tasks, container) {
     cell.append(dateLabel);
     for (const event of events.filter(item => sameLocalDay(day, new Date(item.at)))) {
       const typeName = { due: '截止', open: '开放', manual: '手动日期' }[event.kind];
-      const time = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(event.at));
+      const time = new Intl.DateTimeFormat(i18n.locale(), { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(event.at));
       const button = node('button', `calendar-event ${event.kind}`, `${time}  ${event.task.name}`);
       button.type = 'button';
-      button.title = `${typeName} · ${formatDate(event.at)} · ${event.task.name}`;
-      button.setAttribute('aria-label', `${event.task.name}，${typeName} ${formatDate(event.at)}`);
+      button.dataset.i18nSkip = '';
+      button.title = `${i18n.translate(typeName)} · ${formatDate(event.at)} · ${event.task.name}`;
+      button.setAttribute('aria-label', `${event.task.name}, ${i18n.translate(typeName)} ${formatDate(event.at)}`);
       button.addEventListener('click', () => {
         selectedTaskId = event.task.id;
         renderSelection();
@@ -407,8 +419,8 @@ function renderCalendar(tasks, container) {
 function renderCalendarPage() {
   const tasks = state.tasks.filter(task => !searchTerm || [task.name, task.code, task.section, courseFor(task)?.name, platformNames[coursePlatform(courseFor(task))]]
     .filter(Boolean).some(value => value.toLocaleLowerCase().includes(searchTerm)));
-  $('calendar-breadcrumb').textContent = `日历 / ${new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long' }).format(calendarCursor)}`;
-  $('calendar-today-label').textContent = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
+  $('calendar-breadcrumb').textContent = `日历 / ${new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long' }).format(calendarCursor)}`;
+  $('calendar-today-label').textContent = new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
   inspectorTasks = [...tasks];
   if (!inspectorTasks.some(task => task.id === selectedTaskId)) selectedTaskId = inspectorTasks[0]?.id || null;
   const container = $('calendar-content');
@@ -489,10 +501,18 @@ function renderInspector() {
   const course = courseFor(task);
   const platform = coursePlatform(course);
   container.append(node('span', `source-mark inspector-source ${platform === 'webwork' ? 'ww' : 'pl'}`, platform === 'webwork' ? 'W' : 'PL'));
-  container.append(node('h2', '', task.name));
-  container.append(node('p', 'inspector-course', course?.name || platformNames[platform]));
+  const taskName = node('h2', '', task.name);
+  taskName.dataset.i18nSkip = '';
+  container.append(taskName);
+  const courseName = node('p', 'inspector-course', course?.name || platformNames[platform]);
+  courseName.dataset.i18nSkip = '';
+  container.append(courseName);
   const details = node('dl', 'inspector-details');
-  const addDetail = (label, value) => { details.append(node('dt', '', label), node('dd', '', value)); };
+  const addDetail = (label, value, raw = false) => {
+    const item = node('dd', '', value);
+    if (raw) item.dataset.i18nSkip = '';
+    details.append(node('dt', '', label), item);
+  };
   const dateInfo = rowDate(task);
   addDetail('来源', platformNames[platform]);
   addDetail('列表状态', statusName(task));
@@ -502,10 +522,10 @@ function renderInspector() {
   if (Number.isInteger(task.problemCount) && task.problemCount > 0) {
     addDetail('题目完成', `${task.completedProblemCount || 0} / ${task.problemCount}`);
   }
-  if (task.section) addDetail('分类', task.section);
+  if (task.section) addDetail('分类', task.section, true);
   if (task.sourceStatus === 'future' && task.opensAt) addDetail('开放时间', formatDate(task.opensAt));
   addDetail(dateInfo.label, dateInfo.value ? formatDate(dateInfo.value) : dateInfo.text || '暂无日期');
-  addDetail('成绩', task.score || '暂无成绩');
+  addDetail('成绩', task.score || '暂无成绩', Boolean(task.score));
   container.append(details);
   if (completion.source === 'confirmation_required') {
     container.append(node('p', 'inspector-hint', '成绩已达到 100%。当前启用了手动确认模式，请确认后将作业标为完成。'));
@@ -584,14 +604,18 @@ function renderToolbarContext(settings, calendar = false) {
 
 function renderWork() {
   const course = selectedScope.startsWith('course:') ? state.courses.find(item => item.id === selectedScope.slice(7)) : null;
+  for (const id of ['work-breadcrumb', 'work-heading', 'work-summary']) delete $(id).dataset.i18nSkip;
   if (selectedScope === 'all') {
     $('work-breadcrumb').textContent = '作业 / 全部作业';
     $('work-heading').textContent = '作业概览';
     $('work-summary').textContent = '将两个平台的待办和成绩汇总到同一工作区。';
   } else if (course) {
-    $('work-breadcrumb').textContent = `作业 / ${platformNames[coursePlatform(course)]} / ${shortCourseName(course)}`;
+    $('work-breadcrumb').textContent = `${i18n.translate('作业')} / ${platformNames[coursePlatform(course)]} / ${shortCourseName(course)}`;
+    $('work-breadcrumb').dataset.i18nSkip = '';
     $('work-heading').textContent = shortCourseName(course);
-    $('work-summary').textContent = `${course.name} · ${courseSyncStatus(course).text}`;
+    $('work-heading').dataset.i18nSkip = '';
+    $('work-summary').textContent = `${course.name} · ${i18n.translate(courseSyncStatus(course).text)}`;
+    $('work-summary').dataset.i18nSkip = '';
   } else {
     const platform = selectedScope.slice('platform:'.length);
     $('work-breadcrumb').textContent = `作业 / ${platformNames[platform]}`;
@@ -599,7 +623,7 @@ function renderWork() {
     $('work-summary').textContent = '查看这个平台的课程和作业。';
   }
   const tasks = visibleTasks();
-  $('today-label').textContent = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
+  $('today-label').textContent = new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
   const pendingCount = tasks.filter(task => needsAttention(task)).length;
   $('pending-badge').querySelector('span:last-child').textContent = `${pendingCount} 项需处理`;
   $('pending-badge').querySelector('.notification-dot').hidden = pendingCount === 0;
@@ -683,6 +707,9 @@ function renderOnboarding() {
   $('onboarding-finish-panel').hidden = step !== 3;
   if (course) $('onboarding-login-text').textContent = `下一步连接 ${course.name}。先打开登录窗口，再回到这里同步作业。`;
   if (step === 3) $('onboarding-finish-text').textContent = state.tasks.length ? `已读取 ${state.tasks.length} 项作业，你可以在主界面查看截止时间和成绩。` : '课程连接已经成功，但当前页面没有发现可见作业。你可以完成引导，并在课程发布作业后重新同步。';
+  $('onboarding-reminder-note').textContent = state.platform === 'darwin'
+    ? 'macOS 截止提醒可在提醒设置中启用；个人微信每日汇总也是可选功能。'
+    : 'Windows 截止提醒可以直接使用；个人微信每日汇总是可选功能，稍后也能在设置中配置。';
 }
 
 function openOnboarding() {
@@ -700,6 +727,7 @@ async function dismissOnboarding(targetPanel = null) {
 }
 
 function renderSettings() {
+  $('app-language').value = state.preferences?.language || 'auto';
   $('app-version').textContent = state.version || '1.3.0';
   document.title = `UBC作业管理工具 ${state.version || '1.3.0'}`;
   document.querySelector('.toolbar-version').textContent = state.version || '1.3.0';
@@ -742,6 +770,7 @@ function renderSettings() {
   for (const panel of Object.keys(settingNames)) $(`settings-${panel}`).hidden = settingsPanel !== panel;
   for (const button of document.querySelectorAll('.settings-link')) button.classList.toggle('active', button.dataset.settings === settingsPanel);
   const select = $('settings-course-select');
+  select.dataset.i18nSkip = '';
   const current = settingsCourseId || select.value;
   select.replaceChildren();
   for (const course of state.courses) select.append(new Option(course.name, course.id));
@@ -756,7 +785,9 @@ function renderSettings() {
   for (const course of state.courses) {
     const row = node('div', 'settings-course');
     const description = node('div', 'settings-course-main');
-    description.append(node('strong', '', course.name));
+    const name = node('strong', '', course.name);
+    name.dataset.i18nSkip = '';
+    description.append(name);
     const syncStatus = courseSyncStatus(course);
     const syncLine = node('small', `course-sync-status ${syncStatus.kind}`, `${platformNames[coursePlatform(course)]} · ${syncStatus.text}`);
     description.append(syncLine);
@@ -789,7 +820,7 @@ function renderSettings() {
     remove.type = 'button';
     remove.setAttribute('aria-label', `移除 ${course.name}`);
     remove.addEventListener('click', async () => {
-      if (!confirm(`移除 ${course.name} 及其本地作业记录？`)) return;
+      if (!confirm(i18n.translate(`移除 ${course.name} 及其本地作业记录？`))) return;
       try {
         state = await api('/api/course', 'DELETE', { id: course.id });
         if (selectedScope === `course:${course.id}`) selectedScope = 'all';
@@ -957,6 +988,7 @@ async function installUpdate() {
 
 function render() {
   if (!state) return;
+  i18n.setPreference(state.preferences?.language, state.systemLocale);
   if (selectedScope.startsWith('course:') && !state.courses.some(course => course.id === selectedScope.slice(7))) selectedScope = 'all';
   const settings = location.hash.startsWith('#settings');
   const calendar = location.hash.startsWith('#calendar');
@@ -1098,6 +1130,17 @@ $('nav-calendar').addEventListener('click', navigateCalendar);
 $('nav-prairielearn').addEventListener('click', () => navigateWork('platform:prairielearn'));
 $('nav-webwork').addEventListener('click', () => navigateWork('platform:webwork'));
 $('nav-settings').addEventListener('click', () => navigateSettings(settingsPanel));
+$('app-language').addEventListener('change', async event => {
+  const previous = state.preferences?.language || 'auto';
+  try {
+    state = await api('/api/preferences', 'PATCH', { language: event.target.value });
+    render();
+    window.webkit?.messageHandlers?.nativeHost?.postMessage({ action: 'setLanguage', language: i18n.locale() });
+  } catch (error) {
+    event.target.value = previous;
+    message(error.message, true);
+  }
+});
 $('check-update').addEventListener('click', () => checkUpdate(true));
 $('install-update').addEventListener('click', installUpdate);
 $('update-now').addEventListener('click', installUpdate);
@@ -1327,7 +1370,7 @@ $('wechat-test').addEventListener('click', async () => {
   finally { button.textContent = '发送测试消息'; button.disabled = !state?.wechat?.hasKey; }
 });
 $('wechat-clear').addEventListener('click', async () => {
-  if (!confirm('清除本机保存的微信推送密钥，并关闭每日提醒？')) return;
+  if (!confirm(i18n.translate('清除本机保存的微信推送密钥，并关闭每日提醒？'))) return;
   try {
     state = await api('/api/wechat', 'PATCH', { clearKey: true });
     $('wechat-key').value = '';
@@ -1374,7 +1417,7 @@ $('backup-file').addEventListener('change', async event => {
   } catch (error) { $('backup-summary').textContent = `无法读取备份：${error.message}`; }
 });
 $('backup-import').addEventListener('click', async () => {
-  if (!pendingBackup || !confirm('确认用这份备份替换当前课程、作业和普通设置？应用会先创建本机恢复点。')) return;
+  if (!pendingBackup || !confirm(i18n.translate('确认用这份备份替换当前课程、作业和普通设置？应用会先创建本机恢复点。'))) return;
   const button = $('backup-import');
   button.disabled = true;
   try {
@@ -1411,6 +1454,7 @@ $('quit').addEventListener('click', async () => {
 api('/api/state').then(result => {
   state = result;
   routeFromHash();
+  window.webkit?.messageHandlers?.nativeHost?.postMessage({ action: 'setLanguage', language: i18n.locale() });
   checkUpdate();
   window.webkit?.messageHandlers?.nativeHost?.postMessage({ action: 'notificationStatus' });
 }).catch(error => message(error.message, true));

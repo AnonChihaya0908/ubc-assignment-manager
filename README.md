@@ -1,5 +1,7 @@
 # UBC 作业管理工具
 
+[English installation and first-use guide](README.en.md)
+
 本地作业管理应用，将 PrairieLearn 和 UBC WeBWorK 的作业、开放时间与截止时间集中到一个界面，并提供系统通知、日历视图和微信每日汇总。Windows 版已稳定发布；macOS 桌面版正在预览验证。
 
 当前稳定版本：**1.2.1** · [下载最新版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
