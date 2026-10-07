@@ -170,6 +170,21 @@
             <p id="wechat-status" class="wechat-status" role="status" aria-live="polite"></p>
           </section>
           <section class="setting-block">
+            <h2>每日邮件提醒</h2>
+            <p class="setting-intro">使用你自己的 Gmail 发件账户和应用专用密码发送，无需部署服务器。应用不会索取邮箱主密码。连接后先向收件地址发送测试邮件，再启用定时提醒；邮件含课程、作业、截止时间和链接。</p>
+            <form id="email-form" class="wechat-form">
+              <label for="email-from">Gmail 发件地址</label><input id="email-from" type="email" autocomplete="email" placeholder="name@gmail.com">
+              <label for="email-password">Gmail 应用专用密码</label><input id="email-password" type="password" autocomplete="new-password" spellcheck="false" placeholder="只在连接时输入，不会显示在设置中">
+              <label for="email-to">收件地址</label><input id="email-to" type="email" autocomplete="email">
+              <label for="email-time">每日发送时间（设备当地时间）</label><input id="email-time" type="time" value="09:00">
+              <label for="email-scope">提醒范围</label><select id="email-scope"><option value="all">所有待办</option><option value="week">未来七天到期</option><option value="today">今天到期</option></select>
+              <label class="check-row" for="email-enabled"><input id="email-enabled" type="checkbox"><span>启用每日邮件提醒</span></label>
+              <p class="form-note">邮件从上方 Gmail 地址发往收件地址。电脑关机、睡眠或应用退出时无法准点发送；恢复后只补发当天的邮件，失败最多重试三次。</p>
+              <div class="wechat-actions"><button id="email-connect" class="secondary-button" type="button">连接发件账户</button><button id="email-test" class="secondary-button" type="button">发送测试邮件</button><button class="primary-button" type="submit">保存邮件设置</button><button id="email-disconnect" class="text-button" type="button">断开发件账户</button></div>
+            </form>
+            <p id="email-status" class="wechat-status" role="status" aria-live="polite"></p>
+          </section>
+          <section class="setting-block">
             <h2>计划与发送记录</h2>
             <div class="setting-row"><div><h3>下一次每日汇总</h3><p id="next-reminder-detail">每日汇总未启用。</p></div><span id="next-reminder-time" class="setting-value">—</span></div>
             <div class="setting-row"><div><h3>设备时区</h3><p>所有计划时间均按当前电脑设置解释。</p></div><span id="reminder-timezone" class="setting-value"></span></div>

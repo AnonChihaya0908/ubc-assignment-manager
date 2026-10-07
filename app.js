@@ -15,12 +15,21 @@ const { createBackup, validateBackup, writeRestorePoint, applyBackup } = require
 const { authorizedNativeRequest } = require('./lib/native-auth');
 const { pendingReminderEvents } = require('./lib/reminders');
 const { localeFor } = require('./public/i18n');
+const { loadConfig: loadEmailConfig, saveConfig: saveEmailConfig, publicConfig: publicEmailConfig,
+  validateAddress, validateConfig: validateEmailConfig, shouldSend: shouldSendEmail,
+  buildDigest: buildEmailDigest, sendSmtp } = require('./lib/email');
+const { saveSecret: saveEmailSecret, readSecret: readEmailSecret, deleteSecret: deleteEmailSecret } = require('./lib/email-secret');
 
 let state = loadState();
 let wechatConfig = loadConfig();
+let emailConfig = loadEmailConfig();
+let emailConnected = false;
+try { emailConnected = Boolean(readEmailSecret()); }
+catch (error) { emailConfig.lastError = error.message; }
 const syncingCourseIds = new Set();
 let syncAllPromise = null;
 let sendingWechat = false;
+let sendingEmail = false;
 let autoSyncEnabled = state.courses.some(course => courseAccessConfirmed(course) && course.lastSyncedAt);
 let server;
 let trayProcess = null;
@@ -45,7 +54,8 @@ function publicState() {
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
     browserMode: browserMode(),
     preferences: state.preferences, systemLocale: Intl.DateTimeFormat().resolvedOptions().locale, startup, platform: process.platform,
-    wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
+    wechat: publicConfig(wechatConfig), email: publicEmailConfig(emailConfig, emailConnected, wechatConfig.remindersPaused),
+    now: new Date().toISOString() };
 }
 
 function json(response, status, body) {
@@ -197,6 +207,35 @@ async function checkDailyWechat() {
   } finally {
     saveConfig(wechatConfig);
     sendingWechat = false;
+  }
+}
+
+async function checkDailyEmail() {
+  const now = new Date();
+  if (sendingEmail || !shouldSendEmail(emailConfig, now, {
+    connected: emailConnected, paused: wechatConfig.remindersPaused, quiet: wechatConfig,
+  })) return;
+  sendingEmail = true;
+  const today = localDateKey(now);
+  if (emailConfig.attemptDate !== today) { emailConfig.attemptDate = today; emailConfig.attemptCount = 0; }
+  emailConfig.attemptCount += 1;
+  emailConfig.lastAttemptAt = now.toISOString();
+  saveEmailConfig(emailConfig);
+  try {
+    const password = readEmailSecret();
+    if (!password) { emailConnected = false; throw new Error('发件账户已断开，请重新连接。'); }
+    const digest = buildEmailDigest(state, emailConfig, now);
+    await sendSmtp({ from: emailConfig.from, to: emailConfig.to, password,
+      subject: digest.subject, text: digest.text });
+    emailConfig.lastSentDate = today;
+    emailConfig.lastSentAt = new Date().toISOString();
+    emailConfig.lastError = null;
+  } catch (error) {
+    emailConfig.lastError = error.message || '邮件发送失败，请稍后重试。';
+    console.error(`每日邮件提醒失败：${emailConfig.lastError}`);
+  } finally {
+    saveEmailConfig(emailConfig);
+    sendingEmail = false;
   }
 }
 
@@ -354,6 +393,61 @@ async function handle(request, response) {
       wechatConfig = next;
       saveConfig(wechatConfig);
       return json(response, 200, publicState());
+    }
+    if (request.method === 'POST' && url.pathname === '/api/email/connect') {
+      const from = validateAddress(body.from);
+      if (!from.toLowerCase().endsWith('@gmail.com')) throw new Error('目前仅支持 Gmail 发件账户。');
+      saveEmailSecret(body.password);
+      emailConnected = true;
+      emailConfig.from = from;
+      emailConfig.enabled = false;
+      emailConfig.lastTestAt = null;
+      emailConfig.lastError = null;
+      saveEmailConfig(emailConfig);
+      return json(response, 200, { message: 'Gmail 发件账户已连接，请发送测试邮件确认。', state: publicState() });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/email/disconnect') {
+      deleteEmailSecret();
+      emailConnected = false;
+      emailConfig.enabled = false;
+      emailConfig.lastTestAt = null;
+      emailConfig.lastError = null;
+      saveEmailConfig(emailConfig);
+      return json(response, 200, { message: '发件账户已断开，本机授权已删除。', state: publicState() });
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/email') {
+      if (Object.keys(body).some(key => !['from', 'to', 'time', 'scope', 'enabled'].includes(key))) throw new Error('邮件设置包含无效字段。');
+      const next = validateEmailConfig({ ...emailConfig, ...body });
+      if (next.from.toLowerCase() !== emailConfig.from.toLowerCase()) throw new Error('请先重新连接新的 Gmail 发件账户。');
+      if (typeof next.enabled !== 'boolean') throw new Error('邮件启用状态无效。');
+      if (next.enabled && (!emailConnected || !emailConfig.lastTestAt)) throw new Error('请先连接发件账户并发送测试邮件。');
+      if (next.to !== emailConfig.to) next.lastTestAt = null;
+      if (next.enabled && !next.lastTestAt) throw new Error('收件地址已变更，请先发送测试邮件。');
+      if (next.enabled && !emailConfig.enabled) next.startDate = localDateKey();
+      emailConfig = next;
+      saveEmailConfig(emailConfig);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'POST' && url.pathname === '/api/email/test') {
+      if (sendingEmail) throw new Error('邮件正在发送，请稍后重试。');
+      if (!emailConnected) throw new Error('请先连接 Gmail 发件账户。');
+      const next = validateEmailConfig({ ...emailConfig, to: body.to || emailConfig.to });
+      sendingEmail = true;
+      try {
+        const english = localeFor(state.preferences.language) === 'en-US';
+        await sendSmtp({ from: next.from, to: next.to, password: readEmailSecret(),
+          subject: english ? 'UBC Assignment Manager email test' : 'UBC作业管理工具邮件测试',
+          text: english ? 'Email reminders are connected. Daily messages use your device local time.' : '邮件提醒已连接。每日邮件按设备当地时间发送。' });
+        emailConfig.to = next.to;
+        emailConfig.lastTestAt = new Date().toISOString();
+        emailConfig.lastError = null;
+        saveEmailConfig(emailConfig);
+        return json(response, 200, { message: '测试邮件已发送，请在收件箱中确认。', state: publicState() });
+      } catch (error) {
+        emailConfig.lastError = error.message || '测试邮件发送失败。';
+        saveEmailConfig(emailConfig);
+        throw error;
+      } finally { sendingEmail = false; }
     }
     if (request.method === 'POST' && url.pathname === '/api/wechat/test') {
       if (!wechatConfig.sendKey) throw new Error('请先保存 SCT SendKey。');
@@ -598,6 +692,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 
 setInterval(checkReminders, 60_000).unref();
 setInterval(() => { checkDailyWechat().catch(error => console.error(`微信提醒检查失败：${error.message}`)); }, 60_000).unref();
+setInterval(() => { checkDailyEmail().catch(error => console.error(`邮件提醒检查失败：${error.message}`)); }, 60_000).unref();
 setInterval(async () => {
   if (!autoSyncEnabled || syncingCourseIds.size) return;
   if (browserMode() === 'visible' && await activePort()) return;
@@ -613,3 +708,4 @@ setInterval(async () => {
 }, 30 * 60_000).unref();
 checkReminders();
 checkDailyWechat().catch(error => console.error(`微信提醒检查失败：${error.message}`));
+checkDailyEmail().catch(error => console.error(`邮件提醒检查失败：${error.message}`));

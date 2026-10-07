@@ -57,7 +57,8 @@ pkgbuild --root "$temp_dir/stage" --install-location / \
   --identifier com.anonchihaya.ubc-assignment-manager --version "$version" "$package"
 pkgutil --payload-files "$package" | grep -Fq 'Applications/UBC作业管理工具.app/Contents/MacOS/UBC作业管理工具'
 pkgutil --payload-files "$package" | grep -Fq 'Applications/UBC作业管理工具.app/Contents/Resources/runtime/node'
-if pkgutil --payload-files "$package" | grep -Eq '(^|/)(\.local-data|browser-profile|data\.json|\.env)(/|$)'; then
+pkgutil --payload-files "$package" | grep -Fq 'Applications/UBC作业管理工具.app/Contents/Resources/runtime/email-keychain'
+if pkgutil --payload-files "$package" | grep -Eq '(^|/)(\.local-data|browser-profile|data\.json|email\.json|email-secret\.dpapi|\.env)(/|$)'; then
   echo "Private data was found in the package payload." >&2
   exit 1
 fi
