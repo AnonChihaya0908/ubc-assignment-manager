@@ -109,7 +109,8 @@ test('existing saved data defaults to automatic full-score completion', () => {
   const file = path.join(directory, 'data.json');
   try {
     fs.writeFileSync(file, JSON.stringify({ version: 1, courses: [], tasks: [], notified: {} }));
-    assert.deepEqual(loadState(file).preferences, { requireManualCompletion: false, onboardingDismissed: true, language: 'auto' });
+    assert.deepEqual(loadState(file).preferences, { requireManualCompletion: false, onboardingDismissed: true,
+      language: 'auto', browserEngine: 'auto' });
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

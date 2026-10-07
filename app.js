@@ -4,7 +4,8 @@ const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizePriority, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
   reviewCourseAccess, mergeRows, mergeWebworkRows } = require('./lib/store');
-const { edgePath, activePort, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage } = require('./lib/browser');
+const { edgePath, activePort, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage } = require('./lib/browser');
+const { NativeBrowserBridge } = require('./lib/native-browser');
 const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
   shouldSendDaily, buildDailyDigest, sendServerChan, normalizeLeadHours, appendHistory } = require('./lib/wechat');
@@ -36,6 +37,8 @@ let trayProcess = null;
 let startup = startupStatus();
 const updater = createUpdater();
 const nativeToken = process.env.UBC_NATIVE_TOKEN || '';
+const nativeBrowser = process.platform === 'darwin' && nativeToken ? new NativeBrowserBridge() : null;
+configureBrowser({ bridge: nativeBrowser, preference: () => state.preferences?.browserEngine || 'auto' });
 
 function taskOptions() {
   return { ...state.preferences, ignoredSectionsByCourse: Object.fromEntries(state.courses.map(course => [course.id, course.ignoredSections || []])) };
@@ -190,7 +193,9 @@ async function checkDailyWechat() {
   wechatConfig.lastAttemptAt = now.toISOString();
   saveConfig(wechatConfig);
   try {
-    if (browserMode() === 'background' && await activePort()) await startAllCoursesSync({ automatic: true });
+    if (browserMode() === 'background' && (nativeBrowser && state.preferences?.browserEngine !== 'chrome' && state.preferences?.browserEngine !== 'edge' || await activePort())) {
+      await startAllCoursesSync({ automatic: true });
+    }
     const confirmedIds = new Set(state.courses.filter(courseAccessConfirmed).map(course => course.id));
     const digest = buildDailyDigest({ ...state, courses: state.courses.filter(courseAccessConfirmed),
       tasks: state.tasks.filter(task => confirmedIds.has(task.courseId)) }, now, wechatConfig);
@@ -261,6 +266,9 @@ async function handle(request, response) {
   if (request.method === 'GET' && url.pathname === '/ui.js') return serveFile(response, 'ui.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, publicState());
   if (request.method === 'GET' && url.pathname === '/api/update') return json(response, 200, updater.status());
+  if (request.method === 'GET' && url.pathname === '/api/native/browser/next' && nativeBrowser) {
+    return json(response, 200, { command: nativeBrowser.next() });
+  }
   if (request.method === 'GET' && url.pathname === '/api/native/reminders' && nativeToken && process.platform === 'darwin') {
     return json(response, 200, { events: pendingReminderEvents(state, wechatConfig, new Date(), taskOptions()) });
   }
@@ -268,7 +276,13 @@ async function handle(request, response) {
   if (request.headers['content-type']?.split(';')[0] !== 'application/json') return json(response, 415, { error: '需要 JSON 请求。' });
 
   try {
-    const body = await readBody(request, url.pathname === '/api/backup/import' ? 5 * 1024 * 1024 : 65536);
+    const body = await readBody(request, ['/api/backup/import', '/api/native/browser/result'].includes(url.pathname) ? 5 * 1024 * 1024 : 65536);
+    if (request.method === 'POST' && url.pathname === '/api/native/browser/result' && nativeBrowser) {
+      if (typeof body.id !== 'string' || !nativeBrowser.complete(body.id, body.result, body.error)) {
+        throw new Error('内置浏览器响应已过期。');
+      }
+      return json(response, 200, { ok: true });
+    }
     if (request.method === 'POST' && url.pathname === '/api/native/reminders/ack' && nativeToken && process.platform === 'darwin') {
       const event = typeof body.key === 'string' && body.key.length <= 400 &&
         pendingReminderEvents(state, wechatConfig, new Date(), taskOptions()).find(item => item.key === body.key);
@@ -358,6 +372,15 @@ async function handle(request, response) {
         if (!['auto', 'zh-CN', 'en-US'].includes(body.language)) throw new Error('语言设置无效。');
         state.preferences.language = body.language;
         changed = true;
+      }
+      if (Object.hasOwn(body, 'browserEngine')) {
+        if (!['auto', 'edge', 'chrome', 'webkit'].includes(body.browserEngine) ||
+            body.browserEngine === 'webkit' && !nativeBrowser) throw new Error('浏览器设置无效。');
+        if (body.browserEngine !== state.preferences.browserEngine) {
+          await closeBrowser();
+          state.preferences.browserEngine = body.browserEngine;
+          changed = true;
+        }
       }
       if (Object.hasOwn(body, 'requireManualCompletion')) {
         if (typeof body.requireManualCompletion !== 'boolean') throw new Error('完成确认设置无效。');
@@ -528,7 +551,7 @@ async function handle(request, response) {
       requireCourseAccess(course);
       if (syncingCourseIds.size) throw new Error('请等待课程同步完成后再打开登录窗口。');
       await openCoursePage(course.url);
-      return json(response, 200, { message: `Edge 已打开。请登录${coursePlatform(course) === 'webwork' ? ' WeBWorK' : ' PrairieLearn'}，然后回到应用点击“同步”。`, state: publicState() });
+      return json(response, 200, { message: `登录窗口已打开。请登录${coursePlatform(course) === 'webwork' ? ' WeBWorK' : ' PrairieLearn'}，然后回到应用点击“同步”。`, state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/browser/hide') {
       const course = state.courses.find(item => item.id === body.courseId);
@@ -695,7 +718,7 @@ setInterval(() => { checkDailyWechat().catch(error => console.error(`微信提�
 setInterval(() => { checkDailyEmail().catch(error => console.error(`邮件提醒检查失败：${error.message}`)); }, 60_000).unref();
 setInterval(async () => {
   if (!autoSyncEnabled || syncingCourseIds.size) return;
-  if (browserMode() === 'visible' && await activePort()) return;
+  if (browserMode() === 'visible' && (nativeBrowser && state.preferences?.browserEngine !== 'chrome' && state.preferences?.browserEngine !== 'edge' || await activePort())) return;
   const course = state.courses.find(item => courseAccessConfirmed(item) && item.lastSyncErrorKind !== 'login');
   if (!course) return;
   try { await hideBrowser(course.url); }

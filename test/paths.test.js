@@ -4,7 +4,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { dataDir } = require('../lib/paths');
-const { edgePath } = require('../lib/browser');
+const { edgePath, chromePath } = require('../lib/browser');
+const { NativeBrowserBridge } = require('../lib/native-browser');
 
 test('Windows user data uses a stable LocalAppData directory', () => {
   const local = path.join('C:', 'Users', 'student', 'AppData', 'Local');
@@ -25,6 +26,25 @@ test('macOS finds Edge in system or user Applications', () => {
   assert.equal(edgePath({ platform: 'darwin', homeDir: '/Users/student', exists: file => file === system }), system);
   assert.equal(edgePath({ platform: 'darwin', homeDir: '/Users/student', exists: file => file === user }), user);
   assert.throws(() => edgePath({ platform: 'darwin', homeDir: '/Users/student', exists: () => false }), /安装 Edge/);
+});
+
+test('Chrome is discovered independently of Edge on both desktop platforms', () => {
+  const mac = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  assert.equal(chromePath({ platform: 'darwin', homeDir: '/Users/student', exists: file => file === mac }), mac);
+  const windows = path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe');
+  assert.equal(chromePath({ platform: 'win32', exists: file => file === windows }), windows);
+  assert.throws(() => chromePath({ platform: 'darwin', exists: () => false }), /Chrome/);
+});
+
+test('native browser bridge returns one command and completes only its matching request', async () => {
+  const bridge = new NativeBrowserBridge();
+  const pending = bridge.request('evaluate', { url: 'https://example.edu/course', expression: '1 + 1' });
+  const command = bridge.next();
+  assert.equal(command.action, 'evaluate');
+  assert.equal(bridge.next(), null);
+  assert.equal(bridge.complete('unknown', 2), false);
+  assert.equal(bridge.complete(command.id, { value: 2 }), true);
+  assert.deepEqual(await pending, { value: 2 });
 });
 
 test('resolving the installed data directory never imports adjacent portable data', () => {

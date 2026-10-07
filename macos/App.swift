@@ -16,6 +16,15 @@ private struct ReminderEvent: Decodable {
 
 private struct ReminderBatch: Decodable { let events: [ReminderEvent] }
 
+private struct BrowserCommand: Decodable {
+    let id: String
+    let action: String
+    let url: String?
+    let expression: String?
+    let reload: Bool?
+}
+private struct BrowserCommandBatch: Decodable { let command: BrowserCommand? }
+
 @main
 struct AssignmentManagerMain {
     private static let appDelegate = AssignmentManagerApp()
@@ -39,6 +48,12 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
+    private var courseWindow: NSWindow?
+    private var courseWebView: WKWebView?
+    private var browserPollTimer: Timer?
+    private var browserPollBusy = false
+    private var activeBrowserCommandId: String?
+    private var browserCommandTimeout: DispatchWorkItem?
     private var statusItem: NSStatusItem?
     private var nodeProcess: Process?
     private let token = UUID().uuidString.replacingOccurrences(of: "-", with: "")
@@ -100,6 +115,8 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
         isQuitting = true
         DistributedNotificationCenter.default().removeObserver(self)
         reminderTimer?.invalidate()
+        browserPollTimer?.invalidate()
+        browserCommandTimeout?.cancel()
         UNUserNotificationCenter.current().delegate = nil
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
         webView.configuration.userContentController.removeScriptMessageHandler(forName: "nativeHost")
@@ -239,7 +256,11 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
                     self.reminderTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
                         self?.pollReminders()
                     }
+                    self.browserPollTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { [weak self] _ in
+                        self?.pollBrowser()
+                    }
                     self.pollReminders()
+                    self.pollBrowser()
                 } else if attempt < 100, self.nodeProcess?.isRunning == true {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                         self.waitForServer(attempt: attempt + 1)
@@ -257,6 +278,131 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.runModal()
+    }
+
+    private func courseBrowser() -> WKWebView {
+        if let courseWebView { return courseWebView }
+        let frame = NSRect(x: 0, y: 0, width: 1080, height: 760)
+        let loginWindow = NSWindow(contentRect: frame,
+                                   styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                   backing: .buffered, defer: false)
+        loginWindow.title = tr("课程登录")
+        loginWindow.isReleasedWhenClosed = false
+        loginWindow.center()
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+        let view = WKWebView(frame: frame, configuration: configuration)
+        view.navigationDelegate = self
+        view.uiDelegate = self
+        loginWindow.contentView = view
+        courseWindow = loginWindow
+        courseWebView = view
+        return view
+    }
+
+    private func pollBrowser() {
+        guard serverReady, !isQuitting, !browserPollBusy else { return }
+        browserPollBusy = true
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:43873/api/native/browser/next")!)
+        request.addValue(token, forHTTPHeaderField: "X-UBC-Native-Token")
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            DispatchQueue.main.async {
+                guard let self, !self.isQuitting else { return }
+                guard (response as? HTTPURLResponse)?.statusCode == 200,
+                      let data, let batch = try? JSONDecoder().decode(BrowserCommandBatch.self, from: data),
+                      let command = batch.command else {
+                    self.browserPollBusy = false
+                    return
+                }
+                self.activeBrowserCommandId = command.id
+                let timeout = DispatchWorkItem { [weak self] in
+                    self?.finishBrowserCommand(command.id, error: "内置浏览器操作超时。")
+                }
+                self.browserCommandTimeout = timeout
+                DispatchQueue.main.asyncAfter(deadline: .now() + 25, execute: timeout)
+                self.runBrowserCommand(command)
+            }
+        }.resume()
+    }
+
+    private func finishBrowserCommand(_ id: String, result: Any? = nil, error: String? = nil) {
+        guard activeBrowserCommandId == id else { return }
+        activeBrowserCommandId = nil
+        browserCommandTimeout?.cancel()
+        browserCommandTimeout = nil
+        var body: [String: Any] = ["id": id]
+        if let result { body["result"] = result }
+        if let error { body["error"] = error }
+        guard let data = try? JSONSerialization.data(withJSONObject: body) else {
+            browserPollBusy = false
+            return
+        }
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:43873/api/native/browser/result")!)
+        request.httpMethod = "POST"
+        request.httpBody = data
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue(token, forHTTPHeaderField: "X-UBC-Native-Token")
+        URLSession.shared.dataTask(with: request) { [weak self] _, _, _ in
+            DispatchQueue.main.async { self?.browserPollBusy = false }
+        }.resume()
+    }
+
+    private func runBrowserCommand(_ command: BrowserCommand) {
+        if command.action == "hide" {
+            courseWindow?.orderOut(nil)
+            finishBrowserCommand(command.id, result: true)
+            return
+        }
+        guard let rawURL = command.url, let url = URL(string: rawURL),
+              ["https", "http"].contains(url.scheme?.lowercased() ?? "") else {
+            finishBrowserCommand(command.id, error: "课程网址无效。")
+            return
+        }
+        let view = courseBrowser()
+        switch command.action {
+        case "open":
+            view.load(URLRequest(url: url))
+            courseWindow?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            finishBrowserCommand(command.id, result: true)
+        case "evaluate":
+            guard let expression = command.expression else {
+                finishBrowserCommand(command.id, error: "缺少页面读取指令。")
+                return
+            }
+            let current = view.url
+            let wrongPage = current?.host != url.host || current?.path != url.path
+            if command.reload == true || wrongPage {
+                view.load(URLRequest(url: url))
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                    self?.evaluateCoursePage(view, command: command, expression: expression, attempt: 0)
+                }
+            } else {
+                evaluateCoursePage(view, command: command, expression: expression, attempt: 0)
+            }
+        default:
+            finishBrowserCommand(command.id, error: "未知的浏览器操作。")
+        }
+    }
+
+    private func evaluateCoursePage(_ view: WKWebView, command: BrowserCommand,
+                                    expression: String, attempt: Int) {
+        if view.isLoading && attempt < 100 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                self?.evaluateCoursePage(view, command: command, expression: expression, attempt: attempt + 1)
+            }
+            return
+        }
+        if view.isLoading {
+            finishBrowserCommand(command.id, error: "课程页面加载超时。")
+            return
+        }
+        view.callAsyncJavaScript("return await (\(expression));", arguments: [:], in: nil, in: .page) { [weak self] outcome in
+            switch outcome {
+            case .success(let value): self?.finishBrowserCommand(command.id, result: value)
+            case .failure(let error): self?.finishBrowserCommand(command.id, error: error.localizedDescription)
+            }
+        }
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -286,6 +432,10 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
+        if webView === courseWebView {
+            decisionHandler(["https", "http"].contains(url.scheme?.lowercased() ?? "") ? .allow : .cancel)
+            return
+        }
         if url.scheme == appURL.scheme, url.host == appURL.host, url.port == appURL.port {
             decisionHandler(.allow)
         } else {
@@ -295,8 +445,12 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
     }
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
-                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+                  for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         if let url = navigationAction.request.url {
+            if webView === courseWebView {
+                webView.load(URLRequest(url: url))
+                return nil
+            }
             if url.scheme == appURL.scheme, url.host == appURL.host, url.port == appURL.port {
                 webView.load(URLRequest(url: url))
             } else if ["https", "http"].contains(url.scheme?.lowercased() ?? "") {

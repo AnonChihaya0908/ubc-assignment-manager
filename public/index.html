@@ -208,7 +208,10 @@
           </section>
           <section class="setting-block">
             <h2>登录与手动导入</h2>
-            <p class="setting-intro">登录窗口使用独立 Edge 资料。登录完成后可隐藏窗口，再从后台同步课程。</p>
+            <p class="setting-intro">登录窗口使用应用专用的登录资料。登录完成后可隐藏窗口，再从后台同步课程。</p>
+            <label for="browser-engine">同步浏览器</label>
+            <select id="browser-engine"><option value="auto">自动选择</option><option value="edge">Microsoft Edge</option><option value="chrome">Google Chrome</option><option value="webkit">应用内置 WebKit（Mac）</option></select>
+            <p id="browser-engine-hint" class="form-note">Windows 优先使用 Edge，未安装时使用 Chrome；Mac 默认使用内置 WebKit。</p>
             <label for="settings-course-select">选择课程</label>
             <div class="input-action"><select id="settings-course-select"></select><button id="open-browser" class="secondary-button" type="button">打开登录窗口</button><button id="hide-browser" class="secondary-button" type="button" hidden>隐藏登录窗口</button></div>
             <details class="paste-panel"><summary>PrairieLearn 页面无法同步？粘贴作业表格</summary><p>在已登录的浏览器中复制 PrairieLearn 作业表格，粘贴到下方导入。WeBWorK 请使用登录窗口同步。</p><label for="paste-data">作业表格文字</label><textarea id="paste-data" rows="5"></textarea><button id="import-text" class="secondary-button" type="button">导入所选课程</button></details>
@@ -247,7 +250,7 @@
       <form id="onboarding-add-form"><label for="onboarding-course-url">课程网址</label><input id="onboarding-course-url" type="url" required placeholder="https://us.prairielearn.com/pl/course_instance/…/assessments"><p class="form-note">PrairieLearn 示例：…/pl/course_instance/数字/assessments<br>WeBWorK 示例：webwork.elearning.ubc.ca/webwork2/课程名</p><div class="dialog-actions"><button id="onboarding-skip" class="text-button" type="button">稍后设置</button><button class="primary-button" type="submit">添加课程</button></div></form>
     </section>
     <section id="onboarding-login" hidden>
-      <h2>在专用 Edge 窗口登录</h2>
+          <h2>在专用登录窗口登录</h2>
       <p id="onboarding-login-text"></p><p class="form-note">这个窗口使用独立的本地登录资料，不会继承日常浏览器的登录状态。完成学校登录并停留在作业列表页，再返回这里同步。</p>
       <p id="onboarding-error" class="form-note error" role="alert"></p>
       <div class="dialog-actions"><button id="onboarding-open-login" class="secondary-button" type="button">打开登录窗口</button><button id="onboarding-sync" class="primary-button" type="button">我已登录，立即同步</button></div>

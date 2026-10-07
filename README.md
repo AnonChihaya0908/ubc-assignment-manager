@@ -43,17 +43,17 @@
 
 ### macOS 桌面版预览
 
-macOS 版交付为 `.pkg` 安装的独立 `.app`。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。课程登录和同步仍需本机 Microsoft Edge。
+macOS 版交付为 `.pkg` 安装的独立 `.app`。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。当前源码默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge；已发布的 1.3.0 预览包仍需要 Edge。
 
 目前 [macOS 1.3.0 预览安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) 尚待真实 Mac 首次安装验证，**不是稳定版**。下载时按处理器选择 `macos-arm64.pkg`（Apple Silicon）或 `macos-x64.pkg`（Intel），并保留同名 `.sha256` 文件。详细步骤见 [macOS 安装与使用说明](docs/macos-preview.md)。现有 Windows 安装包和便携包继续保留。
 
 ### 系统要求
 
 - Windows 10 或 Windows 11
-- Microsoft Edge
+- Microsoft Edge 或 Google Chrome（当前源码；已发布的 1.3.0 Windows 安装包仍需要 Edge）
 - 系统自带的 .NET Framework
 
-macOS 预览版需要 macOS 12 或更新版本、对应架构的安装包，以及用于课程登录与同步的 Microsoft Edge。
+macOS 预览版需要 macOS 12 或更新版本与对应架构的安装包。已发布的 1.3.0 预览包仍需要 Edge；当前源码加入了内置 WebKit 登录与同步，尚待真实 Mac 验收。
 
 应用在屏幕空间足够时以 1440 × 810 的 16:9 窗口打开；较小屏幕会按可用区域缩放。
 
@@ -63,10 +63,12 @@ macOS 预览版需要 macOS 12 或更新版本、对应架构的安装包，以�
    - PrairieLearn：`https://us.prairielearn.com/pl/course_instance/数字/assessments`
    - UBC WeBWorK：`https://webwork.elearning.ubc.ca/webwork2/课程名`
 2. 打开“设置 → 课程与登录”，选择课程并点击“打开登录窗口”。
-3. 在专用 Edge 窗口中完成学校网站登录；返回应用后可以点击“隐藏登录窗口”。
+3. 在专用登录窗口中完成学校网站登录；返回应用后可以点击“隐藏登录窗口”。可在同页选择自动、Edge、Chrome，Mac 还可选择内置 WebKit。
 4. 点击左下角“立即同步”。应用会在后台使用同一专用资料读取作业，后续定时同步也不会弹出课程窗口。若学校登录过期，请在课程设置中重新打开登录窗口。
 
-专用 Edge 窗口使用独立的本地浏览器资料，因此不会自动继承日常浏览器的登录状态。切换可见登录与后台同步时，应用会重启这个专用浏览器并保留其本地登录资料；请先完成学校验证码或双重验证，再隐藏窗口。新安装不会预置开发者或其他用户的课程；首次使用时还会要求确认本机课程，未确认的课程不会打开、同步或发送提醒。
+专用登录窗口使用独立的本地浏览器资料，因此不会自动继承日常 Chrome、Edge 或 Safari 的登录状态。Chrome 和 Edge 切换可见登录与后台同步时会重启专用浏览器并保留其资料；Mac 内置 WebKit 则保留专用网页视图。请先完成学校验证码或双重验证，再隐藏窗口。不同浏览器的登录资料互不共享。新安装不会预置开发者或其他用户的课程；首次使用时还会要求确认本机课程，未确认的课程不会打开、同步或发送提醒。
+
+Mac 内置 WebKit 使用与 Safari 相同的网页引擎，但不是 Safari 应用，也不会读取 Safari 的 Cookie。若学校登录流程拒绝内置网页视图，可在“设置 → 课程与登录”改用 Chrome 或 Edge；切换后需在新浏览器中重新登录。
 
 如果 PrairieLearn 自动同步失败，可以在已登录的日常浏览器中复制作业表格，然后到“设置 → 课程与登录”使用手动导入。WeBWorK 需要通过专用登录窗口同步。
 
