@@ -6,7 +6,7 @@
 
 当前稳定版本：**1.2.1** · [下载最新版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
 
-跨平台 **1.3.0 预览版**：[下载 Windows 与 macOS 安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0)。此版本仍需在真实 Mac 上验证首次安装、通知和课程同步；Windows 1.2.1 仍是稳定版。应用内自动更新不会推送预览版。
+macOS **1.3.1 预览版**：[下载 DMG 或 ZIP](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.1)。[Windows 1.3.0 预览版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) 继续提供；Windows 1.2.1 仍是稳定版。macOS 版仍需在真实 Mac 上验证首次安装、通知和课程同步。应用内自动更新不会推送预览版。
 
 > 本项目不是 UBC、PrairieLearn 或 WeBWorK 的官方产品。应用只读取用户登录后有权访问且页面上可见的数据，不使用教师 API，也不需要 PrairieLearn API token。
 
@@ -25,7 +25,7 @@
 | 个人安排 | 支持优先级、个人备注、手动提醒日期和手动完成状态。 |
 | 后台运行 | 关闭主窗口后继续运行；Windows 用系统托盘，macOS 用菜单栏或 Dock 重新打开。 |
 | 数据备份 | 可导出和恢复 JSON 备份；凭证、Cookie 与浏览器登录资料不会写入备份。 |
-| 软件更新 | 启动时检查 GitHub Release；Windows 可自动安装并重启，macOS 需下载新版 `.pkg` 手动安装。 |
+| 软件更新 | 启动时检查 GitHub Release；Windows 可自动安装并重启，macOS 下载对应架构的 DMG 或 ZIP 后手动替换 App。 |
 
 ## 下载与安装
 
@@ -43,9 +43,9 @@
 
 ### macOS 桌面版预览
 
-macOS 版交付为 `.pkg` 安装的独立 `.app`。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。当前源码默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge；已发布的 1.3.0 预览包仍需要 Edge。
+macOS 版是独立 `.app`；1.3.1 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），原有 PKG 仍保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。1.3.1 默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge；旧的 1.3.0 预览包仍需要 Edge。
 
-目前 [macOS 1.3.0 预览安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) 尚待真实 Mac 首次安装验证，**不是稳定版**。下载时按处理器选择 `macos-arm64.pkg`（Apple Silicon）或 `macos-x64.pkg`（Intel），并保留同名 `.sha256` 文件。详细步骤见 [macOS 安装与使用说明](docs/macos-preview.md)。现有 Windows 安装包和便携包继续保留。
+目前 [macOS 1.3.1 预览安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.1) 尚待真实 Mac 首次安装验证，**不是稳定版**。下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。详细步骤见 [macOS 安装与使用说明](docs/macos-preview.md)。现有 Windows 安装包和便携包继续保留。
 
 ### 系统要求
 
@@ -53,7 +53,7 @@ macOS 版交付为 `.pkg` 安装的独立 `.app`。从“应用程序”双击�
 - Microsoft Edge 或 Google Chrome（当前源码；已发布的 1.3.0 Windows 安装包仍需要 Edge）
 - 系统自带的 .NET Framework
 
-macOS 预览版需要 macOS 12 或更新版本与对应架构的安装包。已发布的 1.3.0 预览包仍需要 Edge；当前源码加入了内置 WebKit 登录与同步，尚待真实 Mac 验收。
+macOS 预览版需要 macOS 12 或更新版本与对应架构的安装包。1.3.1 使用内置 WebKit 登录与同步，尚待真实 Mac 验收；旧的 1.3.0 预览包仍需要 Edge。
 
 应用在屏幕空间足够时以 1440 × 810 的 16:9 窗口打开；较小屏幕会按可用区域缩放。
 
@@ -127,7 +127,7 @@ macOS 预览版关闭窗口后仍由 App 自身运行，菜单栏图标或 Dock 
 
 应用内安装只在安装版或独立解压的便携版中启用。在包含 `.git` 的开发目录中运行时不会覆盖源码。
 
-macOS 预览版同样可在应用内检查更新，但需下载对应架构的新版 `.pkg` 并手动安装。覆盖安装不会删除独立存放的课程、作业和提醒设置。
+macOS 预览版同样可在应用内检查更新；正式稳定版提供两种下载入口。预览版可从对应的 GitHub Release 手动下载 DMG 或 ZIP，退出旧版后替换 `.app`。课程、作业和提醒设置独立存放，不会因替换 App 而删除。
 
 ## 数据与隐私
 
@@ -166,7 +166,7 @@ node app.js --no-open
 
 `npm run build:app` 会生成安装包、便携包和 SHA-256 校验文件。发布包不应包含开发者课程数据、Edge 登录资料或 SendKey。
 
-macOS 构建在对应架构的 Mac 上运行 `bash macos/build-pkg.sh arm64 输出目录` 或 `bash macos/build-pkg.sh x64 输出目录`。脚本固定校验官方 Node.js 运行时，并生成未签名、未公证的 `.pkg` 与 SHA-256 文件。
+macOS 构建在对应架构的 Mac 上运行 `bash macos/build-release.sh arm64 输出目录` 或 `bash macos/build-release.sh x64 输出目录`。脚本固定校验官方 Node.js 运行时，并从同一个 `.app` 生成未签名、未公证的 DMG、ZIP、PKG 和各自的 SHA-256 文件。
 
 ## 反馈
 

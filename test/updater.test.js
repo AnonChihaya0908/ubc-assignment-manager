@@ -25,23 +25,28 @@ test('only a newer stable release with the matching Windows package and checksum
   assert.equal(safeRelease({ ...release, assets: [release.assets[0]] }, 'win32'), null);
 });
 
-test('macOS offers only the matching pkg for manual installation', async () => {
+test('macOS offers matching DMG and ZIP archives with checksums for manual installation', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-mac-update-'));
   const macRelease = { ...release, assets: [
     ...release.assets,
-    { name: 'ubc-assignment-manager-1.4.0-macos-arm64.pkg' },
-    { name: 'ubc-assignment-manager-1.4.0-macos-arm64.pkg.sha256' },
+    { name: 'ubc-assignment-manager-1.4.0-macos-arm64.dmg' },
+    { name: 'ubc-assignment-manager-1.4.0-macos-arm64.dmg.sha256' },
+    { name: 'ubc-assignment-manager-1.4.0-macos-arm64.zip' },
+    { name: 'ubc-assignment-manager-1.4.0-macos-arm64.zip.sha256' },
   ] };
   try {
     assert.equal(safeRelease(release, 'darwin', 'arm64'), null);
     assert.equal(safeRelease(macRelease, 'darwin', 'x64'), null);
+    assert.equal(safeRelease({ ...macRelease, assets: macRelease.assets.slice(0, -1) }, 'darwin', 'arm64'), null);
     const updater = createUpdater({ platform: 'darwin', arch: 'arm64', directory,
       fetchImpl: async () => Response.json(macRelease) });
     const result = await updater.check();
     assert.equal(result.kind, 'available');
     assert.equal(result.updateMode, 'manual');
     assert.equal(result.canInstall, false);
-    assert.match(result.release.assetUrl, /macos-arm64\.pkg$/);
+    assert.match(result.release.assetUrl, /macos-arm64\.dmg$/);
+    assert.match(result.release.zipUrl, /macos-arm64\.zip$/);
+    assert.equal(result.release.zipChecksumName, 'ubc-assignment-manager-1.4.0-macos-arm64.zip.sha256');
     await assert.rejects(updater.install(), /手动安装更新/);
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
