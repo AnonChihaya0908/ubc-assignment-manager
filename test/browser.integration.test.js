@@ -204,6 +204,12 @@ test('Chrome can sync a course using its own persistent profile', { timeout: 300
     delete require.cache[require.resolve('../lib/browser')];
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
-    fs.rmSync(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try { fs.rmSync(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 }); break; }
+      catch (error) {
+        if (!['ENOTEMPTY', 'EPERM', 'EBUSY'].includes(error.code)) throw error;
+        if (attempt < 9) await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
   }
 });
