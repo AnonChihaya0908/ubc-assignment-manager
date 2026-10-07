@@ -28,8 +28,9 @@ mkdir -p "$macos_dir" "$resources_dir/runtime"
 
 swiftc -O -parse-as-library -framework AppKit -framework WebKit -framework UserNotifications "$repo_root/macos/App.swift" \
   -o "$macos_dir/UBC作业管理工具"
+swiftc -O -framework Security "$repo_root/macos/EmailKeychain.swift" -o "$resources_dir/runtime/email-keychain"
 cp "$node_binary" "$resources_dir/runtime/node"
-chmod 755 "$resources_dir/runtime/node" "$macos_dir/UBC作业管理工具"
+chmod 755 "$resources_dir/runtime/node" "$resources_dir/runtime/email-keychain" "$macos_dir/UBC作业管理工具"
 cp "$repo_root/app.js" "$repo_root/package.json" "$resources_dir/"
 cp -R "$repo_root/lib" "$repo_root/public" "$resources_dir/"
 

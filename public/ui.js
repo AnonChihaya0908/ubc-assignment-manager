@@ -5,6 +5,7 @@ let settingsPanel = 'general';
 let settingsCourseId = null;
 let editingTaskId = null;
 let wechatFormDirty = false;
+let emailFormDirty = false;
 let reminderFormDirty = false;
 let selectedTaskId = null;
 let searchTerm = '';
@@ -912,6 +913,23 @@ function renderSettings() {
   if (!status.length) status.push(wechat.enabled ? '已启用，等待下次发送时间。' : '每日提醒尚未启用。');
   $('wechat-status').textContent = status.join(' · ');
   $('wechat-status').classList.toggle('error', Boolean(wechat.lastError));
+  const email = state.email || { enabled: false, connected: false, from: '', to: '', time: '09:00', scope: 'all' };
+  if (!emailFormDirty) {
+    $('email-from').value = email.from || '';
+    $('email-to').value = email.to || '';
+    $('email-time').value = email.time || '09:00';
+    $('email-scope').value = email.scope || 'all';
+    $('email-enabled').checked = Boolean(email.enabled);
+  }
+  $('email-test').disabled = !email.connected;
+  $('email-disconnect').disabled = !email.connected;
+  const emailLines = [email.connected ? `已连接发件账户：${email.from}` : '尚未连接 Gmail 发件账户。'];
+  if (email.paused) emailLines.push('全部提醒已暂停。');
+  if (email.lastSentAt) emailLines.push(`上次邮件发送：${formatDate(email.lastSentAt)}`);
+  if (email.lastTestAt) emailLines.push(`上次邮件测试：${formatDate(email.lastTestAt)}`);
+  if (email.lastError) emailLines.push(`上次邮件发送失败：${email.lastError}`);
+  $('email-status').textContent = emailLines.map(line => i18n.translate(line)).join(' · ');
+  $('email-status').classList.toggle('error', Boolean(email.lastError));
   $('next-reminder-time').textContent = wechat.nextSendAt ? formatDate(wechat.nextSendAt) : '—';
   $('next-reminder-detail').textContent = wechat.remindersPaused ? '提醒已暂停；恢复后若仍是当天且计划时间已过，会发送当天尚未成功的汇总。' :
     !wechat.enabled ? '每日微信汇总尚未启用。' : !wechat.hasKey ? '请先保存 Server酱 SendKey。' :
@@ -1394,6 +1412,58 @@ $('wechat-clear').addEventListener('click', async () => {
     wechatFormDirty = false;
     render();
     message('密钥已清除，每日微信提醒已关闭。');
+  } catch (error) { message(error.message, true); }
+});
+for (const id of ['email-from', 'email-to', 'email-time', 'email-scope', 'email-enabled', 'email-password']) {
+  $(id).addEventListener('input', () => { emailFormDirty = true; });
+  $(id).addEventListener('change', () => { emailFormDirty = true; });
+}
+$('email-connect').addEventListener('click', async () => {
+  const button = $('email-connect');
+  button.disabled = true;
+  try {
+    const result = await api('/api/email/connect', 'POST', { from: $('email-from').value, password: $('email-password').value });
+    $('email-password').value = '';
+    state = result.state;
+    renderSettings();
+    message(result.message);
+  } catch (error) { message(error.message, true); }
+  finally { button.disabled = false; }
+});
+$('email-test').addEventListener('click', async () => {
+  if ($('email-from').value.trim().toLowerCase() !== state.email?.from?.toLowerCase()) return message('请先连接新的 Gmail 发件账户。', true);
+  const button = $('email-test');
+  button.disabled = true;
+  try {
+    const result = await api('/api/email/test', 'POST', { to: $('email-to').value });
+    state = result.state;
+    renderSettings();
+    message(result.message);
+  } catch (error) { message(error.message, true); }
+  finally { button.disabled = !state.email?.connected; }
+});
+$('email-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = $('email-form').querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    state = await api('/api/email', 'PATCH', { from: $('email-from').value, to: $('email-to').value,
+      time: $('email-time').value, scope: $('email-scope').value, enabled: $('email-enabled').checked });
+    emailFormDirty = false;
+    renderSettings();
+    message('邮件提醒设置已保存。');
+  } catch (error) { message(error.message, true); }
+  finally { button.disabled = false; }
+});
+$('email-disconnect').addEventListener('click', async () => {
+  if (!confirm(i18n.translate('断开 Gmail 发件账户并删除本机授权？'))) return;
+  try {
+    const result = await api('/api/email/disconnect', 'POST', {});
+    state = result.state;
+    $('email-password').value = '';
+    emailFormDirty = false;
+    renderSettings();
+    message(result.message);
   } catch (error) { message(error.message, true); }
 });
 $('cancel-deadline').addEventListener('click', () => $('deadline-dialog').close());

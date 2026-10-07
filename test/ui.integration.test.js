@@ -23,7 +23,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     startup: { supported: true, enabled: false, configured: false, error: null },
     wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null,
       leadHours: [24, 3], quietEnabled: false, quietStart: '22:00', quietEnd: '08:00', disabledCourseIds: [], includeNotes: false, nextSendAt: null,
-      history: [{ at: new Date().toISOString(), type: 'test', result: 'accepted', detail: 'Server酱已接受测试消息' }] }, tasks: [
+      history: [{ at: new Date().toISOString(), type: 'test', result: 'accepted', detail: 'Server酱已接受测试消息' }] },
+    email: { enabled: false, connected: false, from: '', to: '', time: '09:00', scope: 'all', lastSentAt: null, lastError: null, lastTestAt: null }, tasks: [
     makeTask('a', 'pl:1', 'LAB04', { section: 'In Class Assignment', dueAt: future(10), score: '100%' }),
     makeTask('b', 'ww:1', 'Assignment-03', { sourceStatus: 'open', dueAt: future(8), score: '40%',
       sourceComplete: false, problemCount: 6, completedProblemCount: 2 }),
@@ -144,6 +145,25 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       fixtureState.browserMode = request.url === '/api/open-browser' ? 'visible' : 'background';
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ message: '浏览器状态已更新。', state: fixtureState }));
+      return;
+    }
+    if (request.url?.startsWith('/api/email') && ['POST', 'PATCH'].includes(request.method)) {
+      let body = '';
+      request.on('data', chunk => { body += chunk; });
+      request.on('end', () => {
+        const data = JSON.parse(body);
+        if (request.url === '/api/email/connect') {
+          fixtureState.email = { ...fixtureState.email, from: data.from, connected: true };
+        } else if (request.url === '/api/email/test') {
+          fixtureState.email = { ...fixtureState.email, to: data.to, lastTestAt: new Date().toISOString() };
+        } else if (request.url === '/api/email/disconnect') {
+          fixtureState.email = { ...fixtureState.email, connected: false, enabled: false };
+        } else if (request.url === '/api/email') {
+          fixtureState.email = { ...fixtureState.email, ...data };
+        }
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify(request.url === '/api/email' ? fixtureState : { state: fixtureState, message: '邮件操作已完成。' }));
+      });
       return;
     }
     const files = { '/': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'],
@@ -475,6 +495,30 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(fixtureState.wechat.includeNotes, true);
     assert.equal(await evaluate("document.querySelector('#wechat-test').disabled"), false);
     assert.equal(JSON.stringify(fixtureState).includes('SCTabcdefghijklmnop'), false);
+    assert.equal(await evaluate("document.querySelector('#email-test').disabled"), true);
+    await evaluate("(() => { document.querySelector('#email-from').value = 'student@gmail.com'; document.querySelector('#email-password').value = 'fixture-app-password'; document.querySelector('#email-connect').click(); })()");
+    for (let i = 0; i < 20; i++) {
+      if (fixtureState.email.connected) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.email.connected, true);
+    assert.equal(await evaluate("document.querySelector('#email-password').value"), '');
+    assert.equal(await evaluate("document.querySelector('#email-test').disabled"), false);
+    assert.equal(JSON.stringify(fixtureState).includes('fixture-app-password'), false);
+    await evaluate("(() => { document.querySelector('#email-to').value = 'recipient@example.com'; document.querySelector('#email-test').click(); })()");
+    for (let i = 0; i < 20; i++) {
+      if (fixtureState.email.lastTestAt) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.email.to, 'recipient@example.com');
+    await evaluate("(() => { document.querySelector('#email-time').value = '10:20'; document.querySelector('#email-scope').value = 'week'; document.querySelector('#email-enabled').checked = true; document.querySelector('#email-form').requestSubmit(); })()");
+    for (let i = 0; i < 20; i++) {
+      if (fixtureState.email.enabled) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.email.enabled, true);
+    assert.equal(fixtureState.email.time, '10:20');
+    assert.equal(fixtureState.email.scope, 'week');
     await evaluate("document.querySelector('[data-settings=courses]').click()");
     assert.equal(await evaluate("document.querySelector('#settings-courses').hidden"), false);
     assert.equal(await evaluate("document.querySelectorAll('.settings-course').length"), 2);
