@@ -19,7 +19,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
   const makeTask = (id, courseId, name, extra) => ({ id, courseId, name, code: name, section: '', url: courses.find(course => course.id === courseId).url,
     creditText: '', score: '', dueAt: null, opensAt: null, deadlineKind: null, doneOverride: null, deadlineOverride: null, ...extra });
   const fixtureState = { version: '1.2.1', courses, syncing: false,
-    preferences: { requireManualCompletion: false, onboardingDismissed: true },
+    preferences: { requireManualCompletion: false, onboardingDismissed: true, language: 'zh-CN' }, systemLocale: 'zh-CN',
     startup: { supported: true, enabled: false, configured: false, error: null },
     wechat: { enabled: false, remindersPaused: false, time: '09:00', hasKey: false, lastSentAt: null, lastError: null, lastTestAt: null,
       leadHours: [24, 3], quietEnabled: false, quietStart: '22:00', quietEnd: '08:00', disabledCourseIds: [], includeNotes: false, nextSendAt: null,
@@ -141,7 +141,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       return;
     }
     const files = { '/': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'],
-      '/task-status.js': ['task-status.js', 'text/javascript'], '/dialogs.js': ['dialogs.js', 'text/javascript'],
+      '/task-status.js': ['task-status.js', 'text/javascript'], '/i18n.js': ['i18n.js', 'text/javascript'], '/dialogs.js': ['dialogs.js', 'text/javascript'],
       '/ui.js': ['ui.js', 'text/javascript'] };
     const target = files[request.url];
     if (!target) { response.writeHead(404); response.end(); return; }
@@ -392,7 +392,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#settings-summary') === null"), true);
     assert.equal(await evaluate("parseFloat(getComputedStyle(document.querySelector('#settings-breadcrumb')).fontSize)"), 13);
     assert.equal(await evaluate("document.querySelector('#settings-general .setting-block:first-child h2').textContent"), '应用信息');
-    assert.equal(await evaluate("document.querySelectorAll('#settings-general .setting-block:first-child .setting-row').length"), 1);
+    assert.equal(await evaluate("document.querySelectorAll('#settings-general .setting-block:first-child .setting-row').length"), 2);
     assert.equal(await evaluate("document.querySelector('#settings-general .setting-block:first-child').textContent.includes('默认 16:9')"), false);
     assert.equal(await evaluate("document.querySelector('#settings-general .setting-block:first-child').textContent.includes('主界面')"), false);
     assert.equal(await evaluate("document.querySelector('#startup-status').textContent.includes('当前未启用')"), true);
@@ -505,6 +505,60 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#download-update').hidden"), false);
     assert.equal(await evaluate("document.querySelector('#download-update').getAttribute('href').endsWith('macos-arm64.pkg')"), true);
     assert.equal(await evaluate("document.querySelector('#update-status').textContent.includes('手动安装')"), true);
+    await evaluate("(() => { const input = document.querySelector('#app-language'); input.value = 'en-US'; input.dispatchEvent(new Event('change', { bubbles: true })); })()");
+    for (let i = 0; i < 30; i++) {
+      if (fixtureState.preferences.language === 'en-US' && await evaluate("document.documentElement.lang === 'en-US'")) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.preferences.language, 'en-US');
+    await sleep(250);
+    assert.equal(await evaluate("document.querySelector('[data-settings=general]').textContent"), 'General and window');
+    assert.equal(await evaluate("document.querySelector('#app-language').value"), 'en-US');
+    assert.equal(await evaluate("document.querySelector('#task-search').placeholder"), 'Search assignments and courses');
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#settings-page *')].filter(e => e.children.length === 0 && /[\\u3400-\\u9fff]/.test(e.textContent || '')).map(e => e.textContent.trim()).filter(Boolean)"), []);
+    await evaluate("openOnboarding()");
+    await sleep(100);
+    assert.equal(await evaluate("document.querySelector('#onboarding-dialog').open"), true);
+    assert.equal(await evaluate("document.querySelector('#onboarding-finish-panel h2').textContent"), 'First sync complete');
+    await evaluate("document.querySelector('#onboarding-complete').click()");
+    for (let i = 0; i < 20; i++) {
+      if (!await evaluate("document.querySelector('#onboarding-dialog').open")) break;
+      await sleep(50);
+    }
+    await evaluate("document.querySelector('#nav-all').click()");
+    assert.equal(await evaluate("document.querySelector('#work-heading').textContent"), 'Assignment overview');
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#work-page *,#task-inspector *')].filter(e => e.children.length === 0 && /[\\u3400-\\u9fff]/.test(e.textContent || '')).map(e => e.textContent.trim()).filter(Boolean)"), ['复习作业']);
+    await evaluate("state.tasks.find(task => task.id === 'e').name = '作业日历'; render()");
+    assert.equal(await evaluate("document.querySelector('[data-task-id=e] .assignment-title').textContent"), '作业日历');
+    await evaluate("state.tasks.find(task => task.id === 'e').name = '复习作业'; render()");
+    const englishDate = await evaluate("formatDate('2026-10-08T22:00:00.000Z')");
+    await evaluate("document.querySelector('#nav-calendar').click()");
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#calendar-page *')].filter(e => e.children.length === 0 && /[\\u3400-\\u9fff]/.test(e.textContent || '')).map(e => e.textContent.trim()).filter(Boolean)"), []);
+    await resizeViewport(1440, 810);
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
+    await evaluate("document.querySelector('#nav-settings').click()");
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
+    await evaluate("(() => { const input = document.querySelector('#app-language'); input.value = 'zh-CN'; input.dispatchEvent(new Event('change', { bubbles: true })); })()");
+    for (let i = 0; i < 20; i++) {
+      if (await evaluate("document.documentElement.lang === 'zh-CN'")) break;
+      await sleep(50);
+    }
+    assert.equal(await evaluate("document.querySelector('[data-settings=general]').textContent"), '常规与窗口');
+    assert.notEqual(await evaluate("formatDate('2026-10-08T22:00:00.000Z')"), englishDate);
+    assert.equal(fixtureState.courses.length, 2);
+    assert.equal(fixtureState.tasks.length, 5);
+    fixtureState.systemLocale = 'en-CA';
+    await evaluate("(() => { const input = document.querySelector('#app-language'); input.value = 'auto'; input.dispatchEvent(new Event('change', { bubbles: true })); })()");
+    for (let i = 0; i < 20; i++) {
+      if (await evaluate("document.documentElement.lang === 'en-US'")) break;
+      await sleep(50);
+    }
+    assert.equal(await evaluate("document.querySelector('[data-settings=general]').textContent"), 'General and window');
+    await evaluate("(() => { state.courses = []; state.tasks = []; state.preferences.onboardingDismissed = false; onboardingActive = false; render(); })()");
+    await sleep(100);
+    assert.equal(await evaluate("document.querySelector('#onboarding-dialog').open"), true);
+    assert.equal(await evaluate("document.querySelector('#onboarding-add h2').textContent"), 'Add your course');
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#onboarding-dialog *')].filter(e => e.children.length === 0 && /[\\u3400-\\u9fff]/.test(e.textContent || '')).map(e => e.textContent.trim()).filter(Boolean)"), []);
     if (process.env.UI_NARROW_PREVIEW_PATH) {
       await sleep(250);
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });

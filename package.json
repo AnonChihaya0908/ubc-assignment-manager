@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node app.js",
     "build:app": "powershell -NoProfile -ExecutionPolicy Bypass -File build-app.ps1",
-    "test": "node --test test/app.test.js test/backup.test.js test/file-store.test.js test/paths.test.js test/wechat.test.js test/updater.test.js test/windows-startup.test.js",
+    "test": "node --test test/app.test.js test/backup.test.js test/file-store.test.js test/i18n.test.js test/paths.test.js test/wechat.test.js test/updater.test.js test/windows-startup.test.js",
     "test:browser": "node --test test/browser.integration.test.js test/ui.integration.test.js"
   },
   "engines": {

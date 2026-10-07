@@ -14,6 +14,7 @@ const { startupStatus, setStartupEnabled } = require('./lib/windows-startup');
 const { createBackup, validateBackup, writeRestorePoint, applyBackup } = require('./lib/backup');
 const { authorizedNativeRequest } = require('./lib/native-auth');
 const { pendingReminderEvents } = require('./lib/reminders');
+const { localeFor } = require('./public/i18n');
 
 let state = loadState();
 let wechatConfig = loadConfig();
@@ -42,7 +43,7 @@ function publicState() {
   });
   return { version: VERSION, courses: state.courses, tasks, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
-    preferences: state.preferences, startup, platform: process.platform,
+    preferences: state.preferences, systemLocale: Intl.DateTimeFormat().resolvedOptions().locale, startup, platform: process.platform,
     wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
 }
 
@@ -211,7 +212,8 @@ async function handle(request, response) {
   if (request.method === 'GET' && url.pathname === '/') return serveFile(response, 'index.html', 'text/html; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/style.css') return serveFile(response, 'style.css', 'text/css; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/task-status.js') return serveFile(response, 'task-status.js', 'text/javascript; charset=utf-8');
-  if (request.method === 'GET' && url.pathname === '/dialogs.js') return serveFile(response, 'dialogs.js', 'text/javascript; charset=utf-8');
+    if (request.method === 'GET' && url.pathname === '/dialogs.js') return serveFile(response, 'dialogs.js', 'text/javascript; charset=utf-8');
+    if (request.method === 'GET' && url.pathname === '/i18n.js') return serveFile(response, 'i18n.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/ui.js') return serveFile(response, 'ui.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/api/state') return json(response, 200, publicState());
   if (request.method === 'GET' && url.pathname === '/api/update') return json(response, 200, updater.status());
@@ -308,6 +310,11 @@ async function handle(request, response) {
     }
     if (request.method === 'PATCH' && url.pathname === '/api/preferences') {
       let changed = false;
+      if (Object.hasOwn(body, 'language')) {
+        if (!['auto', 'zh-CN', 'en-US'].includes(body.language)) throw new Error('语言设置无效。');
+        state.preferences.language = body.language;
+        changed = true;
+      }
       if (Object.hasOwn(body, 'requireManualCompletion')) {
         if (typeof body.requireManualCompletion !== 'boolean') throw new Error('完成确认设置无效。');
         state.preferences.requireManualCompletion = body.requireManualCompletion;
@@ -348,7 +355,11 @@ async function handle(request, response) {
       if (sendingWechat) throw new Error('正在发送微信提醒，请稍后重试。');
       sendingWechat = true;
       try {
-        await sendServerChan(wechatConfig.sendKey, 'UBC作业管理工具测试', '已成功连接个人微信提醒。每日作业汇总会按设置的电脑当地时间发送。');
+        const english = localeFor(state.preferences.language) === 'en-US';
+        await sendServerChan(wechatConfig.sendKey,
+          english ? 'UBC Assignment Manager test' : 'UBC作业管理工具测试',
+          english ? 'Your personal WeChat reminders are connected. Daily assignment digests will use your device local time.'
+            : '已成功连接个人微信提醒。每日作业汇总会按设置的电脑当地时间发送。');
         wechatConfig.lastTestAt = new Date().toISOString();
         wechatConfig.lastError = null;
         appendHistory(wechatConfig, { type: 'test', result: 'accepted', detail: 'Server酱已接受测试消息，请在微信中确认实际接收。' });
