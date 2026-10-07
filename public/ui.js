@@ -11,7 +11,7 @@ let selectedTaskId = null;
 let searchTerm = '';
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let inspectorTasks = [];
-let updateStatus = { kind: 'checking', currentVersion: '1.3.0' };
+let updateStatus = { kind: 'checking', currentVersion: '1.3.1' };
 let promptedUpdate = null;
 let onboardingActive = false;
 let pendingBackup = null;
@@ -731,9 +731,9 @@ function renderSettings() {
   $('app-language').value = state.preferences?.language || 'auto';
   $('browser-engine').value = state.preferences?.browserEngine || 'auto';
   $('browser-engine').querySelector('[value="webkit"]').hidden = state.platform !== 'darwin';
-  $('app-version').textContent = state.version || '1.3.0';
-  document.title = `UBC作业管理工具 ${state.version || '1.3.0'}`;
-  document.querySelector('.toolbar-version').textContent = state.version || '1.3.0';
+  $('app-version').textContent = state.version || '1.3.1';
+  document.title = `UBC作业管理工具 ${state.version || '1.3.1'}`;
+  document.querySelector('.toolbar-version').textContent = state.version || '1.3.1';
   renderUpdateStatus();
   const startup = state.startup || { supported: false, enabled: false, error: '无法读取开机启动状态。' };
   const mac = state.platform === 'darwin';
@@ -762,7 +762,7 @@ function renderSettings() {
     : '关闭主窗口只会隐藏窗口，课程同步与提醒继续运行。请使用系统托盘或“数据与退出”页面退出应用。';
   $('close-behavior-value').textContent = mac ? '菜单栏运行' : '托盘运行';
   $('update-description').textContent = mac
-    ? '应用通过 GitHub 公共 HTTPS API 检查更新。Mac 版下载对应架构的 .pkg 后手动安装；课程、作业与提醒设置保存在独立数据目录。'
+    ? '应用通过 GitHub 公共 HTTPS API 检查更新。Mac 版可下载对应架构的 DMG 或 ZIP 后手动安装；课程、作业与提醒设置保存在独立数据目录。'
     : '应用通过 GitHub 公共 HTTPS API 检查并下载更新，无需安装 GitHub CLI 或登录 GitHub。临时网络错误会自动重试；更新会保留当前 Windows 账户下的课程、作业与提醒数据。';
   $('startup-enabled').checked = Boolean(startup.enabled);
   $('startup-enabled').disabled = !startup.supported;
@@ -962,7 +962,7 @@ function renderUpdateStatus() {
   $('update-status').textContent = lastFailure
     ? `上次更新 ${updateStatus.lastResult.version} 失败，已恢复旧版：${updateStatus.lastResult.detail}`
     : updateStatus.kind === 'available' && manual
-      ? '发现新版本。请下载对应架构的 .pkg 并手动安装。'
+      ? '发现新版本。请下载对应架构的 DMG 或 ZIP 并手动安装。'
     : updateStatus.kind === 'available' && updateStatus.canInstall === false
       ? '发现新版本。当前位于 Git 开发目录，请在独立的便携包中使用应用内更新。'
     : labels[updateStatus.kind] || '更新状态未知。';
@@ -972,6 +972,8 @@ function renderUpdateStatus() {
   $('install-update').disabled = !available || updateStatus.canInstall === false || manual;
   $('download-update').hidden = !available || !manual || !updateStatus.release?.assetUrl;
   $('download-update').href = available && manual ? updateStatus.release?.assetUrl || '#' : '#';
+  $('download-update-zip').hidden = !available || !manual || !updateStatus.release?.zipUrl;
+  $('download-update-zip').href = available && manual ? updateStatus.release?.zipUrl || '#' : '#';
   $('check-update').disabled = updateStatus.kind === 'checking' || updateStatus.kind === 'installing';
   $('update-notes').hidden = !available || !updateStatus.release?.notes;
   $('update-notes').textContent = available ? updateStatus.release?.notes || '' : '';

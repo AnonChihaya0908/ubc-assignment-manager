@@ -2,7 +2,7 @@
 
 A desktop app that brings PrairieLearn and UBC WeBWorK assignments, opening dates, due dates, and reminders into one place. The Windows app is the stable edition; the macOS app is a preview.
 
-[Latest stable release](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest) · [Windows and macOS 1.3.0 preview](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) · [Report a problem](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues) · [中文说明](README.md)
+[Latest stable release](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest) · [macOS 1.3.1 preview](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.1) · [Windows 1.3.0 preview](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) · [Report a problem](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues) · [中文说明](README.md)
 
 This is an independent project. It is not an official UBC, PrairieLearn, or WeBWorK app. It reads assignments visible to you after you sign in; it does not need a PrairieLearn API token.
 
@@ -10,7 +10,7 @@ This is an independent project. It is not an official UBC, PrairieLearn, or WeBW
 
 **Windows:** Download the setup executable from the latest stable release and run it. The installer is per user. The portable ZIP also works, but extract the entire archive before opening the executable; the bundled runtime files are required. No separate Node.js installation or terminal command is needed.
 
-**macOS preview:** Download the `macos-arm64.pkg` for Apple Silicon or `macos-x64.pkg` for Intel from the 1.3.0 preview release. The package installs a standalone `.app` in Applications. This preview is unsigned and unnotarized and has not yet completed first-install testing on a physical Mac. macOS may block the package or app. If you trust the release and want to proceed, try opening it once, then use **System Settings → Privacy & Security → Open Anyway**. Follow the system prompt. See [Apple’s guidance](https://support.apple.com/en-us/102445) for the current steps. The published 1.3.0 preview still needs Edge. Current source adds built-in WebKit sign-in and sync, pending physical Mac verification.
+**macOS preview:** Version 1.3.1 provides both `macos-arm64.dmg` / `.zip` for Apple Silicon and `macos-x64.dmg` / `.zip` for Intel. Open the DMG and drag the app to Applications, or extract the ZIP and move the entire `.app` there. PKG remains available. This preview is unsigned and unnotarized and has not yet completed first-install testing on a physical Mac; changing archive format does not bypass macOS app security checks. If you trust the release and want to proceed, try opening the app once, then use **System Settings → Privacy & Security → Open Anyway**. Follow the system prompt. See [Apple’s guidance](https://support.apple.com/en-us/102445) for the current steps. Version 1.3.1 defaults to built-in WebKit sign-in and sync; the older 1.3.0 preview still needs Edge.
 
 ## First use
 
@@ -27,4 +27,4 @@ Deadline notifications use the computer’s local time zone. Closing the main wi
 
 Daily email reminders are also optional. In **Settings → Reminders and sync**, connect your own Gmail address with a Gmail app password, send a test email to your recipient, then enable the daily schedule. The digest includes unfinished assignments, due dates, and source links. The app does not request your main Gmail password or require a hosted server. Gmail app passwords require eligible two-step verification; some school or work accounts restrict them. Outlook sending is not supported in this version because it requires a separate OAuth authorization integration. See [email reminder setup and limits](docs/email-reminders.md). Missed mail is sent only on the same day after the app resumes, with up to three attempts.
 
-Backups include courses, cached assignments, notes, and ordinary settings. They exclude cookies, browser sign-in profiles, the SendKey, email sender authorization, and delivery history. On Mac, updates are currently installed by downloading a new `.pkg`; Windows releases support in-app installation and restart.
+Backups include courses, cached assignments, notes, and ordinary settings. They exclude cookies, browser sign-in profiles, the SendKey, email sender authorization, and delivery history. On Mac, version 1.3.1 offers DMG and ZIP downloads for manual app replacement. Windows releases support in-app installation and restart.

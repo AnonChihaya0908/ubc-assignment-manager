@@ -58,7 +58,7 @@ jobs:
         run: bash macos/build-app.sh "$(command -v node)" "$RUNNER_TEMP/UBC作业管理工具.app"
 
   macos-packages:
-    name: macOS ${{ matrix.arch }} package
+    name: macOS ${{ matrix.arch }} release archives
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
@@ -75,13 +75,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build and inspect unsigned package
-        run: bash macos/build-pkg.sh "${{ matrix.arch }}" "$RUNNER_TEMP/packages"
+      - name: Build and inspect unsigned PKG, DMG and ZIP
+        run: bash macos/build-release.sh "${{ matrix.arch }}" "$RUNNER_TEMP/packages"
 
       - name: Install and launch package in runner session
         run: bash macos/smoke-installed-app.sh "$RUNNER_TEMP/packages/"*.pkg
 
-      - name: Save package and SHA-256 for preview validation
+      - name: Save all release archives and SHA-256 files
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: macos-${{ matrix.arch }}-preview

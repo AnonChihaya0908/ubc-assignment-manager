@@ -8,6 +8,19 @@ const { spawn } = require('node:child_process');
 const { edgePath, cdp, withinSyncDeadline, EXTRACT_PAGE, EXTRACT_WEBWORK_PAGE, EXTRACT_WEBWORK_PROGRESS } = require('../lib/browser');
 const { parseWebworkText, parseWebworkProgress } = require('../lib/webwork');
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function removeFixtureDirectory(directory, prefix) {
+  if (path.dirname(directory) !== os.tmpdir() || !path.basename(directory).startsWith(prefix)) return;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try { fs.rmSync(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 }); return; }
+    catch (error) {
+      if (!['ENOTEMPTY', 'EPERM', 'EBUSY'].includes(error.code)) throw error;
+      if (attempt < 9) await sleep(500);
+    }
+  }
+}
+
 const fixture = `<!doctype html><title>PrairieLearn</title>
 <nav><a href="/pl/course_instance/231184/assessments">CPSC 310, 2026W1</a></nav>
 <table><thead><tr><th>Label</th><th>Title</th><th>Available credit</th><th>Score</th></tr></thead>
@@ -85,10 +98,7 @@ test('dedicated background Edge keeps a headless session for both course sources
     delete require.cache[require.resolve('../lib/browser')];
     httpServer.closeAllConnections();
     await new Promise(resolve => httpServer.close(resolve));
-    if (path.dirname(temporary) === os.tmpdir() && path.basename(temporary).startsWith('pl-background-fixture-')) {
-      try { fs.rmSync(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 }); }
-      catch (error) { if (error.code !== 'EPERM') throw error; }
-    }
+    await removeFixtureDirectory(temporary, 'pl-background-fixture-');
   }
 });
 
@@ -110,10 +120,14 @@ test('Edge reads assignment rows from a rendered student-style table', { timeout
     const portFile = path.join(profile, 'DevToolsActivePort');
     for (let i = 0; i < 80; i++) {
       if (fs.existsSync(portFile)) {
-        debugPort = Number(fs.readFileSync(portFile, 'utf8').split(/\r?\n/)[0]);
-        break;
+        try {
+          debugPort = Number(fs.readFileSync(portFile, 'utf8').split(/\r?\n/)[0]);
+          if (debugPort) break;
+        } catch (error) {
+          if (!['ENOENT', 'EBUSY', 'EPERM'].includes(error.code)) throw error;
+        }
       }
-      await new Promise(resolve => setTimeout(resolve, 250));
+      await sleep(250);
     }
     assert.ok(debugPort, 'Edge debugging port should be ready');
     const targets = await (await fetch(`http://127.0.0.1:${debugPort}/json/list`)).json();
@@ -172,10 +186,7 @@ test('Edge reads assignment rows from a rendered student-style table', { timeout
     httpServer.closeAllConnections();
     await new Promise(resolve => httpServer.close(resolve));
     // The temporary folder is created directly under the system temp directory above.
-    if (path.dirname(temporary) === os.tmpdir() && path.basename(temporary).startsWith('pl-edge-fixture-')) {
-      try { fs.rmSync(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 }); }
-      catch (error) { if (error.code !== 'EPERM') throw error; }
-    }
+    await removeFixtureDirectory(temporary, 'pl-edge-fixture-');
   }
 });
 
@@ -204,12 +215,6 @@ test('Chrome can sync a course using its own persistent profile', { timeout: 300
     delete require.cache[require.resolve('../lib/browser')];
     server.closeAllConnections();
     await new Promise(resolve => server.close(resolve));
-    for (let attempt = 0; attempt < 10; attempt++) {
-      try { fs.rmSync(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 }); break; }
-      catch (error) {
-        if (!['ENOTEMPTY', 'EPERM', 'EBUSY'].includes(error.code)) throw error;
-        if (attempt < 9) await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
+    await removeFixtureDirectory(temporary, 'pl-chrome-fixture-');
   }
 });
