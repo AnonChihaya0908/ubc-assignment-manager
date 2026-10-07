@@ -178,7 +178,7 @@ a { color:inherit; }
 .source-heading h2 { margin:0; font-size:12px; font-weight:650; }
 .source-caption { color:#838791; font-size:11px; }
 .assignment-list { overflow:hidden; border:1px solid #3d3f45; border-radius:7px; background:#25262a; }
-.list-header,.assignment-row { display:grid; grid-template-columns:minmax(210px,1fr) 132px 83px 106px; align-items:center; column-gap:12px; }
+.list-header,.assignment-row { display:grid; grid-template-columns:minmax(210px,1fr) 132px 146px 106px; align-items:center; column-gap:12px; }
 .list-header { min-height:34px; padding:0 17px 0 20px; border-bottom:1px solid #3b3d42; background:#2b2c30; color:#898d97; font-size:11px; }
 .list-header span:last-child { text-align:right; }
 .assignment-row { min-height:72px; padding:7px 17px 7px 20px; border-bottom:1px solid #383a3f; cursor:pointer; }
@@ -200,7 +200,7 @@ a { color:inherit; }
 .assignment-date small { display:block; margin-top:4px; color:#a4a7b0; font-size:11px; }
 .assignment-date.urgent { color:#f2bd8b; }
 .assignment-date.unknown { color:var(--muted); }
-.status-label { color:#e6bf89; font-size:11px; font-weight:650; white-space:nowrap; }
+.status-label { min-width:0; color:#e6bf89; font-size:11px; font-weight:650; overflow-wrap:anywhere; }
 .status-label.late { color:#f38c95; }
 .status-label.ignored { color:#a7aab2; }
 .status-label.future { color:#b1b4bd; }
@@ -284,7 +284,11 @@ a { color:inherit; }
 .reminder-record strong { color:var(--text); font-weight:600; }
 .reminder-record.failed strong { color:#f1a3ac; }
 .backup-import { margin:15px 0 20px; padding-top:16px; border-top:1px solid var(--border); }
-.backup-import input { width:100%; margin-bottom:9px; }
+.file-picker { display:flex; align-items:center; gap:12px; min-height:40px; margin-bottom:9px; }
+.backup-import .file-picker input { position:absolute; width:1px; height:1px; padding:0; margin:0; opacity:0; overflow:hidden; clip-path:inset(50%); }
+.file-picker label { display:inline-flex; align-items:center; flex:none; min-height:34px; margin:0; cursor:pointer; }
+.file-picker:focus-within label { border-color:#92a5cb; box-shadow:0 0 0 2px #8b9dc13d; }
+.file-picker span { min-width:0; overflow:hidden; color:var(--muted); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
 .add-course-form { padding-bottom:21px; }
 label { display:block; margin:0 0 8px; color:#d1d3da; font-size:12px; font-weight:600; }
 input,select,textarea { min-height:38px; padding:8px 11px; border:1px solid #62656d; border-radius:6px; outline:0; background:#1c1d20; color:var(--text); }

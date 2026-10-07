@@ -15,6 +15,8 @@ test('system language, explicit choice, and saved preference resolve consistentl
   assert.equal(localeFor('zh-CN', 'en-CA'), 'zh-CN');
   assert.equal(localeFor('en-US', 'zh-CN'), 'en-US');
   assert.equal(translateFor('立即同步', 'en-US'), 'Sync now');
+  assert.equal(translateFor('全部 ', 'en-US'), 'All ');
+  assert.equal(translateFor('未选择文件', 'en-US'), 'No file selected');
   assert.equal(translateFor('立即同步', 'zh-CN'), '立即同步');
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-language-test-'));
   const file = path.join(temporary, 'data.json');

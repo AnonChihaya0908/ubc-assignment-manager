@@ -1406,6 +1406,9 @@ $('backup-file').addEventListener('change', async event => {
   pendingBackup = null;
   $('backup-import').disabled = true;
   const file = event.target.files?.[0];
+  $('backup-file-name').textContent = file?.name || '未选择文件';
+  if (file) $('backup-file-name').dataset.i18nSkip = '';
+  else delete $('backup-file-name').dataset.i18nSkip;
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) { $('backup-summary').textContent = '文件超过 5 MB，无法导入。'; return; }
   try {
@@ -1426,6 +1429,8 @@ $('backup-import').addEventListener('click', async () => {
     selectedScope = 'all'; selectedTaskId = null; settingsCourseId = null;
     wechatFormDirty = false; reminderFormDirty = false;
     pendingBackup = null; $('backup-file').value = '';
+    delete $('backup-file-name').dataset.i18nSkip;
+    $('backup-file-name').textContent = '未选择文件';
     $('backup-summary').textContent = '恢复完成。本机已保留导入前恢复点。请重新登录课程；微信凭证未从备份导入。';
     render();
     message(result.message);
