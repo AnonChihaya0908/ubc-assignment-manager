@@ -653,7 +653,7 @@ function renderWork() {
       allCurrentComplete ? '所有任务均已完成' : searchTerm ? '没有匹配的作业' : selectedTab !== 'all' ? '当前分类暂无作业' : '暂无作业';
     empty.append(node('h2', '', title));
     const description = !state.courses.length ? '添加 PrairieLearn Assessments 页面或 UBC WeBWorK 课程首页，即可开始。' :
-      !hasSuccessfulSync ? '请打开专用 Edge 登录窗口，完成学校登录并停留在作业列表页，然后返回应用同步。' :
+      !hasSuccessfulSync ? '请打开专用登录窗口，完成学校登录并停留在作业列表页，然后返回应用同步。' :
       state.tasks.length === 0 ? '连接已经成功，但课程页面目前没有可见作业。可检查页面内容和登录状态后再次同步。' :
       allCurrentComplete ? futureCount ? `当前已开放的任务都已完成；另有 ${futureCount} 项尚未开放，可在“将开放”中查看。` : '当前课程的任务均已完成。' :
       searchTerm ? '没有找到符合搜索内容的作业，可以清除搜索后查看当前列表。' : selectedTab !== 'all' ? '当前课程在此分类中没有可显示的作业。' : '课程中暂时没有可显示的作业。';
@@ -729,6 +729,8 @@ async function dismissOnboarding(targetPanel = null) {
 
 function renderSettings() {
   $('app-language').value = state.preferences?.language || 'auto';
+  $('browser-engine').value = state.preferences?.browserEngine || 'auto';
+  $('browser-engine').querySelector('[value="webkit"]').hidden = state.platform !== 'darwin';
   $('app-version').textContent = state.version || '1.3.0';
   document.title = `UBC作业管理工具 ${state.version || '1.3.0'}`;
   document.querySelector('.toolbar-version').textContent = state.version || '1.3.0';
@@ -750,8 +752,8 @@ function renderSettings() {
   $('pause-reminders-description').textContent = `暂停 ${mac ? 'macOS' : 'Windows'} 截止提醒和每日微信汇总；课程自动同步仍会继续。`;
   $('course-reminders-description').textContent = `关闭后，该课程不会进入 ${mac ? 'macOS' : 'Windows'} 截止通知或微信每日汇总。`;
   $('local-data-description').textContent = mac
-    ? '作业清单、提醒设置与专用 Edge 登录资料保存在当前 Mac 账户的“应用程序支持”目录中，覆盖升级不会删除。关闭主窗口不会停止后台提醒。'
-    : '作业清单、提醒设置与专用 Edge 登录资料保存在当前 Windows 账户的本地应用数据目录中，覆盖升级不会删除。关闭网页不会停止后台提醒。';
+    ? '作业清单、提醒设置与专用浏览器登录资料保存在当前 Mac 账户的“应用程序支持”目录中，覆盖升级不会删除。关闭主窗口不会停止后台提醒。'
+    : '作业清单、提醒设置与专用浏览器登录资料保存在当前 Windows 账户的本地应用数据目录中，覆盖升级不会删除。关闭网页不会停止后台提醒。';
   $('quit-description').textContent = mac
     ? '停止后台同步和 macOS 系统通知。下次可从“应用程序”重新打开。'
     : '停止后台同步和 Windows 提醒。下次可双击 UBC作业管理工具.exe 重新打开。';
@@ -1163,6 +1165,16 @@ $('app-language').addEventListener('change', async event => {
     message(error.message, true);
   }
 });
+$('browser-engine').addEventListener('change', async event => {
+  const previous = state.preferences?.browserEngine || 'auto';
+  try {
+    state = await api('/api/preferences', 'PATCH', { browserEngine: event.target.value });
+    render();
+  } catch (error) {
+    event.target.value = previous;
+    message(error.message, true);
+  }
+});
 $('check-update').addEventListener('click', () => checkUpdate(true));
 $('install-update').addEventListener('click', installUpdate);
 $('update-now').addEventListener('click', installUpdate);
@@ -1502,7 +1514,7 @@ $('backup-file').addEventListener('change', async event => {
     const parsed = JSON.parse(await file.text());
     if (parsed.format !== 'ubc-assignment-manager-backup' || parsed.formatVersion !== 1 || !parsed.scope) throw new Error('文件格式或版本不受支持。');
     pendingBackup = parsed;
-    $('backup-summary').textContent = `文件包含 ${Number(parsed.scope.courses) || 0} 门课程、${Number(parsed.scope.tasks) || 0} 项作业。恢复会替换当前课程和作业，并先创建本机恢复点；SendKey、Cookie、Edge 登录资料不会从文件导入。`;
+    $('backup-summary').textContent = `文件包含 ${Number(parsed.scope.courses) || 0} 门课程、${Number(parsed.scope.tasks) || 0} 项作业。恢复会替换当前课程和作业，并先创建本机恢复点；SendKey、Cookie、浏览器登录资料不会从文件导入。`;
     $('backup-import').disabled = false;
   } catch (error) { $('backup-summary').textContent = `无法读取备份：${error.message}`; }
 });

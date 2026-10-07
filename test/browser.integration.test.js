@@ -178,3 +178,38 @@ test('Edge reads assignment rows from a rendered student-style table', { timeout
     }
   }
 });
+
+test('Chrome can sync a course using its own persistent profile', { timeout: 30000 }, async () => {
+  const server = http.createServer((request, response) => {
+    response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    response.end(fixture);
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'pl-chrome-fixture-'));
+  const previous = process.env.PRAIRIELEARN_DATA_DIR;
+  process.env.PRAIRIELEARN_DATA_DIR = temporary;
+  delete require.cache[require.resolve('../lib/browser')];
+  const browser = require('../lib/browser');
+  browser.configureBrowser({ preference: () => 'chrome' });
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/pl/course_instance/231184/assessments`;
+    const page = await browser.readCoursePage(url);
+    assert.equal(page.rows.length, 2);
+    assert.ok(fs.existsSync(path.join(temporary, 'chrome-profile', 'DevToolsActivePort')));
+    assert.equal(browser.browserMode(), 'background');
+  } finally {
+    await browser.closeBrowser();
+    if (previous === undefined) delete process.env.PRAIRIELEARN_DATA_DIR;
+    else process.env.PRAIRIELEARN_DATA_DIR = previous;
+    delete require.cache[require.resolve('../lib/browser')];
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try { fs.rmSync(temporary, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 }); break; }
+      catch (error) {
+        if (!['ENOTEMPTY', 'EPERM', 'EBUSY'].includes(error.code)) throw error;
+        if (attempt < 9) await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  }
+});
