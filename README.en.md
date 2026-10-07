@@ -15,8 +15,8 @@ This is an independent project. It is not an official UBC, PrairieLearn, or WeBW
 ## First use
 
 1. On first launch, paste your own student assignment list URL. PrairieLearn URLs end in `/pl/course_instance/<number>/assessments`; UBC WeBWorK URLs begin with `https://webwork.elearning.ubc.ca/webwork2/`.
-2. Go to **Settings → Courses and login** and open the dedicated Edge sign-in window for each course. Sign in through your school account and leave the assignment page open.
-3. Return to the app and select **Sync now** in the lower left. The dedicated Edge profile is separate from your everyday browser, so an existing browser login is not shared.
+2. Go to **Settings → Courses and login** and open the dedicated Edge sign-in window for each course. Complete your school sign-in, then return to the app and choose **Hide sign-in window**.
+3. Select **Sync now** in the lower left. The app reads course pages through the same dedicated profile in the background and keeps it available for scheduled syncs. If school sign-in expires, reopen the sign-in window from course settings. This profile is separate from your everyday browser.
 4. The app starts in your device language. Change it at **Settings → General and window → Display language**. Language changes do not change assignment dates, completion states, sign-in sessions, or other settings.
 
 If PrairieLearn syncing fails, you can copy its assignment table from an already signed-in browser and use the manual import under Courses and login. WeBWorK must sync through the dedicated sign-in window. Newly installed copies do not contain another user’s courses. Imported or older courses must be confirmed before the app opens their pages, syncs them, or sends reminders.

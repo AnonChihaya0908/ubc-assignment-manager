@@ -148,7 +148,7 @@
           </section>
           <section class="setting-block">
             <h2>自动同步</h2>
-            <div class="setting-row"><div><h3>刷新间隔</h3><p>完成首次同步并保持专用 Edge 登录窗口打开后，每 30 分钟尝试刷新。</p></div><span class="setting-value">30 分钟</span></div>
+            <div class="setting-row"><div><h3>刷新间隔</h3><p>完成首次同步后，应用会在后台保持专用浏览器会话，每 30 分钟尝试刷新；需要登录时可呼出窗口。</p></div><span class="setting-value">30 分钟</span></div>
             <div class="setting-row"><div><h3>数据新鲜度</h3><p>超过 6 小时未成功同步会标记为“数据可能过旧”。失败时保留原有作业，并在课程设置中显示原因和恢复入口。</p></div><span class="setting-value">6 小时</span></div>
             <div class="setting-row"><div><h3>立即刷新</h3><p>左下角的“立即同步”会依次更新全部课程。</p></div><span class="setting-value">全部课程</span></div>
           </section>
@@ -193,9 +193,9 @@
           </section>
           <section class="setting-block">
             <h2>登录与手动导入</h2>
-            <p class="setting-intro">登录窗口使用独立 Edge 资料。登录课程后返回应用，点击左下角“立即同步”。</p>
+            <p class="setting-intro">登录窗口使用独立 Edge 资料。登录完成后可隐藏窗口，再从后台同步课程。</p>
             <label for="settings-course-select">选择课程</label>
-            <div class="input-action"><select id="settings-course-select"></select><button id="open-browser" class="secondary-button" type="button">打开登录窗口</button></div>
+            <div class="input-action"><select id="settings-course-select"></select><button id="open-browser" class="secondary-button" type="button">打开登录窗口</button><button id="hide-browser" class="secondary-button" type="button" hidden>隐藏登录窗口</button></div>
             <details class="paste-panel"><summary>PrairieLearn 页面无法同步？粘贴作业表格</summary><p>在已登录的浏览器中复制 PrairieLearn 作业表格，粘贴到下方导入。WeBWorK 请使用登录窗口同步。</p><label for="paste-data">作业表格文字</label><textarea id="paste-data" rows="5"></textarea><button id="import-text" class="secondary-button" type="button">导入所选课程</button></details>
           </section>
         </div>

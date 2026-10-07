@@ -4,7 +4,7 @@ const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizePriority, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
   reviewCourseAccess, mergeRows, mergeWebworkRows } = require('./lib/store');
-const { edgePath, activePort, openCoursePage, readCoursePage, readWebworkPage } = require('./lib/browser');
+const { edgePath, activePort, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage } = require('./lib/browser');
 const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
   shouldSendDaily, buildDailyDigest, sendServerChan, normalizeLeadHours, appendHistory } = require('./lib/wechat');
@@ -43,6 +43,7 @@ function publicState() {
   });
   return { version: VERSION, courses: state.courses, tasks, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
+    browserMode: browserMode(),
     preferences: state.preferences, systemLocale: Intl.DateTimeFormat().resolvedOptions().locale, startup, platform: process.platform,
     wechat: publicConfig(wechatConfig), now: new Date().toISOString() };
 }
@@ -114,11 +115,15 @@ async function syncCourse(courseId) {
   }
 }
 
-async function syncAllCourses() {
+async function syncAllCourses({ automatic = false } = {}) {
   const results = [];
   for (const course of [...state.courses]) {
     if (!courseAccessConfirmed(course)) {
       results.push({ courseId: course.id, ok: true, skipped: true, count: 0 });
+      continue;
+    }
+    if (automatic && course.lastSyncErrorKind === 'login') {
+      results.push({ courseId: course.id, ok: true, skipped: true, needsLogin: true, count: 0 });
       continue;
     }
     try {
@@ -131,9 +136,9 @@ async function syncAllCourses() {
   return results;
 }
 
-function startAllCoursesSync() {
+function startAllCoursesSync(options) {
   if (!syncAllPromise) {
-    syncAllPromise = syncAllCourses().finally(() => { syncAllPromise = null; });
+    syncAllPromise = syncAllCourses(options).finally(() => { syncAllPromise = null; });
   }
   return syncAllPromise;
 }
@@ -175,7 +180,7 @@ async function checkDailyWechat() {
   wechatConfig.lastAttemptAt = now.toISOString();
   saveConfig(wechatConfig);
   try {
-    if (await activePort()) await startAllCoursesSync();
+    if (browserMode() === 'background' && await activePort()) await startAllCoursesSync({ automatic: true });
     const confirmedIds = new Set(state.courses.filter(courseAccessConfirmed).map(course => course.id));
     const digest = buildDailyDigest({ ...state, courses: state.courses.filter(courseAccessConfirmed),
       tasks: state.tasks.filter(task => confirmedIds.has(task.courseId)) }, now, wechatConfig);
@@ -243,7 +248,7 @@ async function handle(request, response) {
     if (request.method === 'POST' && url.pathname === '/api/update/install') {
       const result = await updater.install();
       json(response, 200, result);
-      setTimeout(() => { if (trayProcess) trayProcess.kill(); server.close(() => process.exit(0)); }, 300);
+      setTimeout(async () => { await closeBrowser().catch(() => {}); if (trayProcess) trayProcess.kill(); server.close(() => process.exit(0)); }, 300);
       return;
     }
     if (request.method === 'POST' && url.pathname === '/api/backup/export') {
@@ -427,8 +432,17 @@ async function handle(request, response) {
       const course = state.courses.find(item => item.id === body.courseId);
       if (!course) throw new Error('课程不存在。');
       requireCourseAccess(course);
+      if (syncingCourseIds.size) throw new Error('请等待课程同步完成后再打开登录窗口。');
       await openCoursePage(course.url);
-      return json(response, 200, { message: `Edge 已打开。请登录${coursePlatform(course) === 'webwork' ? ' WeBWorK' : ' PrairieLearn'}，然后回到应用点击“同步”。` });
+      return json(response, 200, { message: `Edge 已打开。请登录${coursePlatform(course) === 'webwork' ? ' WeBWorK' : ' PrairieLearn'}，然后回到应用点击“同步”。`, state: publicState() });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/browser/hide') {
+      const course = state.courses.find(item => item.id === body.courseId);
+      if (!course) throw new Error('课程不存在。');
+      requireCourseAccess(course);
+      if (syncingCourseIds.size) throw new Error('请等待课程同步完成后再隐藏登录窗口。');
+      await hideBrowser(course.url);
+      return json(response, 200, { message: '登录窗口已隐藏，后台同步可继续。', state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/sync') {
       const count = await syncCourse(body.courseId);
@@ -493,7 +507,7 @@ async function handle(request, response) {
     }
     if (request.method === 'POST' && url.pathname === '/api/shutdown') {
       json(response, 200, { message: '应用已退出。' });
-      setTimeout(() => { if (trayProcess) trayProcess.kill(); server.close(() => process.exit(0)); }, 100);
+      setTimeout(async () => { await closeBrowser().catch(() => {}); if (trayProcess) trayProcess.kill(); server.close(() => process.exit(0)); }, 100);
       return;
     }
     return json(response, 404, { error: '未找到。' });
@@ -570,15 +584,28 @@ server.listen(43873, '127.0.0.1', () => {
   startup = startupStatus();
   startTray();
   openDashboard();
+  const firstCourse = state.courses.find(course => courseAccessConfirmed(course) && course.lastSyncedAt);
+  if (firstCourse) hideBrowser(firstCourse.url).catch(error => console.error(`后台浏览器启动失败：${error.message}`));
   updater.check().catch(error => console.error(`更新检查失败：${error.message}`));
 });
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.once(signal, () => {
+    closeBrowser().catch(error => console.error(`关闭专用浏览器失败：${error.message}`))
+      .finally(() => process.exit(0));
+  });
+}
 
 setInterval(checkReminders, 60_000).unref();
 setInterval(() => { checkDailyWechat().catch(error => console.error(`微信提醒检查失败：${error.message}`)); }, 60_000).unref();
 setInterval(async () => {
   if (!autoSyncEnabled || syncingCourseIds.size) return;
-  if (!(await activePort())) return;
-  const results = await startAllCoursesSync();
+  if (browserMode() === 'visible' && await activePort()) return;
+  const course = state.courses.find(item => courseAccessConfirmed(item) && item.lastSyncErrorKind !== 'login');
+  if (!course) return;
+  try { await hideBrowser(course.url); }
+  catch (error) { console.error(`后台浏览器恢复失败：${error.message}`); return; }
+  const results = await startAllCoursesSync({ automatic: true });
   for (const result of results.filter(item => !item.ok)) {
     const course = state.courses.find(item => item.id === result.courseId);
     console.error(`自动同步失败：${course?.name || result.courseId}: ${result.error}`);
