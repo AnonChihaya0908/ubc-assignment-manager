@@ -77,6 +77,7 @@ diff -qr "$app_bundle" "$temp_dir/extracted/UBC作业管理工具.app"
 test -x "$temp_dir/extracted/UBC作业管理工具.app/Contents/MacOS/UBC作业管理工具"
 test -x "$temp_dir/extracted/UBC作业管理工具.app/Contents/Resources/runtime/node"
 test -x "$temp_dir/extracted/UBC作业管理工具.app/Contents/Resources/runtime/email-keychain"
+codesign --verify --deep --strict --verbose=2 "$temp_dir/extracted/UBC作业管理工具.app"
 
 mkdir -p "$temp_dir/dmg" "$temp_dir/mounted"
 ditto "$app_bundle" "$temp_dir/dmg/UBC作业管理工具.app"
@@ -89,6 +90,7 @@ diff -qr "$app_bundle" "$temp_dir/mounted/UBC作业管理工具.app"
 test -x "$temp_dir/mounted/UBC作业管理工具.app/Contents/MacOS/UBC作业管理工具"
 test -x "$temp_dir/mounted/UBC作业管理工具.app/Contents/Resources/runtime/node"
 test -x "$temp_dir/mounted/UBC作业管理工具.app/Contents/Resources/runtime/email-keychain"
+codesign --verify --deep --strict --verbose=2 "$temp_dir/mounted/UBC作业管理工具.app"
 hdiutil detach "$temp_dir/mounted" -quiet
 mounted=false
 

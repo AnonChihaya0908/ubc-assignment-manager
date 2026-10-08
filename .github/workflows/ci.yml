@@ -107,3 +107,18 @@ jobs:
 
       - name: Install and launch on Sonoma
         run: bash macos/smoke-installed-app.sh "$RUNNER_TEMP/packages/"*.pkg
+
+      - name: Verify distributed App signature and inspect Gatekeeper
+        run: |
+          app="/Applications/UBC作业管理工具.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          dmg=("$RUNNER_TEMP/packages/"*.dmg)
+          test "${#dmg[@]}" -eq 1
+          mkdir "$RUNNER_TEMP/mounted-dmg"
+          hdiutil attach -quiet -readonly -nobrowse -mountpoint "$RUNNER_TEMP/mounted-dmg" "${dmg[0]}"
+          codesign --verify --deep --strict --verbose=2 "$RUNNER_TEMP/mounted-dmg/UBC作业管理工具.app"
+          hdiutil detach "$RUNNER_TEMP/mounted-dmg" -quiet
+          echo '--- Gatekeeper assessment ---'
+          spctl --assess --type execute --verbose=4 "$app" 2>&1 || true
+          echo '--- Distribution check ---'
+          syspolicy_check distribution "$app" 2>&1 || true

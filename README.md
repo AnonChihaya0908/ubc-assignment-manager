@@ -6,7 +6,7 @@
 
 当前稳定版本：**1.2.1** · [下载最新版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
 
-macOS **1.3.2 预览版**：[下载 DMG 或 ZIP](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.2)。[Windows 1.3.0 预览版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) 继续提供；Windows 1.2.1 仍是稳定版。macOS 版仍需在真实 Mac 上验证首次安装、通知和课程同步。应用内自动更新不会推送预览版。
+macOS **1.3.3 预览版**：[下载 DMG 或 ZIP](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.3)。[Windows 1.3.0 预览版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) 继续提供；Windows 1.2.1 仍是稳定版。macOS 版仍需在真实 Mac 上验证首次安装、通知和课程同步。应用内自动更新不会推送预览版。
 
 > 本项目不是 UBC、PrairieLearn 或 WeBWorK 的官方产品。应用只读取用户登录后有权访问且页面上可见的数据，不使用教师 API，也不需要 PrairieLearn API token。
 
@@ -43,9 +43,9 @@ macOS **1.3.2 预览版**：[下载 DMG 或 ZIP](https://github.com/AnonChihaya0
 
 ### macOS 桌面版预览
 
-macOS 版是独立 `.app`；1.3.2 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），原有 PKG 仍保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。1.3.2 默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge；旧的 1.3.0 预览包仍需要 Edge。
+macOS 版是独立 `.app`；1.3.3 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），原有 PKG 仍保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。1.3.3 默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge；旧的 1.3.0 预览包仍需要 Edge。
 
-目前 [macOS 1.3.2 预览安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.2) 尚待真实 Mac 首次安装验证，**不是稳定版**。1.3.1 的可执行文件误设为最低 macOS 15，Sonoma 用户请改用 1.3.2。下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。详细步骤见 [macOS 安装与使用说明](docs/macos-preview.md)。现有 Windows 安装包和便携包继续保留。
+目前 [macOS 1.3.3 预览安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.3) 尚待真实 Mac 首次安装验证，**不是稳定版**。1.3.1 的可执行文件误设为最低 macOS 15；1.3.2 的 App 资源未纳入有效签名，可能被系统提示“已损坏”。请使用 1.3.3。下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。详细步骤见 [macOS 安装与使用说明](docs/macos-preview.md)。现有 Windows 安装包和便携包继续保留。
 
 ### 系统要求
 
@@ -53,7 +53,7 @@ macOS 版是独立 `.app`；1.3.2 同时提供 DMG（拖入“应用程序”）
 - Microsoft Edge 或 Google Chrome（当前源码；已发布的 1.3.0 Windows 安装包仍需要 Edge）
 - 系统自带的 .NET Framework
 
-macOS 预览版需要 macOS 12 或更新版本与对应架构的安装包。1.3.2 使用内置 WebKit 登录与同步，尚待真实 Mac 验收；旧的 1.3.0 预览包仍需要 Edge。
+macOS 预览版需要 macOS 12 或更新版本与对应架构的安装包。1.3.3 使用内置 WebKit 登录与同步，尚待真实 Mac 验收；旧的 1.3.0 预览包仍需要 Edge。
 
 应用在屏幕空间足够时以 1440 × 810 的 16:9 窗口打开；较小屏幕会按可用区域缩放。
 

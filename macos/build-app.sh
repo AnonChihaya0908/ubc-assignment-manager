@@ -67,4 +67,6 @@ cat > "$app_bundle/Contents/Info.plist" <<EOF
 EOF
 
 plutil -lint "$app_bundle/Contents/Info.plist"
+codesign --force --sign - "$app_bundle"
+codesign --verify --deep --strict --verbose=2 "$app_bundle"
 echo "Created $app_bundle"
