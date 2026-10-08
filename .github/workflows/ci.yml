@@ -87,3 +87,23 @@ jobs:
           name: macos-${{ matrix.arch }}-preview
           path: ${{ runner.temp }}/packages/*
           if-no-files-found: error
+
+  macos-sonoma:
+    name: macOS Sonoma 14 Apple Silicon launch
+    needs: macos-packages
+    runs-on: macos-14
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the macOS 15 built Apple Silicon package
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: macos-arm64-preview
+          path: ${{ runner.temp }}/packages
+
+      - name: Install and launch on Sonoma
+        run: bash macos/smoke-installed-app.sh "$RUNNER_TEMP/packages/"*.pkg
