@@ -22,13 +22,25 @@ if (( node_major < 22 )); then
 fi
 
 version="$("$node_binary" -p 'require(process.argv[1]).version' "$repo_root/package.json")"
+deployment_target="12.0"
+case "$(uname -m)" in
+  arm64|x86_64) swift_target="$(uname -m)-apple-macosx${deployment_target}" ;;
+  *) echo "Unsupported macOS CPU architecture: $(uname -m)" >&2; exit 1 ;;
+esac
 macos_dir="$app_bundle/Contents/MacOS"
 resources_dir="$app_bundle/Contents/Resources"
 mkdir -p "$macos_dir" "$resources_dir/runtime"
 
-swiftc -O -parse-as-library -framework AppKit -framework WebKit -framework UserNotifications "$repo_root/macos/App.swift" \
+swiftc -O -target "$swift_target" -parse-as-library -framework AppKit -framework WebKit -framework UserNotifications "$repo_root/macos/App.swift" \
   -o "$macos_dir/UBC作业管理工具"
-swiftc -O -framework Security "$repo_root/macos/EmailKeychain.swift" -o "$resources_dir/runtime/email-keychain"
+swiftc -O -target "$swift_target" -framework Security "$repo_root/macos/EmailKeychain.swift" -o "$resources_dir/runtime/email-keychain"
+for binary in "$macos_dir/UBC作业管理工具" "$resources_dir/runtime/email-keychain"; do
+  minos="$(xcrun vtool -show-build "$binary" | awk '$1 == "minos" { print $2; exit }')"
+  if [[ "$minos" != "$deployment_target" ]]; then
+    echo "Wrong minimum macOS version in $binary: expected $deployment_target, got ${minos:-unknown}." >&2
+    exit 1
+  fi
+done
 cp "$node_binary" "$resources_dir/runtime/node"
 chmod 755 "$resources_dir/runtime/node" "$resources_dir/runtime/email-keychain" "$macos_dir/UBC作业管理工具"
 cp "$repo_root/app.js" "$repo_root/package.json" "$resources_dir/"
@@ -47,7 +59,7 @@ cat > "$app_bundle/Contents/Info.plist" <<EOF
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$version</string>
   <key>CFBundleVersion</key><string>$version</string>
-  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>LSMinimumSystemVersion</key><string>$deployment_target</string>
   <key>NSAppTransportSecurity</key>
   <dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict>
