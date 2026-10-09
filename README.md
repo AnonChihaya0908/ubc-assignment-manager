@@ -8,7 +8,9 @@
 
 macOS **1.3.3 预览版**：[下载 DMG 或 ZIP](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.3)。[Windows 1.3.0 预览版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) 继续提供；Windows 1.2.1 仍是稳定版。macOS 版仍需在真实 Mac 上验证首次安装、通知和课程同步。应用内自动更新不会推送预览版。
 
-> 本项目不是 UBC、PrairieLearn 或 WeBWorK 的官方产品。应用只读取用户登录后有权访问且页面上可见的数据，不使用教师 API，也不需要 PrairieLearn API token。
+仓库源码已加入 Gradescope Canada 课程适配；上述已发布安装包尚不包含此功能。真实账号页面同步仍待用户设备验证。
+
+> 本项目不是 UBC、PrairieLearn、WeBWorK 或 Gradescope 的官方产品。应用只读取用户登录后有权访问且页面上可见的数据，不使用教师 API，也不需要 PrairieLearn API token。
 
 ![作业总览](docs/screenshots/assignment-overview.png)
 
@@ -17,6 +19,7 @@ macOS **1.3.3 预览版**：[下载 DMG 或 ZIP](https://github.com/AnonChihaya0
 | 功能 | 说明 |
 | --- | --- |
 | 多平台汇总 | 分开管理 PrairieLearn 与 UBC WeBWorK，支持按平台和课程查看作业。 |
+| Gradescope（源码待发布） | 从 Gradescope Canada 课程页读取作业；已提交或已评分视为完成，成绩不必达到满分。 |
 | 作业状态 | 区分待完成、完成中、将开放、已过日期、已完成和已忽略；成绩以进度条显示。 |
 | 作业日历 | 在月视图中查看开放日期、截止日期和手动提醒日期。 |
 | 本地提醒 | 默认在截止前 24 小时和 3 小时发送系统通知，可调整提前时间和免打扰时段。 |
@@ -62,6 +65,7 @@ macOS 预览版需要 macOS 12 或更新版本与对应架构的安装包。1.3.
 1. 首次启动时按引导粘贴课程网址：
    - PrairieLearn：`https://us.prairielearn.com/pl/course_instance/数字/assessments`
    - UBC WeBWorK：`https://webwork.elearning.ubc.ca/webwork2/课程名`
+   - Gradescope Canada（源码待发布）：`https://www.gradescope.ca/courses/数字`
 2. 打开“设置 → 课程与登录”，选择课程并点击“打开登录窗口”。
 3. 在专用登录窗口中完成学校网站登录；返回应用后可以点击“隐藏登录窗口”。可在同页选择自动、Edge、Chrome，Mac 还可选择内置 WebKit。
 4. 点击左下角“立即同步”。应用会在后台使用同一专用资料读取作业，后续定时同步也不会弹出课程窗口。若学校登录过期，请在课程设置中重新打开登录窗口。
@@ -70,7 +74,7 @@ macOS 预览版需要 macOS 12 或更新版本与对应架构的安装包。1.3.
 
 Mac 内置 WebKit 使用与 Safari 相同的网页引擎，但不是 Safari 应用，也不会读取 Safari 的 Cookie。若学校登录流程拒绝内置网页视图，可在“设置 → 课程与登录”改用 Chrome 或 Edge；切换后需在新浏览器中重新登录。
 
-如果 PrairieLearn 自动同步失败，可以在已登录的日常浏览器中复制作业表格，然后到“设置 → 课程与登录”使用手动导入。WeBWorK 需要通过专用登录窗口同步。
+如果 PrairieLearn 自动同步失败，可以在已登录的日常浏览器中复制作业表格，然后到“设置 → 课程与登录”使用手动导入。WeBWorK 和 Gradescope 需要通过专用登录窗口同步。
 
 ## 作业日历
 
@@ -151,6 +155,7 @@ macOS 预览版将这些数据保存在当前账户的 `~/Library/Application Su
 - PrairieLearn 页面日期可能不显示年份，应用会按课程学期推算，并按电脑当地时间解释。请核对个人延期、改期和时区。
 - PrairieLearn 的 `100% until` 通常表示按时得分阶段结束。其他百分比的 `until` 可能是早鸟或迟交阶段，应用不会自动将其作为截止提醒。
 - WeBWorK 开放中作业只有出现 `Due` 才会设置截止提醒；`Will open on` 只作为开放时间。明确标注的 PDT/PST 会按其时区换算。
+- Gradescope 使用普通 Due 进行提醒，晚交截止另行展示；页面显示提交或分数时视为已完成。该适配尚未在真实账号页面验证。
 - 系统通知和微信汇总依赖本机后台运行，不是云端服务。macOS 预览版尚待真实设备完成安装、通知和 Edge 同步验收。
 
 ## 开发

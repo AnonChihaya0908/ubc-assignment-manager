@@ -4,7 +4,9 @@ A desktop app that brings PrairieLearn and UBC WeBWorK assignments, opening date
 
 [Latest stable release](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest) · [macOS 1.3.3 preview](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.3) · [Windows 1.3.0 preview](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) · [Report a problem](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues) · [中文说明](README.md)
 
-This is an independent project. It is not an official UBC, PrairieLearn, or WeBWorK app. It reads assignments visible to you after you sign in; it does not need a PrairieLearn API token.
+The repository source now includes Gradescope Canada course support. The published installers above do not include it yet, and syncing against a real account still needs device testing.
+
+This is an independent project. It is not an official UBC, PrairieLearn, WeBWorK, or Gradescope app. It reads assignments visible to you after you sign in; it does not need a PrairieLearn API token.
 
 ## Install
 
@@ -14,12 +16,12 @@ This is an independent project. It is not an official UBC, PrairieLearn, or WeBW
 
 ## First use
 
-1. On first launch, paste your own student assignment list URL. PrairieLearn URLs end in `/pl/course_instance/<number>/assessments`; UBC WeBWorK URLs begin with `https://webwork.elearning.ubc.ca/webwork2/`.
+1. On first launch, paste your own student assignment list URL. PrairieLearn URLs end in `/pl/course_instance/<number>/assessments`; UBC WeBWorK URLs begin with `https://webwork.elearning.ubc.ca/webwork2/`. Current source also accepts `https://www.gradescope.ca/courses/<number>`.
 2. Go to **Settings → Courses and login** and open the dedicated sign-in window for each course. Current source supports Edge and Chrome, with built-in WebKit as the Mac default. Complete your school sign-in, then return to the app and choose **Hide sign-in window**.
 3. Select **Sync now** in the lower left. The app reads course pages through the same dedicated profile in the background and keeps it available for scheduled syncs. If school sign-in expires, reopen the sign-in window from course settings. This profile is separate from your everyday browser.
 4. The app starts in your device language. Change it at **Settings → General and window → Display language**. Language changes do not change assignment dates, completion states, sign-in sessions, or other settings.
 
-If PrairieLearn syncing fails, you can copy its assignment table from an already signed-in browser and use the manual import under Courses and login. WeBWorK must sync through the dedicated sign-in window. Newly installed copies do not contain another user’s courses. Imported or older courses must be confirmed before the app opens their pages, syncs them, or sends reminders.
+If PrairieLearn syncing fails, you can copy its assignment table from an already signed-in browser and use the manual import under Courses and login. WeBWorK and Gradescope must sync through the dedicated sign-in window. Gradescope uses the regular due date for reminders, shows a late due date separately, and treats a submission or published grade as complete even below full credit. Newly installed copies do not contain another user’s courses. Imported or older courses must be confirmed before the app opens their pages, syncs them, or sends reminders.
 
 ## Reminders and data
 

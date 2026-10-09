@@ -22,6 +22,7 @@ a { color:inherit; }
   backdrop-filter:blur(25px) saturate(120%); box-shadow:inset 0 1px rgba(255,255,255,.035); }
 .window-toolbar[data-context="prairielearn"] { --context-rgb:151,104,222; }
 .window-toolbar[data-context="webwork"] { --context-rgb:77,157,111; }
+.window-toolbar[data-context="gradescope"] { --context-rgb:62,149,216; }
 .window-toolbar[data-context="calendar"] { --context-rgb:205,143,72; }
 .window-toolbar[data-context="settings"] { --context-rgb:126,133,150; }
 .product-mark { display:grid; place-items:center; flex:none; width:22px; height:22px; border:1px solid #575c67; border-radius:4px; background:#353841; color:#dfe3ed; font-size:11px; font-weight:800; }
@@ -33,6 +34,7 @@ a { color:inherit; }
 .toolbar-mark[data-context="all"] { --mark-rgb:91,119,232; }
 .toolbar-mark[data-context="prairielearn"] { --mark-rgb:151,104,222; }
 .toolbar-mark[data-context="webwork"] { --mark-rgb:77,157,111; }
+.toolbar-mark[data-context="gradescope"] { --mark-rgb:62,149,216; }
 .toolbar-mark[data-context="calendar"] { --mark-rgb:205,143,72; }
 .toolbar-mark[data-context="settings"] { --mark-rgb:105,113,130; }
 .toolbar-mark-grid { display:none; grid-template-columns:repeat(2,5px); gap:3px; }
@@ -59,6 +61,7 @@ a { color:inherit; }
   backdrop-filter:blur(24px) saturate(115%); }
 .app-rail[data-context="prairielearn"] { --rail-context-rgb:151,104,222; }
 .app-rail[data-context="webwork"] { --rail-context-rgb:77,157,111; }
+.app-rail[data-context="gradescope"] { --rail-context-rgb:62,149,216; }
 .app-rail[data-context="calendar"] { --rail-context-rgb:205,143,72; }
 .app-rail[data-context="settings"] { --rail-context-rgb:126,133,150; }
 .rail-button { position:relative; display:grid; place-items:center; flex:none; width:40px; height:40px; border:0; border-radius:7px; background:transparent; color:#a5a8b0; }
@@ -67,6 +70,7 @@ a { color:inherit; }
 .rail-button#nav-all.active:before { background:#7388ee; }
 .rail-button#nav-prairielearn.active:before { background:#a377e7; }
 .rail-button#nav-webwork.active:before { background:#62a77f; }
+.rail-button#nav-gradescope.active:before { background:#4da5e4; }
 .rail-button#nav-calendar.active:before { background:#d39a59; }
 .rail-button.settings-rail { margin-top:auto; }
 .rail-grid { display:grid; grid-template-columns:repeat(2,7px); gap:4px; }
@@ -77,6 +81,7 @@ a { color:inherit; }
 .rail-context-mark.all .rail-grid i { width:5px; height:5px; border-width:1px; border-radius:1.5px; }
 .rail-context-mark.pl { background:#59466d; color:#eadcff; }
 .rail-context-mark.ww { background:#3d5748; color:#d8f1e1; }
+.rail-context-mark.gs { background:#315269; color:#d5edff; }
 .rail-context-mark.calendar { background:#62503b; color:#f5dfc2; }
 .calendar-glyph { width:15px; height:15px; border:1px solid currentColor; border-radius:2px; }
 .calendar-glyph::before { content:""; display:block; height:3px; border-bottom:1px solid currentColor; }
@@ -84,11 +89,13 @@ a { color:inherit; }
 .rail-button.active .rail-context-mark.all { background:#5b77e8; box-shadow:0 0 12px rgba(91,119,232,.24),inset 0 1px rgba(255,255,255,.2); }
 .rail-button.active .rail-context-mark.pl { background:#8e61cf; box-shadow:0 0 12px rgba(151,104,222,.24),inset 0 1px rgba(255,255,255,.2); }
 .rail-button.active .rail-context-mark.ww { background:#478c64; box-shadow:0 0 12px rgba(77,157,111,.24),inset 0 1px rgba(255,255,255,.2); }
+.rail-button.active .rail-context-mark.gs { background:#347fac; box-shadow:0 0 12px rgba(62,149,216,.27),inset 0 1px rgba(255,255,255,.2); }
 .rail-button.active .rail-context-mark.calendar { background:#bd8243; box-shadow:0 0 12px rgba(205,143,72,.26),inset 0 1px rgba(255,255,255,.2); }
 .menu-rail { display:none; }
 .settings-glyph { font-size:22px; line-height:1; }
 .source-mark { display:grid; place-items:center; flex:none; width:22px; height:22px; border:1px solid #665478; border-radius:5px; background:#41374d; color:#ddcaee; font-size:10px; font-weight:750; }
 .source-mark.ww { background:#39403b; border-color:#58625b; color:#c8d7ca; }
+.source-mark.gs { background:#30434f; border-color:#4e7186; color:#c8eaff; }
 .rail-button .source-mark { width:27px; height:27px; font-size:12px; }
 .notification-dot { display:inline-block; flex:none; width:7px; height:7px; border-radius:50%; background:var(--danger); }
 .rail-button .notification-dot { position:absolute; right:1px; top:5px; width:9px; height:9px; border:1px solid var(--rail); }

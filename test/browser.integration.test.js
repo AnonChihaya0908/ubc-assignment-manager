@@ -45,6 +45,11 @@ const webworkPastDetailFixture = `<!doctype html><title>Assignment-02</title><ta
 <tbody><tr><td>Problem 1</td><td>1</td><td>0</td><td>2</td><td>50%</td></tr>
 <tr><td>Problem 2</td><td>1</td><td>0</td><td>3</td><td>100%</td></tr></tbody></table>`;
 
+const gradescopeFixture = `<!doctype html><title>Gradescope</title><h1>Example 2026W1</h1>
+<table><thead><tr><th>Name</th><th>Status</th><th>Released</th><th>Due (PDT)</th></tr></thead>
+<tbody><tr><td><a href="/courses/12345/assignments/1">Homework A</a></td><td>No Submission</td><td>Oct 05 at 1:15PM</td><td>Oct 09 at 11:59PM</td></tr>
+<tr><td><a href="/courses/12345/assignments/2">Homework B</a></td><td>45 / 50</td><td>Sep 10 at 3:00PM</td><td>Sep 21 at 11:59PM<br>Late Due Date: Sep 22 at 2:00AM</td></tr></tbody></table>`;
+
 test('browser work is cancelled when the sync deadline expires', async () => {
   const started = Date.now();
   await assert.rejects(() => withinSyncDeadline(signal => new Promise((resolve, reject) => {
@@ -56,7 +61,7 @@ test('browser work is cancelled when the sync deadline expires', async () => {
 test('dedicated background Edge keeps a headless session for both course sources and closes on exit', { timeout: 45000 }, async () => {
   const httpServer = http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(request.url.includes('Assignment-03') ? webworkDetailFixture :
+    response.end(request.url.startsWith('/courses/') ? gradescopeFixture : request.url.includes('Assignment-03') ? webworkDetailFixture :
       request.url.includes('Assignment-02') ? webworkPastDetailFixture : request.url.startsWith('/webwork2/') ? webworkFixture : fixture);
   });
   await new Promise(resolve => httpServer.listen(0, '127.0.0.1', resolve));
@@ -69,6 +74,7 @@ test('dedicated background Edge keeps a headless session for both course sources
   try {
     const prairieUrl = `${base}/pl/course_instance/231184/assessments`;
     const webworkUrl = `${base}/webwork2/course`;
+    const gradescopeUrl = `${base}/courses/12345`;
     const port = await browser.ensureBrowser(prairieUrl);
     assert.equal(browser.browserMode(), 'background');
     assert.equal(await browser.activePort(), port);
@@ -80,6 +86,10 @@ test('dedicated background Edge keeps a headless session for both course sources
     });
     const webwork = await browser.readWebworkPage(webworkUrl);
     assert.equal(webwork.rows.find(row => row.name === 'Assignment-03').score, '100%');
+    const gradescope = await browser.readGradescopePage(gradescopeUrl);
+    assert.equal(gradescope.rows.length, 2);
+    assert.equal(gradescope.rows[1].status, '45 / 50');
+    assert.equal(gradescope.timeZone, 'PDT');
     assert.equal(await browser.hideBrowser(webworkUrl), port);
     await browser.closeBrowser();
     const restartedPort = await browser.ensureBrowser(prairieUrl);

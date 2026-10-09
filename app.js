@@ -3,8 +3,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizePriority, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
-  reviewCourseAccess, mergeRows, mergeWebworkRows } = require('./lib/store');
-const { edgePath, activePort, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage } = require('./lib/browser');
+  reviewCourseAccess, mergeRows, mergeWebworkRows, mergeGradescopeRows } = require('./lib/store');
+const { edgePath, activePort, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage, readGradescopePage } = require('./lib/browser');
+const { parseGradescopePage } = require('./lib/gradescope');
 const { NativeBrowserBridge } = require('./lib/native-browser');
 const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
@@ -112,9 +113,12 @@ async function syncCourse(courseId) {
   try {
     markSyncAttempt(course);
     saveState(state);
-    const webwork = coursePlatform(course) === 'webwork';
-    const page = await (webwork ? readWebworkPage(course.url) : readCoursePage(course.url));
-    const count = webwork ? mergeWebworkRows(state, courseId, page) : mergeRows(state, courseId, page);
+    const platform = coursePlatform(course);
+    const page = await (platform === 'webwork' ? readWebworkPage(course.url)
+      : platform === 'gradescope' ? readGradescopePage(course.url) : readCoursePage(course.url));
+    const count = platform === 'webwork' ? mergeWebworkRows(state, courseId, page)
+      : platform === 'gradescope' ? mergeGradescopeRows(state, courseId, parseGradescopePage(page, course.url))
+        : mergeRows(state, courseId, page);
     markSyncSuccess(course);
     saveState(state);
     autoSyncEnabled = true;
@@ -497,7 +501,8 @@ async function handle(request, response) {
     if (request.method === 'POST' && url.pathname === '/api/course') {
       const parsed = normalizeCourseUrl(body.url);
       if (state.courses.some(item => item.id === parsed.id)) throw new Error('这门课已经添加。');
-      state.courses.push({ id: parsed.id, name: parsed.platform === 'webwork' ? `WeBWorK · ${parsed.instanceId}` : `课程 ${parsed.instanceId}`,
+      state.courses.push({ id: parsed.id, name: parsed.platform === 'webwork' ? `WeBWorK · ${parsed.instanceId}`
+        : parsed.platform === 'gradescope' ? `Gradescope · ${parsed.instanceId}` : `课程 ${parsed.instanceId}`,
         platform: parsed.platform, url: parsed.url, lastSyncedAt: null, lastSyncAttemptAt: null,
         lastSyncError: null, lastSyncErrorKind: null, ignoredSections: [], origin: 'user_added', accessConfirmedAt: new Date().toISOString() });
       saveState(state);
@@ -551,7 +556,8 @@ async function handle(request, response) {
       requireCourseAccess(course);
       if (syncingCourseIds.size) throw new Error('请等待课程同步完成后再打开登录窗口。');
       await openCoursePage(course.url);
-      return json(response, 200, { message: `登录窗口已打开。请登录${coursePlatform(course) === 'webwork' ? ' WeBWorK' : ' PrairieLearn'}，然后回到应用点击“同步”。`, state: publicState() });
+      const platformName = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK', gradescope: 'Gradescope' }[coursePlatform(course)];
+      return json(response, 200, { message: `登录窗口已打开。请登录 ${platformName}，然后回到应用点击“同步”。`, state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/browser/hide') {
       const course = state.courses.find(item => item.id === body.courseId);
@@ -582,7 +588,7 @@ async function handle(request, response) {
       const course = state.courses.find(item => item.id === body.courseId);
       if (!course) throw new Error('课程不存在。');
       requireCourseAccess(course);
-      if (coursePlatform(course) === 'webwork') throw new Error('WeBWorK 请使用登录窗口同步；此处的文字导入仅支持 PrairieLearn。');
+      if (coursePlatform(course) !== 'prairielearn') throw new Error('此处的文字导入仅支持 PrairieLearn；其他平台请使用登录窗口同步。');
       const page = parseCopiedTable(body.text, course);
       if (!page.rows.length) throw new Error('未识别到作业。请从作业表格复制包含 LAB03 等代码的行。');
       const count = mergeRows(state, course.id, page, { removeMissing: false });

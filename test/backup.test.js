@@ -68,6 +68,26 @@ test('unsupported and damaged backups fail validation before state replacement',
   assert.equal(JSON.stringify(state), current);
 });
 
+test('Gradescope grades and late due dates survive a backup without browser data', () => {
+  const courseId = 'www.gradescope.ca:12345';
+  const state = {
+    version: 1, courses: [{ id: courseId, platform: 'gradescope', name: 'Example 2026W1',
+      url: 'https://www.gradescope.ca/courses/12345', ignoredSections: [] }],
+    tasks: [{ id: 'abcdef0123456789abcdef01', courseId, name: 'Homework A',
+      url: 'https://www.gradescope.ca/courses/12345/assignments/42?session=private',
+      score: '90%', gradeText: '45 / 50', sourceComplete: true,
+      dueAt: '2026-10-10T06:59:00.000Z', lateDueAt: '2026-10-10T09:00:00.000Z' }],
+    taskPersonal: {}, preferences: {}, notified: {},
+  };
+  const backup = createBackup(state, emptyConfig());
+  const restored = validateBackup(backup).state;
+  assert.equal(restored.courses[0].platform, 'gradescope');
+  assert.equal(restored.tasks[0].sourceComplete, true);
+  assert.equal(restored.tasks[0].gradeText, '45 / 50');
+  assert.equal(restored.tasks[0].lateDueAt, '2026-10-10T09:00:00.000Z');
+  assert.equal(restored.tasks[0].url, 'https://www.gradescope.ca/courses/12345/assignments/42');
+});
+
 test('a local restore point contains the pre-import state and settings', () => {
   const { state, config } = fixture();
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'ubc-restore-point-'));
