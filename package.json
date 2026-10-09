@@ -1,8 +1,8 @@
 {
   "name": "ubc-assignment-manager",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "private": true,
-  "description": "Local UBC assignment manager for PrairieLearn and WeBWorK",
+  "description": "Local UBC assignment manager for PrairieLearn, WeBWorK, and Gradescope",
   "scripts": {
     "start": "node app.js",
     "build:app": "powershell -NoProfile -ExecutionPolicy Bypass -File build-app.ps1",

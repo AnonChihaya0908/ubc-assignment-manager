@@ -36,6 +36,39 @@ jobs:
       - name: Run browser integration tests
         run: npm run test:browser
 
+      - name: Build Windows installer and portable archive
+        run: npm run build:app
+
+      - name: Verify Windows release checksums
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          foreach ($name in @("ubc-assignment-manager-$version-setup.exe", "ubc-assignment-manager-$version-windows.zip")) {
+            $artifact = Join-Path release $name
+            $checksum = "$artifact.sha256"
+            if (-not (Test-Path -LiteralPath $artifact) -or -not (Test-Path -LiteralPath $checksum)) {
+              throw "Missing Windows release file: $name"
+            }
+            $line = (Get-Content -LiteralPath $checksum -Raw).Trim()
+            if ($line -notmatch '^([0-9a-f]{64})  (.+)$' -or $Matches[2] -ne $name) {
+              throw "Invalid checksum file: $checksum"
+            }
+            if ((Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Matches[1]) {
+              throw "Checksum mismatch: $name"
+            }
+          }
+
+      - name: Save Windows release files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: windows-release
+          path: |
+            release/ubc-assignment-manager-*-setup.exe
+            release/ubc-assignment-manager-*-setup.exe.sha256
+            release/ubc-assignment-manager-*-windows.zip
+            release/ubc-assignment-manager-*-windows.zip.sha256
+          if-no-files-found: error
+
   macos-core:
     name: macOS core tests
     runs-on: macos-15
@@ -84,7 +117,7 @@ jobs:
       - name: Save all release archives and SHA-256 files
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: macos-${{ matrix.arch }}-preview
+          name: macos-${{ matrix.arch }}-release
           path: ${{ runner.temp }}/packages/*
           if-no-files-found: error
 
@@ -102,7 +135,7 @@ jobs:
       - name: Download the macOS 15 built Apple Silicon package
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: macos-arm64-preview
+          name: macos-arm64-release
           path: ${{ runner.temp }}/packages
 
       - name: Install and launch on Sonoma
