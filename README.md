@@ -2,13 +2,13 @@
 
 [English installation and first-use guide](README.en.md)
 
-本地作业管理应用，将 PrairieLearn 和 UBC WeBWorK 的作业、开放时间与截止时间集中到一个界面，并提供系统通知、日历视图和微信每日汇总。Windows 版已稳定发布；macOS 桌面版正在预览验证。
+本地作业管理应用，将 PrairieLearn、UBC WeBWorK 和 Gradescope Canada 的作业、开放时间与截止时间集中到一个界面，并提供系统通知、日历视图和微信每日汇总。
 
-当前稳定版本：**1.2.1** · [下载最新版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
+当前正式版本：**1.3.4** · [下载 Windows 与 macOS 安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.4) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
 
-macOS **1.3.3 预览版**：[下载 DMG 或 ZIP](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.3)。[Windows 1.3.0 预览版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.0) 继续提供；Windows 1.2.1 仍是稳定版。macOS 版仍需在真实 Mac 上验证首次安装、通知和课程同步。应用内自动更新不会推送预览版。
+1.3.4 在同一 Release 提供 Windows 安装版与便携版，以及 macOS arm64 / x64 的 DMG、ZIP、PKG。macOS 包未做 Apple Developer ID 签名和公证，首次打开可能需要手动允许；真实 Mac 上的完整登录与通知流程仍在验证。
 
-仓库源码已加入 Gradescope Canada 课程适配；上述已发布安装包尚不包含此功能。真实账号页面同步仍待用户设备验证。
+1.3.4 已包含 Gradescope Canada 课程适配。Windows 上已使用真实课程页面验证未提交、已评分作业及普通截止时间；macOS WebKit 仍需真实账号验证。
 
 > 本项目不是 UBC、PrairieLearn、WeBWorK 或 Gradescope 的官方产品。应用只读取用户登录后有权访问且页面上可见的数据，不使用教师 API，也不需要 PrairieLearn API token。
 
@@ -18,8 +18,8 @@ macOS **1.3.3 预览版**：[下载 DMG 或 ZIP](https://github.com/AnonChihaya0
 
 | 功能 | 说明 |
 | --- | --- |
-| 多平台汇总 | 分开管理 PrairieLearn 与 UBC WeBWorK，支持按平台和课程查看作业。 |
-| Gradescope（源码待发布） | 从 Gradescope Canada 课程页读取作业；已提交或已评分视为完成，成绩不必达到满分。 |
+| 多平台汇总 | 分开管理 PrairieLearn、UBC WeBWorK 与 Gradescope Canada，支持按平台和课程查看作业。 |
+| Gradescope | 从 Gradescope Canada 课程页读取作业；已提交或已评分视为完成，成绩不必达到满分。 |
 | 作业状态 | 区分待完成、完成中、将开放、已过日期、已完成和已忽略；成绩以进度条显示。 |
 | 作业日历 | 在月视图中查看开放日期、截止日期和手动提醒日期。 |
 | 本地提醒 | 默认在截止前 24 小时和 3 小时发送系统通知，可调整提前时间和免打扰时段。 |
@@ -35,28 +35,28 @@ macOS **1.3.3 预览版**：[下载 DMG 或 ZIP](https://github.com/AnonChihaya0
 ### Windows 安装版（推荐）
 
 1. 前往 [Releases](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest)。
-2. 下载并运行 `ubc-assignment-manager-1.2.1-setup.exe`。
+2. 下载并运行 `ubc-assignment-manager-1.3.4-setup.exe`。
 3. 从桌面或开始菜单打开“UBC作业管理工具”。
 
 安装程序只为当前 Windows 账户安装应用。运行时无需打开 CMD，也无需另行安装 Node.js。
 
 ### Windows 便携版
 
-下载 `ubc-assignment-manager-1.2.1-windows.zip` 并完整解压后运行。请勿只移动其中的 EXE，运行时还需要压缩包内的 `runtime` 等文件。Release 同时提供 `.zip.sha256` 校验文件。
+下载 `ubc-assignment-manager-1.3.4-windows.zip` 并完整解压后运行。请勿只移动其中的 EXE，运行时还需要压缩包内的 `runtime` 等文件。Release 同时提供安装包和 ZIP 的 `.sha256` 校验文件。
 
-### macOS 桌面版预览
+### macOS 桌面版
 
-macOS 版是独立 `.app`；1.3.3 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），原有 PKG 仍保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。1.3.3 默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge；旧的 1.3.0 预览包仍需要 Edge。
+macOS 版是独立 `.app`；1.3.4 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），PKG 也保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。
 
-目前 [macOS 1.3.3 预览安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.3) 尚待真实 Mac 首次安装验证，**不是稳定版**。1.3.1 的可执行文件误设为最低 macOS 15；1.3.2 的 App 资源未纳入有效签名，可能被系统提示“已损坏”。请使用 1.3.3。下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。详细步骤见 [macOS 安装与使用说明](docs/macos-preview.md)。现有 Windows 安装包和便携包继续保留。
+下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。macOS 包没有 Developer ID 签名或公证；首次打开可能需要按[安装说明](docs/macos-preview.md)手动允许，学校管理的设备可能禁止侧载。CI 已验证 Sonoma 14 启动与包完整性，真实设备上的首次安装、通知和 Gradescope 登录仍需确认。
 
 ### 系统要求
 
 - Windows 10 或 Windows 11
-- Microsoft Edge 或 Google Chrome（当前源码；已发布的 1.3.0 Windows 安装包仍需要 Edge）
+- Microsoft Edge 或 Google Chrome
 - 系统自带的 .NET Framework
 
-macOS 预览版需要 macOS 12 或更新版本与对应架构的安装包。1.3.3 使用内置 WebKit 登录与同步，尚待真实 Mac 验收；旧的 1.3.0 预览包仍需要 Edge。
+macOS 版需要 macOS 12 或更新版本与对应架构的安装包；默认使用内置 WebKit 登录与同步。
 
 应用在屏幕空间足够时以 1440 × 810 的 16:9 窗口打开；较小屏幕会按可用区域缩放。
 
@@ -65,7 +65,7 @@ macOS 预览版需要 macOS 12 或更新版本与对应架构的安装包。1.3.
 1. 首次启动时按引导粘贴课程网址：
    - PrairieLearn：`https://us.prairielearn.com/pl/course_instance/数字/assessments`
    - UBC WeBWorK：`https://webwork.elearning.ubc.ca/webwork2/课程名`
-   - Gradescope Canada（源码待发布）：`https://www.gradescope.ca/courses/数字`
+   - Gradescope Canada：`https://www.gradescope.ca/courses/数字`
 2. 打开“设置 → 课程与登录”，选择课程并点击“打开登录窗口”。
 3. 在专用登录窗口中完成学校网站登录；返回应用后可以点击“隐藏登录窗口”。可在同页选择自动、Edge、Chrome，Mac 还可选择内置 WebKit。
 4. 点击左下角“立即同步”。应用会在后台使用同一专用资料读取作业，后续定时同步也不会弹出课程窗口。若学校登录过期，请在课程设置中重新打开登录窗口。
@@ -111,7 +111,7 @@ Mac 内置 WebKit 使用与 Safari 相同的网页引擎，但不是 Safari 应�
 
 Gmail 应用专用密码通常要求账户开启两步验证，且学校或单位账户可能不允许创建。当前版本仅支持 Gmail 发件账户；Outlook 发件需要另行接入 OAuth 授权，因此目前不能连接 Outlook。具体限制及设置步骤见[邮件提醒说明](docs/email-reminders.md)。电脑关机、睡眠或应用退出时无法按时发送；当天重新运行后会补发一次，发送失败最多重试三次。
 
-macOS 预览版关闭窗口后仍由 App 自身运行，菜单栏图标或 Dock 可重新打开。可在“设置 → 提醒与同步”允许 macOS 系统通知并发送测试通知；完全退出 App 或关机后无法实时发送本地通知。macOS 的菜单栏图标可在设置中隐藏，应用菜单仍可退出。
+macOS 版关闭窗口后仍由 App 自身运行，菜单栏图标或 Dock 可重新打开。可在“设置 → 提醒与同步”允许 macOS 系统通知并发送测试通知；完全退出 App 或关机后无法实时发送本地通知。macOS 的菜单栏图标可在设置中隐藏，应用菜单仍可退出。
 
 ### 个人微信每日汇总
 
@@ -131,13 +131,13 @@ macOS 预览版关闭窗口后仍由 App 自身运行，菜单栏图标或 Dock 
 
 应用内安装只在安装版或独立解压的便携版中启用。在包含 `.git` 的开发目录中运行时不会覆盖源码。
 
-macOS 预览版同样可在应用内检查更新；正式稳定版提供两种下载入口。预览版可从对应的 GitHub Release 手动下载 DMG 或 ZIP，退出旧版后替换 `.app`。课程、作业和提醒设置独立存放，不会因替换 App 而删除。
+macOS 版同样可在应用内检查更新；可从 GitHub Release 下载 DMG 或 ZIP，退出旧版后手动替换 `.app`。课程、作业和提醒设置独立存放，不会因替换 App 而删除。
 
 ## 数据与隐私
 
 用户数据保存在 `%LOCALAPPDATA%\UBC作业管理工具\data`，其中可能包含课程清单、作业数据、SendKey、加密的邮件授权和专用 Edge 登录资料。不要公开或提交这个目录。
 
-macOS 预览版将这些数据保存在当前账户的 `~/Library/Application Support/UBC作业管理工具/data`，不会打入安装包。
+macOS 版将这些数据保存在当前账户的 `~/Library/Application Support/UBC作业管理工具/data`，不会打入安装包。
 
 “设置 → 数据与退出”可以导出 JSON 备份。备份包含课程、缓存作业、手动完成状态、提醒日期、优先级、备注、忽略类别和普通设置；以下内容不会导出：
 
@@ -155,8 +155,8 @@ macOS 预览版将这些数据保存在当前账户的 `~/Library/Application Su
 - PrairieLearn 页面日期可能不显示年份，应用会按课程学期推算，并按电脑当地时间解释。请核对个人延期、改期和时区。
 - PrairieLearn 的 `100% until` 通常表示按时得分阶段结束。其他百分比的 `until` 可能是早鸟或迟交阶段，应用不会自动将其作为截止提醒。
 - WeBWorK 开放中作业只有出现 `Due` 才会设置截止提醒；`Will open on` 只作为开放时间。明确标注的 PDT/PST 会按其时区换算。
-- Gradescope 使用普通 Due 进行提醒，晚交截止另行展示；页面显示提交或分数时视为已完成。该适配尚未在真实账号页面验证。
-- 系统通知和微信汇总依赖本机后台运行，不是云端服务。macOS 预览版尚待真实设备完成安装、通知和 Edge 同步验收。
+- Gradescope 使用普通 Due 进行提醒，晚交截止另行展示；页面显示提交或分数时视为已完成。Windows 真实课程页已验证，macOS WebKit 仍需真实账号验证。
+- 系统通知和微信汇总依赖本机后台运行，不是云端服务。macOS 真实设备上的首次安装与通知仍需验证。
 
 ## 开发
 

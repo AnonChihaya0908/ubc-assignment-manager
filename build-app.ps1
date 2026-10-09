@@ -64,4 +64,9 @@ Write-Output "便携包：$archive"
 $installerExe = Join-Path $releaseRoot "ubc-assignment-manager-$version-setup.exe"
 & $compiler /nologo /target:winexe /codepage:65001 "/win32icon:$iconPath" /reference:System.Windows.Forms.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:Microsoft.CSharp.dll "/resource:$archive,payload.zip" "/out:$installerExe" (Join-Path $appRoot 'installer\Program.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Windows 安装程序编译失败。' }
+$installerSha = [Security.Cryptography.SHA256]::Create()
+$installerStream = [IO.File]::OpenRead($installerExe)
+try { $installerHash = ([BitConverter]::ToString($installerSha.ComputeHash($installerStream))).Replace('-', '').ToLowerInvariant() }
+finally { $installerStream.Dispose(); $installerSha.Dispose() }
+[IO.File]::WriteAllText("$installerExe.sha256", "$installerHash  $(Split-Path -Leaf $installerExe)`n", (New-Object Text.UTF8Encoding($false)))
 Write-Output "安装包：$installerExe"
