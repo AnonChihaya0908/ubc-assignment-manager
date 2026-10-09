@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 $appRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $launcherSource = Join-Path $appRoot 'launcher\Program.cs'
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
