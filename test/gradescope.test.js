@@ -24,6 +24,7 @@ test('Gradescope grading means completed even below 100 percent and at zero poin
 
 test('Gradescope due date uses the source timezone and normal date is distinct from late date', () => {
   assert.equal(parseGradescopeDate('Oct 09 at 11:59PM', 'PDT', 'Example 2026W1'), '2026-10-10T06:59:00.000Z');
+  assert.equal(parseGradescopeDate('2026-10-09 23:59:00 -0700', '', ''), '2026-10-10T06:59:00.000Z');
   assert.equal(parseGradescopeDate('Jan 09 at 11:59PM', 'PST', 'Example 2026W2'), '2027-01-10T07:59:00.000Z');
   assert.equal(parseGradescopeDate('Feb 30 at 11:59PM', 'PST', 'Example 2026W2'), null);
   const page = parseGradescopePage({ hasTable: true, courseTitle: 'Example 2026W1', timeZone: 'PDT', rows: [{
@@ -54,6 +55,9 @@ test('Gradescope merge preserves manual decisions and accepts a valid empty cour
 
 test('Gradescope rejects malformed dates and cross-course assignment links without erasing cached rows', () => {
   assert.throws(() => parseGradescopePage({ hasTable: true, bodyRowCount: 1, rows: [] }, courseUrl), /作业行/);
+  assert.throws(() => parseGradescopePage({ hasTable: true, bodyRowCount: 2, rows: [{
+    name: 'Homework A', url: `${courseUrl}/assignments/42`, due: 'Oct 09 at 11:59PM', status: 'No Submission',
+  }] }, courseUrl), /作业行/);
   assert.throws(() => parseGradescopePage({ hasTable: true, courseTitle: 'Example 2026W1', timeZone: '', rows: [{
     name: 'Homework A', url: `${courseUrl}/assignments/42`, due: 'Oct 09 at 11:59PM', status: 'No Submission',
   }] }, courseUrl), /时区/);
