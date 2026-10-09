@@ -616,6 +616,16 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.notEqual(await evaluate("formatDate('2026-10-08T22:00:00.000Z')"), englishDate);
     assert.equal(fixtureState.courses.length, 2);
     assert.equal(fixtureState.tasks.length, 5);
+    await evaluate("(() => { state.preferences.requireManualCompletion = false; state.courses.push({ id: 'gs:1', platform: 'gradescope', name: 'Example 2026W1', url: 'https://www.gradescope.ca/courses/12345', accessConfirmedAt: new Date().toISOString(), lastSyncedAt: new Date().toISOString(), ignoredSections: [] }); state.tasks.push({ id: 'gs-pending', courseId: 'gs:1', name: 'Homework A', url: 'https://www.gradescope.ca/courses/12345/assignments/1', score: '', sourceComplete: false, dueAt: new Date(Date.now() + 86400000).toISOString() }, { id: 'gs-graded', courseId: 'gs:1', name: 'Homework B', url: 'https://www.gradescope.ca/courses/12345/assignments/2', score: '90%', gradeText: '45 / 50', sourceComplete: true, dueAt: new Date(Date.now() - 86400000).toISOString() }); render(); document.querySelector('#nav-gradescope').click(); })()");
+    assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'gradescope');
+    assert.equal(await evaluate("document.querySelector('#toolbar-scope-mark').textContent.trim()"), 'G');
+    assert.equal(await evaluate("document.querySelector('#nav-gradescope .notification-dot').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#gs-courses .course-folder').textContent.includes('Example')"), true);
+    assert.equal(await evaluate("document.querySelector('#pending-tab-count').textContent"), '1');
+    assert.equal(await evaluate("document.querySelector('#done-tab-count').textContent"), '1');
+    await evaluate("document.querySelector('[data-tab=done]').click()");
+    assert.equal(await evaluate("document.querySelector('.assignment-row .score-bar').textContent.includes('90%')"), true);
+    assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('45 / 50')"), true);
     fixtureState.systemLocale = 'en-CA';
     await evaluate("(() => { const input = document.querySelector('#app-language'); input.value = 'auto'; input.dispatchEvent(new Event('change', { bubbles: true })); })()");
     for (let i = 0; i < 20; i++) {

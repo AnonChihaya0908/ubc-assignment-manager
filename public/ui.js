@@ -31,7 +31,17 @@ function completionStatus(task) { return taskStatus.completionStatus(task, compl
 function isDone(task) { return taskStatus.isComplete(task, completionOptions()); }
 function categoryOf(task, now = Date.now()) { return taskStatus.categoryOf(task, now, completionOptions()); }
 function needsAttention(task, now = Date.now()) { return taskStatus.needsAttention(task, now, completionOptions()); }
-const platformNames = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK' };
+const platformNames = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK', gradescope: 'Gradescope' };
+const platformMarks = { prairielearn: ['pl', 'PL'], webwork: ['ww', 'W'], gradescope: ['gs', 'G'] };
+const platformFolders = {
+  prairielearn: ['pl-count', 'nav-prairielearn', 'pl-folder', 'pl-courses'],
+  webwork: ['ww-count', 'nav-webwork', 'ww-folder', 'ww-courses'],
+  gradescope: ['gs-count', 'nav-gradescope', 'gs-folder', 'gs-courses'],
+};
+function sourceMark(platform, extra = '') {
+  const [style, label] = platformMarks[platform] || platformMarks.prairielearn;
+  return node('span', `source-mark ${extra} ${style}`, label);
+}
 const settingNames = { general: '常规与窗口', reminders: '提醒与同步', courses: '课程与登录', data: '数据与退出' };
 const tabNames = { all: '全部', pending: '待完成', future: '将开放', history: '已过日期', done: '已完成', ignored: '已忽略' };
 const priorityNames = { high: '高优先级', medium: '中优先级', low: '低优先级' };
@@ -68,7 +78,8 @@ function node(tag, className, value) {
 }
 
 function coursePlatform(course) {
-  return course?.platform || (course?.url?.includes('webwork.elearning.ubc.ca') ? 'webwork' : 'prairielearn');
+  return course?.platform || (course?.url?.includes('webwork.elearning.ubc.ca') ? 'webwork'
+    : course?.url?.includes('gradescope.ca') ? 'gradescope' : 'prairielearn');
 }
 
 function courseAccessConfirmed(course) {
@@ -159,19 +170,20 @@ function renderFolders() {
   $('all-folder').classList.toggle('active', workRoute && selectedScope === 'all');
   $('nav-all').classList.toggle('active', workRoute && selectedScope === 'all');
   $('nav-calendar').classList.toggle('active', location.hash.startsWith('#calendar'));
-  for (const platform of ['prairielearn', 'webwork']) {
+  for (const platform of Object.keys(platformFolders)) {
+    const [countId, railId, groupId, containerId] = platformFolders[platform];
     const courses = state.courses.filter(course => coursePlatform(course) === platform);
     const tasks = state.tasks.filter(task => coursePlatform(courseFor(task)) === platform);
     const hasPending = tasks.some(task => needsAttention(task));
-    $(`${platform === 'webwork' ? 'ww' : 'pl'}-count`).textContent = tasks.filter(task => needsAttention(task)).length || '';
-    const rail = $(platform === 'webwork' ? 'nav-webwork' : 'nav-prairielearn');
-    const group = $(platform === 'webwork' ? 'ww-folder' : 'pl-folder');
+    $(countId).textContent = tasks.filter(task => needsAttention(task)).length || '';
+    const rail = $(railId);
+    const group = $(groupId);
     setDot(rail.querySelector('.notification-dot'), hasPending);
     setDot(group.querySelector('.notification-dot'), hasPending);
     const selectedCourse = selectedScope.startsWith('course:') ? state.courses.find(course => course.id === selectedScope.slice(7)) : null;
     rail.classList.toggle('active', workRoute && (selectedScope === `platform:${platform}` || coursePlatform(selectedCourse) === platform && Boolean(selectedCourse)));
     group.classList.toggle('active', selectedScope === `platform:${platform}`);
-    const container = $(platform === 'webwork' ? 'ww-courses' : 'pl-courses');
+    const container = $(containerId);
     container.replaceChildren();
     for (const course of courses) {
       const button = node('button', 'course-folder');
@@ -182,7 +194,7 @@ function renderFolders() {
       button.title = `${course.name} · ${i18n.translate(syncStatus.text)}`;
       button.classList.toggle('sync-warning', ['error', 'stale', 'never', 'review'].includes(syncStatus.kind));
       button.classList.toggle('active', selectedScope === `course:${course.id}`);
-      button.append(node('span', `source-mark ${platform === 'webwork' ? 'ww' : 'pl'}`, platform === 'webwork' ? 'W' : 'PL'));
+      button.append(sourceMark(platform));
       const name = node('span', 'course-name', shortCourseName(course));
       name.dataset.i18nSkip = '';
       button.append(name);
@@ -256,7 +268,7 @@ function taskRow(task) {
   row.setAttribute('aria-label', `查看 ${task.name} 的详情`);
   const main = node('div', 'assignment-main');
   const course = courseFor(task);
-  main.append(node('span', `source-mark ${coursePlatform(course) === 'webwork' ? 'ww' : 'pl'}`, coursePlatform(course) === 'webwork' ? 'W' : 'PL'));
+  main.append(sourceMark(coursePlatform(course)));
   const description = node('div', 'assignment-description');
   if (task.code && task.code !== task.name) {
     const code = node('span', 'assignment-code', task.code);
@@ -501,7 +513,7 @@ function renderInspector() {
   }
   const course = courseFor(task);
   const platform = coursePlatform(course);
-  container.append(node('span', `source-mark inspector-source ${platform === 'webwork' ? 'ww' : 'pl'}`, platform === 'webwork' ? 'W' : 'PL'));
+  container.append(sourceMark(platform, 'inspector-source'));
   const taskName = node('h2', '', task.name);
   taskName.dataset.i18nSkip = '';
   container.append(taskName);
@@ -527,6 +539,8 @@ function renderInspector() {
   if (task.sourceStatus === 'future' && task.opensAt) addDetail('开放时间', formatDate(task.opensAt));
   addDetail(dateInfo.label, dateInfo.value ? formatDate(dateInfo.value) : dateInfo.text || '暂无日期');
   addDetail('成绩', task.score || '暂无成绩', Boolean(task.score));
+  if (task.gradeText) addDetail('原始成绩', task.gradeText, true);
+  if (task.lateDueAt) addDetail('晚交截止时间', formatDate(task.lateDueAt));
   container.append(details);
   if (completion.source === 'confirmation_required') {
     container.append(node('p', 'inspector-hint', '成绩已达到 100%。当前启用了手动确认模式，请确认后将作业标为完成。'));
@@ -590,8 +604,8 @@ function renderToolbarContext(settings, calendar = false) {
   const course = selectedScope.startsWith('course:') ? state.courses.find(item => item.id === selectedScope.slice(7)) : null;
   const platform = course ? coursePlatform(course) : selectedScope.startsWith('platform:') ? selectedScope.slice('platform:'.length) : null;
   const context = settings ? 'settings' : calendar ? 'calendar' : platform || 'all';
-  const labels = { all: '全部作业', calendar: '作业日历', prairielearn: 'PrairieLearn', webwork: 'WeBWorK', settings: '设置' };
-  const marks = { prairielearn: 'PL', webwork: 'W', settings: 'ST' };
+  const labels = { all: '全部作业', calendar: '作业日历', prairielearn: 'PrairieLearn', webwork: 'WeBWorK', gradescope: 'Gradescope', settings: '设置' };
+  const marks = { prairielearn: 'PL', webwork: 'W', gradescope: 'G', settings: 'ST' };
   const toolbar = document.querySelector('.window-toolbar');
   const rail = document.querySelector('.app-rail');
   const mark = $('toolbar-scope-mark');
@@ -609,7 +623,7 @@ function renderWork() {
   if (selectedScope === 'all') {
     $('work-breadcrumb').textContent = '作业 / 全部作业';
     $('work-heading').textContent = '作业概览';
-    $('work-summary').textContent = '将两个平台的待办和成绩汇总到同一工作区。';
+    $('work-summary').textContent = '将各平台的待办和成绩汇总到同一工作区。';
   } else if (course) {
     $('work-breadcrumb').textContent = `${i18n.translate('作业')} / ${platformNames[coursePlatform(course)]} / ${shortCourseName(course)}`;
     $('work-breadcrumb').dataset.i18nSkip = '';
@@ -652,7 +666,7 @@ function renderWork() {
     const title = !state.courses.length ? '还没有课程' : !hasSuccessfulSync ? '还没有完成首次同步' : state.tasks.length === 0 ? '同步完成，但没有发现可见作业' :
       allCurrentComplete ? '所有任务均已完成' : searchTerm ? '没有匹配的作业' : selectedTab !== 'all' ? '当前分类暂无作业' : '暂无作业';
     empty.append(node('h2', '', title));
-    const description = !state.courses.length ? '添加 PrairieLearn Assessments 页面或 UBC WeBWorK 课程首页，即可开始。' :
+    const description = !state.courses.length ? '添加 PrairieLearn、WeBWorK 或 Gradescope 课程，即可开始。' :
       !hasSuccessfulSync ? '请打开专用登录窗口，完成学校登录并停留在作业列表页，然后返回应用同步。' :
       state.tasks.length === 0 ? '连接已经成功，但课程页面目前没有可见作业。可检查页面内容和登录状态后再次同步。' :
       allCurrentComplete ? futureCount ? `当前已开放的任务都已完成；另有 ${futureCount} 项尚未开放，可在“将开放”中查看。` : '当前课程的任务均已完成。' :
@@ -1043,7 +1057,8 @@ function render() {
   $('footer-sync').classList.toggle('error', failures > 0);
   const plCount = state.courses.filter(course => coursePlatform(course) === 'prairielearn').length;
   const wwCount = state.courses.filter(course => coursePlatform(course) === 'webwork').length;
-  $('footer-sources').textContent = `PrairieLearn ${plCount} 门课程 · WeBWorK ${wwCount} 门课程`;
+  const gsCount = state.courses.filter(course => coursePlatform(course) === 'gradescope').length;
+  $('footer-sources').textContent = `PrairieLearn ${plCount} 门课程 · WeBWorK ${wwCount} 门课程 · Gradescope ${gsCount} 门课程`;
   $('footer-reminder').textContent = state.wechat?.remindersPaused ? '提醒已暂停' : state.wechat?.lastError ? '每日提醒发送失败' : state.wechat?.enabled ? '每日提醒已启用' : '每日提醒未启用';
   $('footer-reminder').classList.toggle('error', Boolean(state.wechat?.lastError && !state.wechat?.remindersPaused));
   $('footer-timezone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1155,6 +1170,7 @@ $('nav-all').addEventListener('click', () => navigateWork('all'));
 $('nav-calendar').addEventListener('click', navigateCalendar);
 $('nav-prairielearn').addEventListener('click', () => navigateWork('platform:prairielearn'));
 $('nav-webwork').addEventListener('click', () => navigateWork('platform:webwork'));
+$('nav-gradescope').addEventListener('click', () => navigateWork('platform:gradescope'));
 $('nav-settings').addEventListener('click', () => navigateSettings(settingsPanel));
 $('app-language').addEventListener('change', async event => {
   const previous = state.preferences?.language || 'auto';
@@ -1228,6 +1244,7 @@ $('onboarding-reminders').addEventListener('click', () => dismissOnboarding('rem
 $('all-folder').addEventListener('click', () => navigateWork('all'));
 $('pl-folder').addEventListener('click', () => navigateWork('platform:prairielearn'));
 $('ww-folder').addEventListener('click', () => navigateWork('platform:webwork'));
+$('gs-folder').addEventListener('click', () => navigateWork('platform:gradescope'));
 $('nav-menu').addEventListener('click', () => {
   const open = document.querySelector('.folder-pane').classList.toggle('open');
   $('nav-menu').setAttribute('aria-expanded', String(open));
