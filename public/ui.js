@@ -63,7 +63,12 @@ async function api(path, method = 'GET', body) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || '操作失败。');
+  if (!response.ok) {
+    if (response.status === 404 && path.startsWith('/api/prairietest/')) {
+      throw new Error('当前运行的后台不支持 PrairieTest 同步。请完全退出应用后重新打开；若仍出现此提示，请安装包含考试提醒功能的新版。');
+    }
+    throw new Error(data.error || '操作失败。');
+  }
   return data;
 }
 
