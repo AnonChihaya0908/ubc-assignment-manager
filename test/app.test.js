@@ -33,6 +33,9 @@ test('desktop reminders respect completion, quiet hours, course scope and dedupl
   state.notified[events[0].key] = now.toISOString();
   assert.equal(pendingReminderEvents(state, config, now).length, 1);
   assert.equal(pendingReminderEvents(state, { ...config, disabledCourseIds: [course.id] }, now).length, 0);
+  course.archived = true;
+  assert.equal(pendingReminderEvents(state, config, now).length, 0);
+  course.archived = false;
   assert.equal(pendingReminderEvents(state, { ...config, remindersPaused: true }, now).length, 0);
   assert.equal(pendingReminderEvents(state, { ...config, quietEnabled: true,
     quietStart: `${String(now.getHours()).padStart(2, '0')}:00`, quietEnd: `${String((now.getHours() + 1) % 24).padStart(2, '0')}:00` }, now).length, 0);
@@ -110,7 +113,7 @@ test('existing saved data defaults to automatic full-score completion', () => {
   try {
     fs.writeFileSync(file, JSON.stringify({ version: 1, courses: [], tasks: [], notified: {} }));
     assert.deepEqual(loadState(file).preferences, { requireManualCompletion: false, onboardingDismissed: true,
-      language: 'auto', browserEngine: 'auto' });
+      language: 'auto', browserEngine: 'auto', academicYear: '', academicTerm: '' });
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

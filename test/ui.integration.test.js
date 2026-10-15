@@ -287,6 +287,27 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('.window-toolbar').dataset.context"), 'all');
     assert.equal(await evaluate("document.querySelector('#toolbar-scope-mark').getAttribute('aria-label')"), '当前界面：全部作业');
     assert.equal(await evaluate("document.querySelector('.task-filters') === null"), true);
+    await evaluate("(() => { state.courses[0].academicPeriod = '2026W1'; state.courses[1].academicPeriod = '2025W2'; state.preferences.academicYear = '2026'; state.preferences.academicTerm = 'W1'; render(); })()");
+    assert.equal(await evaluate("document.querySelector('#academic-year').value"), '2026');
+    assert.equal(await evaluate("document.querySelector('#academic-term').value"), 'W1');
+    assert.equal(await evaluate("document.querySelector('#ww-courses .course-folder') === null"), true);
+    assert.equal(await evaluate("document.querySelector('#all-tab-count').textContent"), '2');
+    await evaluate("document.querySelector('#nav-dashboard').click()");
+    assert.equal(await evaluate("document.querySelector('#dashboard-page').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#dashboard-content .dashboard-workload-row').textContent.includes('CPSC 310')"), true);
+    assert.equal(await evaluate("document.querySelectorAll('.dashboard-bar-column').length"), 14);
+    assert.equal(await evaluate("document.querySelector('.dashboard-donut span').textContent"), '2');
+    assert.equal(await evaluate("[...document.querySelectorAll('.dashboard-status-legend strong')].reduce((sum, item) => sum + Number(item.textContent), 0)"), 2);
+    if (process.env.UI_DASHBOARD_PREVIEW_PATH) {
+      const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(process.env.UI_DASHBOARD_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
+    }
+    await resizeViewport(680, 800);
+    assert.equal(await evaluate("document.querySelector('#dashboard-page').scrollWidth <= document.querySelector('#dashboard-page').clientWidth"), true);
+    await resizeViewport(1440, 810);
+    await evaluate("(() => { state.courses[0].archived = true; render(); })()");
+    assert.equal(await evaluate("document.querySelectorAll('.dashboard-workload-row').length"), 0);
+    await evaluate("(() => { state.courses[0].archived = false; state.preferences.academicYear = ''; state.preferences.academicTerm = ''; document.querySelector('#nav-all').click(); })()");
     await evaluate("(() => { const b = state.tasks.find(task => task.id === 'b'); const d = state.tasks.find(task => task.id === 'd'); window.__completionState = { b: { score: b.score, sourceComplete: b.sourceComplete, completedProblemCount: b.completedProblemCount }, d: { doneOverride: d.doneOverride } }; b.score = '100%'; b.sourceComplete = true; b.completedProblemCount = 6; d.doneOverride = true; document.querySelector('#nav-webwork').click(); })()");
     assert.equal(await evaluate("document.querySelector('.empty-state h2').textContent"), '所有任务均已完成');
     assert.equal(await evaluate("document.querySelector('.empty-state').textContent.includes('尚未开放')"), true);

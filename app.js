@@ -4,6 +4,7 @@ const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizePriority, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
   reviewCourseAccess, mergeRows, mergeWebworkRows, mergeGradescopeRows } = require('./lib/store');
+const { normalizeAcademicPeriod, inferAcademicPeriod } = require('./lib/academic-term');
 const { edgePath, activePort, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage, readGradescopePage } = require('./lib/browser');
 const { parseGradescopePage } = require('./lib/gradescope');
 const { NativeBrowserBridge } = require('./lib/native-browser');
@@ -32,7 +33,7 @@ const syncingCourseIds = new Set();
 let syncAllPromise = null;
 let sendingWechat = false;
 let sendingEmail = false;
-let autoSyncEnabled = state.courses.some(course => courseAccessConfirmed(course) && course.lastSyncedAt);
+let autoSyncEnabled = state.courses.some(course => !course.archived && courseAccessConfirmed(course) && course.lastSyncedAt);
 let server;
 let trayProcess = null;
 let startup = startupStatus();
@@ -121,7 +122,7 @@ async function syncCourse(courseId) {
         : mergeRows(state, courseId, page);
     markSyncSuccess(course);
     saveState(state);
-    autoSyncEnabled = true;
+    autoSyncEnabled = state.courses.some(item => !item.archived && courseAccessConfirmed(item) && item.lastSyncedAt);
     return count;
   } catch (error) {
     markSyncFailure(course, error);
@@ -135,6 +136,10 @@ async function syncCourse(courseId) {
 async function syncAllCourses({ automatic = false } = {}) {
   const results = [];
   for (const course of [...state.courses]) {
+    if (course.archived) {
+      results.push({ courseId: course.id, ok: true, skipped: true, archived: true, count: 0 });
+      continue;
+    }
     if (!courseAccessConfirmed(course)) {
       results.push({ courseId: course.id, ok: true, skipped: true, count: 0 });
       continue;
@@ -200,8 +205,8 @@ async function checkDailyWechat() {
     if (browserMode() === 'background' && (nativeBrowser && state.preferences?.browserEngine !== 'chrome' && state.preferences?.browserEngine !== 'edge' || await activePort())) {
       await startAllCoursesSync({ automatic: true });
     }
-    const confirmedIds = new Set(state.courses.filter(courseAccessConfirmed).map(course => course.id));
-    const digest = buildDailyDigest({ ...state, courses: state.courses.filter(courseAccessConfirmed),
+    const confirmedIds = new Set(state.courses.filter(course => !course.archived && courseAccessConfirmed(course)).map(course => course.id));
+    const digest = buildDailyDigest({ ...state, courses: state.courses.filter(course => confirmedIds.has(course.id)),
       tasks: state.tasks.filter(task => confirmedIds.has(task.courseId)) }, now, wechatConfig);
     await sendServerChan(wechatConfig.sendKey, digest.title, digest.desp);
     wechatConfig.lastSentDate = today;
@@ -396,6 +401,17 @@ async function handle(request, response) {
         state.preferences.onboardingDismissed = body.onboardingDismissed;
         changed = true;
       }
+      if (Object.hasOwn(body, 'academicYear') || Object.hasOwn(body, 'academicTerm')) {
+        const year = Object.hasOwn(body, 'academicYear') ? body.academicYear : state.preferences.academicYear;
+        const term = Object.hasOwn(body, 'academicTerm') ? body.academicTerm : state.preferences.academicTerm;
+        if (!(year === '' || typeof year === 'string' && /^20\d{2}$/.test(year)) ||
+            !['', 'W1', 'W2', 'WA', 'S1', 'S2', 'SA', 'unknown'].includes(term) || year && term === 'unknown') {
+          throw new Error('学年学期筛选无效。');
+        }
+        state.preferences.academicYear = year;
+        state.preferences.academicTerm = term;
+        changed = true;
+      }
       if (!changed) throw new Error('没有可保存的设置。');
       saveState(state);
       return json(response, 200, publicState());
@@ -503,7 +519,8 @@ async function handle(request, response) {
       if (state.courses.some(item => item.id === parsed.id)) throw new Error('这门课已经添加。');
       state.courses.push({ id: parsed.id, name: parsed.platform === 'webwork' ? `WeBWorK · ${parsed.instanceId}`
         : parsed.platform === 'gradescope' ? `Gradescope · ${parsed.instanceId}` : `课程 ${parsed.instanceId}`,
-        platform: parsed.platform, url: parsed.url, lastSyncedAt: null, lastSyncAttemptAt: null,
+        platform: parsed.platform, url: parsed.url, academicPeriod: inferAcademicPeriod(parsed.instanceId), academicPeriodManual: false, archived: false,
+        lastSyncedAt: null, lastSyncAttemptAt: null,
         lastSyncError: null, lastSyncErrorKind: null, ignoredSections: [], origin: 'user_added', accessConfirmedAt: new Date().toISOString() });
       saveState(state);
       return json(response, 200, publicState());
@@ -517,7 +534,7 @@ async function handle(request, response) {
         wechatConfig.disabledCourseIds = disabledCourseIds;
         saveConfig(wechatConfig);
       }
-      autoSyncEnabled = state.courses.some(course => courseAccessConfirmed(course) && course.lastSyncedAt);
+      autoSyncEnabled = state.courses.some(course => !course.archived && courseAccessConfirmed(course) && course.lastSyncedAt);
       return json(response, 200, { message: `已确认 ${result.kept} 门课程，移除 ${result.removed} 门未选择课程。`, state: publicState() });
     }
     if (request.method === 'DELETE' && url.pathname === '/api/course') {
@@ -529,6 +546,27 @@ async function handle(request, response) {
       for (const [id, personal] of Object.entries(state.taskPersonal)) {
         if (removedTaskIds.includes(id) || personal?.courseId === body.id) delete state.taskPersonal[id];
       }
+      saveState(state);
+      autoSyncEnabled = state.courses.some(course => !course.archived && courseAccessConfirmed(course) && course.lastSyncedAt);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/course/academic-period') {
+      const course = state.courses.find(item => item.id === body.courseId);
+      if (!course || !Object.hasOwn(body, 'academicPeriod') ||
+          body.academicPeriod !== null && normalizeAcademicPeriod(body.academicPeriod) !== body.academicPeriod) {
+        throw new Error('课程学期设置无效。');
+      }
+      course.academicPeriod = body.academicPeriod;
+      course.academicPeriodManual = true;
+      saveState(state);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/course/archive') {
+      if (typeof body.archived !== 'boolean' || !Array.isArray(body.courseIds) || !body.courseIds.length ||
+          body.courseIds.some(id => typeof id !== 'string') || new Set(body.courseIds).size !== body.courseIds.length ||
+          body.courseIds.some(id => !state.courses.some(course => course.id === id))) throw new Error('归档课程设置无效。');
+      for (const course of state.courses) if (body.courseIds.includes(course.id)) course.archived = body.archived;
+      autoSyncEnabled = state.courses.some(course => !course.archived && courseAccessConfirmed(course) && course.lastSyncedAt);
       saveState(state);
       return json(response, 200, publicState());
     }
@@ -707,7 +745,7 @@ server.listen(43873, '127.0.0.1', () => {
   startup = startupStatus();
   startTray();
   openDashboard();
-  const firstCourse = state.courses.find(course => courseAccessConfirmed(course) && course.lastSyncedAt);
+  const firstCourse = state.courses.find(course => !course.archived && courseAccessConfirmed(course) && course.lastSyncedAt);
   if (firstCourse) hideBrowser(firstCourse.url).catch(error => console.error(`后台浏览器启动失败：${error.message}`));
   updater.check().catch(error => console.error(`更新检查失败：${error.message}`));
 });
@@ -725,7 +763,7 @@ setInterval(() => { checkDailyEmail().catch(error => console.error(`邮件提醒
 setInterval(async () => {
   if (!autoSyncEnabled || syncingCourseIds.size) return;
   if (browserMode() === 'visible' && (nativeBrowser && state.preferences?.browserEngine !== 'chrome' && state.preferences?.browserEngine !== 'edge' || await activePort())) return;
-  const course = state.courses.find(item => courseAccessConfirmed(item) && item.lastSyncErrorKind !== 'login');
+  const course = state.courses.find(item => !item.archived && courseAccessConfirmed(item) && item.lastSyncErrorKind !== 'login');
   if (!course) return;
   try { await hideBrowser(course.url); }
   catch (error) { console.error(`后台浏览器恢复失败：${error.message}`); return; }

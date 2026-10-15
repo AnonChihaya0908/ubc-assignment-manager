@@ -30,6 +30,7 @@
     <nav class="app-rail" aria-label="主导航">
       <button id="nav-menu" class="rail-button menu-rail" type="button" aria-label="展开目录" aria-expanded="false" title="目录">☰</button>
       <button id="nav-all" class="rail-button active" type="button" aria-label="全部作业" title="全部作业"><span class="rail-context-mark all" aria-hidden="true"><span class="rail-grid"><i></i><i></i><i></i><i></i></span></span></button>
+      <button id="nav-dashboard" class="rail-button" type="button" aria-label="作业仪表盘" title="作业仪表盘"><span class="rail-context-mark all" aria-hidden="true">▥</span></button>
       <button id="nav-calendar" class="rail-button" type="button" aria-label="作业日历" title="作业日历"><span class="rail-context-mark calendar" aria-hidden="true"><span class="calendar-glyph"><i></i></span></span></button>
       <button id="nav-prairielearn" class="rail-button" type="button" aria-label="PrairieLearn 作业" title="PrairieLearn"><span class="rail-context-mark pl" aria-hidden="true">PL</span><span class="notification-dot" hidden></span></button>
       <button id="nav-webwork" class="rail-button" type="button" aria-label="WeBWorK 作业" title="WeBWorK"><span class="rail-context-mark ww" aria-hidden="true">W</span><span class="notification-dot" hidden></span></button>
@@ -40,6 +41,12 @@
     <aside class="folder-pane" aria-label="目录">
       <div id="work-navigation" class="folder-content">
         <div class="pane-heading"><h2>课程与来源</h2></div>
+        <div class="academic-filter">
+          <label for="academic-year">学年<select id="academic-year"><option value="">所有学年</option></select></label>
+          <label for="academic-term">学期<select id="academic-term"><option value="">所有学期</option></select></label>
+          <div class="academic-filter-actions"><button id="current-term" type="button">本学期</button><label><input id="show-archived" type="checkbox">显示归档</label></div>
+          <button id="archive-period" class="academic-archive-action" type="button" hidden>归档当前学期</button>
+        </div>
         <button id="all-folder" class="folder-link active" type="button"><span>全部作业</span><span id="all-count" class="folder-count"></span></button>
         <div class="folder-group">
           <button id="pl-folder" class="folder-group-heading" type="button"><span class="group-name"><span class="source-mark pl">PL</span>PrairieLearn<span class="notification-dot" hidden></span></span><span id="pl-count" class="folder-count"></span></button>
@@ -94,6 +101,10 @@
           <div class="page-meta"><span id="calendar-today-label"></span></div>
         </header>
         <div id="calendar-content" class="calendar-page-content"></div>
+      </section>
+      <section id="dashboard-page" class="page" hidden>
+        <header class="page-header"><div class="page-title"><p id="dashboard-breadcrumb" class="breadcrumb">概览 / 所有学期</p><h1>作业仪表盘</h1><p class="page-summary">掌握当前范围的任务、进度与课程负载。</p></div></header>
+        <div id="dashboard-content" class="dashboard-content"></div>
       </section>
       <aside id="task-inspector" class="task-inspector" aria-label="作业详情"><div class="inspector-heading">作业详情</div><div id="inspector-content" class="inspector-content"></div></aside>
       </div>
