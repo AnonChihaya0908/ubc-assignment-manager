@@ -12,7 +12,7 @@ function fixture() {
     state: {
       version: 1, notified: { private: true }, email: { password: 'fixture-email-app-password' },
       preferences: { requireManualCompletion: true, onboardingDismissed: true, language: 'en-US' },
-      courses: [{ id: courseId, platform: 'webwork', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/STAT_251?effectiveUser=PRIVATE123', ignoredSections: ['Practice'] }],
+      courses: [{ id: courseId, platform: 'webwork', name: 'STAT 251', url: 'https://webwork.elearning.ubc.ca/webwork2/STAT_251?effectiveUser=PRIVATE123', ignoredSections: ['Practice'], academicPeriod: '2026W1', academicPeriodManual: true, archived: true }],
       tasks: [{ id: 'abcdef0123456789abcdef01', courseId, name: 'Assignment-03', code: 'A03', section: '',
         url: 'https://webwork.elearning.ubc.ca/webwork2/STAT_251/Assignment-03?effectiveUser=PRIVATE123&token=secret',
         creditText: '', score: '80%', dueAt: '2026-10-09T06:59:00.000Z', opensAt: null, creditPercent: null,
@@ -47,6 +47,9 @@ test('exported backup restores managed data without credentials or personal quer
     courseId: restored.state.tasks[0].courseId, priority: 'low', note: '网站暂时隐藏时仍需保留。',
   });
   assert.deepEqual(restored.state.courses[0].ignoredSections, ['Practice']);
+  assert.equal(restored.state.courses[0].academicPeriod, '2026W1');
+  assert.equal(restored.state.courses[0].academicPeriodManual, true);
+  assert.equal(restored.state.courses[0].archived, true);
   assert.equal(restored.state.preferences.language, 'en-US');
   assert.equal(restored.state.courses[0].accessConfirmedAt, null);
   assert.equal(restored.state.courses[0].origin, 'backup');
@@ -66,6 +69,18 @@ test('unsupported and damaged backups fail validation before state replacement',
   backup.data.tasks[0].deadlineOverride = 'not-a-date';
   assert.throws(() => validateBackup(backup), /手动提醒时间无效/);
   assert.equal(JSON.stringify(state), current);
+});
+
+test('old backups infer known term codes and reject invalid new period metadata', () => {
+  const { state, config } = fixture();
+  const backup = createBackup(state, config);
+  backup.data.courses[0].name = 'STAT 251 2026W2';
+  delete backup.data.courses[0].academicPeriod;
+  delete backup.data.courses[0].academicPeriodManual;
+  delete backup.data.courses[0].archived;
+  assert.equal(validateBackup(backup).state.courses[0].academicPeriod, '2026W2');
+  backup.data.courses[0].academicPeriod = '2026X9';
+  assert.throws(() => validateBackup(backup), /课程学期无效/);
 });
 
 test('Gradescope grades and late due dates survive a backup without browser data', () => {

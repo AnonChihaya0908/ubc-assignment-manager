@@ -8,6 +8,7 @@ let wechatFormDirty = false;
 let emailFormDirty = false;
 let reminderFormDirty = false;
 let selectedTaskId = null;
+let showArchived = false;
 let searchTerm = '';
 let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let inspectorTasks = [];
@@ -87,6 +88,55 @@ function courseAccessConfirmed(course) {
 }
 
 function courseFor(task) { return state.courses.find(course => course.id === task.courseId); }
+const academicTerms = { W1: '冬季 · Term 1', W2: '冬季 · Term 2', WA: '冬季 · 全学期', S1: '夏季 · Term 1', S2: '夏季 · Term 2', SA: '夏季 · 全学期', unknown: '待分类' };
+function academicYearLabel(year) { return `${year}/${String(Number(year) + 1).slice(-2)}`; }
+function periodAcademicYear(code) { return code ? String(Number(code.slice(0, 4)) - (code[4] === 'S' ? 1 : 0)) : ''; }
+function currentAcademicPeriod(now = new Date()) {
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  return `${month <= 4 ? year - 1 : year}${month <= 4 ? 'W2' : month <= 6 ? 'S1' : month <= 8 ? 'S2' : 'W1'}`;
+}
+function periodLabel() {
+  const year = state.preferences?.academicYear || '';
+  const term = state.preferences?.academicTerm || '';
+  return [year ? academicYearLabel(year) : '所有学年', academicTerms[term] || '所有学期'].join(' · ');
+}
+function courseInPeriod(course) {
+  if (!showArchived && course.archived) return false;
+  const year = state.preferences?.academicYear || '';
+  const term = state.preferences?.academicTerm || '';
+  const code = course.academicPeriod || null;
+  if (year && periodAcademicYear(code) !== year) return false;
+  if (term === 'unknown') return !year && !code;
+  return !term || code?.slice(4) === term || ['W1', 'W2', 'S1', 'S2'].includes(term) && code?.slice(4) === `${term[0]}A`;
+}
+function filteredCourses() { return state.courses.filter(courseInPeriod); }
+function filteredTasks() {
+  const ids = new Set(filteredCourses().map(course => course.id));
+  return state.tasks.filter(task => ids.has(task.courseId));
+}
+function renderAcademicFilter() {
+  const year = $('academic-year');
+  const selectedYear = state.preferences?.academicYear || '';
+  const years = [...new Set(state.courses.map(course => periodAcademicYear(course.academicPeriod)).filter(Boolean))].sort().reverse();
+  year.replaceChildren(new Option('所有学年', ''));
+  for (const value of years) year.append(new Option(academicYearLabel(value), value));
+  if (selectedYear && !years.includes(selectedYear)) year.append(new Option(academicYearLabel(selectedYear), selectedYear));
+  year.value = selectedYear;
+  const term = $('academic-term');
+  term.replaceChildren(new Option('所有学期', ''));
+  for (const [code, label] of Object.entries(academicTerms)) {
+    if (code !== 'unknown' || !selectedYear) term.append(new Option(label, code));
+  }
+  term.value = state.preferences?.academicTerm || '';
+  $('show-archived').checked = showArchived;
+  const exactPeriod = selectedYear && state.preferences?.academicTerm && state.preferences.academicTerm !== 'unknown';
+  const periodCourses = exactPeriod ? state.courses.filter(course => periodAcademicYear(course.academicPeriod) === selectedYear &&
+    course.academicPeriod?.slice(4) === state.preferences.academicTerm) : [];
+  const archiveAction = $('archive-period');
+  archiveAction.hidden = !exactPeriod || !periodCourses.length;
+  archiveAction.textContent = periodCourses.every(course => course.archived) ? '恢复当前学期' : '归档当前学期';
+}
 function completionInfo(task) {
   const status = completionStatus(task);
   if (status.source === 'manual') return { ...status, label: status.complete ? '已完成' : '未完成', source: '用户手动设置' };
@@ -126,12 +176,13 @@ function localDateInput(iso) {
 function shortCourseName(course) {
   const name = course.name || '';
   const match = name.match(/\b([A-Z]{2,5})[_\s]*(?:V[_\s]*)?(\d{3})\b/i);
-  const term = name.match(/\b20\d{2}W[12]\b/i);
-  if (match) return `${match[1].toUpperCase()} ${match[2]}${term ? ` · ${term[0]}` : ''}`;
+  const term = course.academicPeriod || name.match(/\b20\d{2}[WS][12A]?\b/i)?.[0];
+  if (match) return `${match[1].toUpperCase()} ${match[2]}${term ? ` · ${term}` : ''}`;
   return name.length > 30 ? `${name.slice(0, 29)}…` : name;
 }
 
 function courseSyncStatus(course, now = Date.now()) {
+  if (course.archived) return { kind: 'archived', text: '已归档' };
   if (!courseAccessConfirmed(course)) return { kind: 'review', text: '等待确认课程归属' };
   if (state.syncingCourseIds?.includes(course.id)) return { kind: 'syncing', text: '正在同步…' };
   const syncedAt = Date.parse(course.lastSyncedAt || '');
@@ -147,7 +198,7 @@ function courseSyncStatus(course, now = Date.now()) {
 }
 
 function visibleTasks() {
-  let tasks = state.tasks;
+  let tasks = filteredTasks();
   if (selectedScope.startsWith('platform:')) {
     const platform = selectedScope.slice('platform:'.length);
     tasks = tasks.filter(task => coursePlatform(courseFor(task)) === platform);
@@ -164,16 +215,18 @@ function visibleTasks() {
 function setDot(element, show) { element.hidden = !show; }
 
 function renderFolders() {
-  const workRoute = !location.hash.startsWith('#settings') && !location.hash.startsWith('#calendar');
-  const allPending = state.tasks.filter(task => needsAttention(task)).length;
+  renderAcademicFilter();
+  const workRoute = !location.hash.startsWith('#settings') && !location.hash.startsWith('#calendar') && !location.hash.startsWith('#dashboard');
+  const allPending = filteredTasks().filter(task => needsAttention(task)).length;
   $('all-count').textContent = allPending || '';
   $('all-folder').classList.toggle('active', workRoute && selectedScope === 'all');
   $('nav-all').classList.toggle('active', workRoute && selectedScope === 'all');
   $('nav-calendar').classList.toggle('active', location.hash.startsWith('#calendar'));
+  $('nav-dashboard').classList.toggle('active', location.hash.startsWith('#dashboard'));
   for (const platform of Object.keys(platformFolders)) {
     const [countId, railId, groupId, containerId] = platformFolders[platform];
-    const courses = state.courses.filter(course => coursePlatform(course) === platform);
-    const tasks = state.tasks.filter(task => coursePlatform(courseFor(task)) === platform);
+    const courses = filteredCourses().filter(course => coursePlatform(course) === platform);
+    const tasks = filteredTasks().filter(task => coursePlatform(courseFor(task)) === platform);
     const hasPending = tasks.some(task => needsAttention(task));
     $(countId).textContent = tasks.filter(task => needsAttention(task)).length || '';
     const rail = $(railId);
@@ -199,7 +252,7 @@ function renderFolders() {
       name.dataset.i18nSkip = '';
       button.append(name);
       const dot = node('span', 'notification-dot');
-      const pendingCount = state.tasks.filter(task => task.courseId === course.id && needsAttention(task)).length;
+      const pendingCount = tasks.filter(task => task.courseId === course.id && needsAttention(task)).length;
       dot.hidden = pendingCount === 0;
       button.append(dot);
       button.append(node('span', 'course-count', pendingCount || ''));
@@ -430,7 +483,7 @@ function renderCalendar(tasks, container) {
 }
 
 function renderCalendarPage() {
-  const tasks = state.tasks.filter(task => !searchTerm || [task.name, task.code, task.section, courseFor(task)?.name, platformNames[coursePlatform(courseFor(task))]]
+  const tasks = filteredTasks().filter(task => !searchTerm || [task.name, task.code, task.section, courseFor(task)?.name, platformNames[coursePlatform(courseFor(task))]]
     .filter(Boolean).some(value => value.toLocaleLowerCase().includes(searchTerm)));
   $('calendar-breadcrumb').textContent = `日历 / ${new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long' }).format(calendarCursor)}`;
   $('calendar-today-label').textContent = new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
@@ -440,6 +493,112 @@ function renderCalendarPage() {
   container.replaceChildren();
   renderCalendar(tasks, container);
   renderSelection();
+}
+
+function dashboardMetric(value, label, kind = '') {
+  const tile = node('div', `dashboard-metric ${kind}`);
+  tile.append(node('strong', '', String(value)), node('span', '', label));
+  return tile;
+}
+
+function renderDashboardPage() {
+  const tasks = filteredTasks().filter(task => categoryOf(task) !== 'ignored');
+  const courses = filteredCourses();
+  const now = Date.now();
+  const pending = tasks.filter(task => needsAttention(task));
+  const done = tasks.filter(task => categoryOf(task) === 'done');
+  const future = tasks.filter(task => categoryOf(task) === 'future');
+  const weekDue = pending.filter(task => { const due = Date.parse(dueOf(task) || ''); return due >= now && due < now + 7 * 86400000; });
+  $('dashboard-breadcrumb').textContent = `概览 / ${periodLabel()}`;
+  const root = $('dashboard-content');
+  root.replaceChildren();
+  const context = node('div', 'dashboard-period-context', `当前范围：${periodLabel()} · ${courses.length} 门课程`);
+  const manage = node('button', 'secondary-button', '管理学期');
+  manage.type = 'button';
+  manage.addEventListener('click', () => navigateSettings('courses'));
+  context.append(manage);
+  const main = node('div', 'dashboard-main');
+  const metrics = node('div', 'dashboard-metrics');
+  metrics.append(dashboardMetric(pending.length, '需处理', 'attention'), dashboardMetric(weekDue.length, '本周截止'),
+    dashboardMetric(future.length, '将开放'), dashboardMetric(done.length, '已完成'));
+  main.append(metrics);
+  const chart = node('section', 'dashboard-panel');
+  chart.append(node('h2', '', '未来 14 天截止分布'));
+  const bars = node('div', 'dashboard-bars');
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const daily = Array.from({ length: 14 }, (_, offset) => {
+    const start = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + offset).getTime();
+    const end = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + offset + 1).getTime();
+    return pending.filter(task => { const due = Date.parse(dueOf(task) || ''); return due >= start && due < end; });
+  });
+  const max = Math.max(1, ...daily.map(items => items.length));
+  for (let index = 0; index < 14; index++) {
+    const day = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + index);
+    const column = node('div', 'dashboard-bar-column');
+    const stack = node('div', 'dashboard-bar-stack');
+    stack.style.height = `${Math.max(2, daily[index].length / max * 100)}%`;
+    for (const platform of Object.keys(platformFolders)) {
+      const count = daily[index].filter(task => coursePlatform(courseFor(task)) === platform).length;
+      if (!count) continue;
+      const segment = node('span', `dashboard-bar-segment ${platform}`);
+      segment.style.flex = String(count);
+      stack.append(segment);
+    }
+    column.title = `${new Intl.DateTimeFormat(i18n.locale(), { month: 'numeric', day: 'numeric' }).format(day)} · ${daily[index].length} 项`;
+    column.append(stack, node('small', '', new Intl.DateTimeFormat(i18n.locale(), { month: 'numeric', day: 'numeric' }).format(day)));
+    bars.append(column);
+  }
+  chart.append(bars); main.append(chart);
+  const status = node('section', 'dashboard-panel dashboard-status');
+  status.append(node('h2', '', '任务状态'));
+  const statusBody = node('div', 'dashboard-status-body');
+  const history = tasks.filter(task => categoryOf(task) === 'history');
+  const open = tasks.filter(task => categoryOf(task) === 'pending');
+  const total = Math.max(1, tasks.length);
+  const doneEnd = done.length / total * 100;
+  const pendingEnd = doneEnd + open.length / total * 100;
+  const futureEnd = pendingEnd + future.length / total * 100;
+  const donut = node('div', 'dashboard-donut');
+  donut.style.background = `conic-gradient(#69b68b 0 ${doneEnd}%, #e49763 ${doneEnd}% ${pendingEnd}%, #838893 ${pendingEnd}% ${futureEnd}%, #545965 ${futureEnd}% 100%)`;
+  donut.append(node('span', '', String(tasks.length)));
+  const legend = node('div', 'dashboard-status-legend');
+  for (const [kind, label, count] of [['done', '已完成', done.length], ['pending', '待完成', open.length],
+    ['future', '将开放', future.length], ['history', '已过日期', history.length]]) {
+    const item = node('div', kind); item.append(node('span', '', label), node('strong', '', String(count))); legend.append(item);
+  }
+  statusBody.append(donut, legend); status.append(statusBody); main.append(status);
+  const workload = node('section', 'dashboard-panel');
+  workload.append(node('h2', '', '课程任务负载'));
+  for (const course of courses) {
+    const items = tasks.filter(task => task.courseId === course.id);
+    const row = node('div', 'dashboard-workload-row');
+    row.append(sourceMark(coursePlatform(course)), node('span', 'dashboard-course-name', shortCourseName(course)));
+    const track = node('div', 'dashboard-progress');
+    for (const [kind, count] of [['done', items.filter(task => categoryOf(task) === 'done').length],
+      ['pending', items.filter(task => categoryOf(task) === 'pending').length],
+      ['future', items.filter(task => categoryOf(task) === 'future').length],
+      ['history', items.filter(task => categoryOf(task) === 'history').length]]) {
+      if (count) { const part = node('span', kind); part.style.flex = String(count); track.append(part); }
+    }
+    row.append(track, node('span', '', `${items.filter(task => categoryOf(task) === 'done').length} / ${items.length}`));
+    workload.append(row);
+  }
+  if (!courses.length) workload.append(node('p', 'form-note', '当前学期没有课程，可在课程设置中分类。'));
+  main.append(workload);
+  const sidebar = node('aside', 'dashboard-highlights');
+  sidebar.append(node('h2', '', '近期重点'));
+  const highlights = [...weekDue].sort((a, b) => Date.parse(dueOf(a)) - Date.parse(dueOf(b))).slice(0, 4);
+  if (!highlights.length) sidebar.append(node('p', 'form-note', '未来七天没有待完成的作业。'));
+  for (const task of highlights) {
+    const item = node('button', 'dashboard-highlight');
+    item.type = 'button';
+    item.append(sourceMark(coursePlatform(courseFor(task))), node('span', '', `${task.name} · ${formatDate(dueOf(task))}`));
+    item.addEventListener('click', () => { selectedTaskId = task.id; navigateWork(`course:${task.courseId}`); selectedTab = 'all'; render(); });
+    sidebar.append(item);
+  }
+  sidebar.append(node('h2', '', '最近完成'));
+  for (const task of done.slice(-3).reverse()) sidebar.append(node('div', 'dashboard-highlight static', `${task.name} · ${shortCourseName(courseFor(task))}`));
+  root.append(context, main, sidebar);
 }
 
 function sortTasks(tasks, category = selectedTab) {
@@ -600,12 +759,12 @@ function renderSelection() {
   renderInspector();
 }
 
-function renderToolbarContext(settings, calendar = false) {
+function renderToolbarContext(settings, calendar = false, dashboard = false) {
   const course = selectedScope.startsWith('course:') ? state.courses.find(item => item.id === selectedScope.slice(7)) : null;
   const platform = course ? coursePlatform(course) : selectedScope.startsWith('platform:') ? selectedScope.slice('platform:'.length) : null;
-  const context = settings ? 'settings' : calendar ? 'calendar' : platform || 'all';
-  const labels = { all: '全部作业', calendar: '作业日历', prairielearn: 'PrairieLearn', webwork: 'WeBWorK', gradescope: 'Gradescope', settings: '设置' };
-  const marks = { prairielearn: 'PL', webwork: 'W', gradescope: 'G', settings: 'ST' };
+  const context = settings ? 'settings' : calendar ? 'calendar' : dashboard ? 'dashboard' : platform || 'all';
+  const labels = { all: '全部作业', calendar: '作业日历', dashboard: '作业仪表盘', prairielearn: 'PrairieLearn', webwork: 'WeBWorK', gradescope: 'Gradescope', settings: '设置' };
+  const marks = { prairielearn: 'PL', webwork: 'W', gradescope: 'G', dashboard: 'DB', settings: 'ST' };
   const toolbar = document.querySelector('.window-toolbar');
   const rail = document.querySelector('.app-rail');
   const mark = $('toolbar-scope-mark');
@@ -663,10 +822,11 @@ function renderWork() {
     const hasSuccessfulSync = state.courses.some(item => item.lastSyncedAt);
     const allCurrentComplete = selectedTab === 'pending' && !searchTerm && pendingCount === 0 && recentDone.length > 0;
     const futureCount = tasks.filter(task => categoryOf(task) === 'future').length;
-    const title = !state.courses.length ? '还没有课程' : !hasSuccessfulSync ? '还没有完成首次同步' : state.tasks.length === 0 ? '同步完成，但没有发现可见作业' :
+    const title = !state.courses.length ? '还没有课程' : !filteredCourses().length ? '当前范围没有课程' : !hasSuccessfulSync ? '还没有完成首次同步' : state.tasks.length === 0 ? '同步完成，但没有发现可见作业' :
       allCurrentComplete ? '所有任务均已完成' : searchTerm ? '没有匹配的作业' : selectedTab !== 'all' ? '当前分类暂无作业' : '暂无作业';
     empty.append(node('h2', '', title));
     const description = !state.courses.length ? '添加 PrairieLearn、WeBWorK 或 Gradescope 课程，即可开始。' :
+      !filteredCourses().length ? '请选择其他学年或学期，或在课程设置中调整分类。' :
       !hasSuccessfulSync ? '请打开专用登录窗口，完成学校登录并停留在作业列表页，然后返回应用同步。' :
       state.tasks.length === 0 ? '连接已经成功，但课程页面目前没有可见作业。可检查页面内容和登录状态后再次同步。' :
       allCurrentComplete ? futureCount ? `当前已开放的任务都已完成；另有 ${futureCount} 项尚未开放，可在“将开放”中查看。` : '当前课程的任务均已完成。' :
@@ -810,7 +970,45 @@ function renderSettings() {
     const syncStatus = courseSyncStatus(course);
     const syncLine = node('small', `course-sync-status ${syncStatus.kind}`, `${platformNames[coursePlatform(course)]} · ${syncStatus.text}`);
     description.append(syncLine);
+    const periodControls = node('div', 'course-period-controls');
+    const periodYear = document.createElement('select');
+    periodYear.setAttribute('aria-label', `${course.name} 学年起始年`);
+    periodYear.append(new Option('待分类', ''));
+    const currentYear = new Date().getFullYear();
+    for (let year = currentYear + 2; year >= currentYear - 12; year--) periodYear.append(new Option(String(year), String(year)));
+    if (course.academicPeriod && ![...periodYear.options].some(option => option.value === course.academicPeriod.slice(0, 4))) {
+      periodYear.append(new Option(course.academicPeriod.slice(0, 4), course.academicPeriod.slice(0, 4)));
+    }
+    periodYear.value = course.academicPeriod?.slice(0, 4) || '';
+    const periodTerm = document.createElement('select');
+    periodTerm.setAttribute('aria-label', `${course.name} 学期`);
+    for (const [code, label] of Object.entries(academicTerms)) if (code !== 'unknown') periodTerm.append(new Option(label, code));
+    periodTerm.value = course.academicPeriod?.slice(4) || 'W1';
+    const savePeriod = async () => {
+      try {
+        state = await api('/api/course/academic-period', 'PATCH', {
+          courseId: course.id, academicPeriod: periodYear.value ? `${periodYear.value}${periodTerm.value}` : null,
+        });
+        render();
+        message('课程学期已保存。');
+      } catch (error) { message(error.message, true); render(); }
+    };
+    periodYear.addEventListener('change', savePeriod);
+    periodTerm.addEventListener('change', savePeriod);
+    periodControls.append(node('span', '', '学期'), periodYear, periodTerm);
+    description.append(periodControls);
+    if (course.archived) description.append(node('small', 'course-archived-label', '已归档 · 自动同步和提醒已暂停'));
     const actions = node('div', 'settings-course-actions');
+    const archive = node('button', 'course-action', course.archived ? '恢复' : '归档');
+    archive.type = 'button';
+    archive.setAttribute('aria-label', `${course.archived ? '恢复' : '归档'} ${course.name}`);
+    archive.addEventListener('click', async () => {
+      if (!course.archived && !confirm(i18n.translate(`归档 ${course.name}？该课程将停止自动同步和提醒，历史记录仍会保留。`))) return;
+      try {
+        state = await api('/api/course/archive', 'PATCH', { courseIds: [course.id], archived: !course.archived });
+        render();
+      } catch (error) { message(error.message, true); }
+    });
     const login = node('button', 'course-action', course.lastSyncErrorKind === 'login' ? '重新登录' : '打开登录');
     login.type = 'button';
     login.disabled = !courseAccessConfirmed(course);
@@ -849,7 +1047,7 @@ function renderSettings() {
         render();
       } catch (error) { message(error.message, true); }
     });
-    actions.append(login, retry, remove);
+    actions.append(login, retry, archive, remove);
     row.append(description, actions);
     const sectionMap = new Map();
     for (const value of [...state.tasks.filter(task => task.courseId === course.id).map(task => task.section), ...(course.ignoredSections || [])]) {
@@ -1032,26 +1230,32 @@ function render() {
   if (selectedScope.startsWith('course:') && !state.courses.some(course => course.id === selectedScope.slice(7))) selectedScope = 'all';
   const settings = location.hash.startsWith('#settings');
   const calendar = location.hash.startsWith('#calendar');
+  const dashboard = location.hash.startsWith('#dashboard');
   document.body.classList.toggle('settings-view', settings);
+  document.body.classList.toggle('dashboard-view', dashboard);
   $('work-layout').hidden = settings;
-  $('work-page').hidden = settings || calendar;
+  $('work-page').hidden = settings || calendar || dashboard;
   $('calendar-page').hidden = settings || !calendar;
+  $('dashboard-page').hidden = settings || !dashboard;
+  $('task-inspector').hidden = dashboard;
   $('settings-page').hidden = !settings;
   $('work-navigation').hidden = settings;
   $('settings-navigation').hidden = !settings;
   $('nav-settings').classList.toggle('active', settings);
-  renderToolbarContext(settings, calendar);
+  renderToolbarContext(settings, calendar, dashboard);
   renderFolders();
   if (calendar) renderCalendarPage();
+  else if (dashboard) renderDashboardPage();
   else if (!settings) renderWork();
   renderSettings();
   renderOnboarding();
   showCourseAccessReview();
-  const last = state.courses.map(course => course.lastSyncedAt).filter(Boolean).sort().at(-1);
-  const failures = state.courses.filter(course => course.lastSyncError).length;
-  const stale = state.courses.filter(course => ['stale', 'never'].includes(courseSyncStatus(course).kind)).length;
+  const activeCourses = state.courses.filter(course => !course.archived);
+  const last = activeCourses.map(course => course.lastSyncedAt).filter(Boolean).sort().at(-1);
+  const failures = activeCourses.filter(course => course.lastSyncError).length;
+  const stale = activeCourses.filter(course => ['stale', 'never'].includes(courseSyncStatus(course).kind)).length;
   $('sync-status').textContent = state.syncing ? '正在同步' : failures ? `${failures} 门课程同步失败` : stale ? `${stale} 门课程数据需要更新` : last ? `上次同步：${formatDate(last)}` : '尚未同步';
-  $('sync').disabled = state.syncing || !state.courses.some(courseAccessConfirmed);
+  $('sync').disabled = state.syncing || !activeCourses.some(courseAccessConfirmed);
   $('footer-sync').textContent = state.syncing ? '正在同步' : failures ? `${failures} 门同步失败` : stale ? `${stale} 门数据可能过旧` : last ? `上次同步 ${formatDate(last)}` : '尚未同步';
   $('footer-sync').title = state.courses.filter(course => course.lastSyncError).map(course => `${shortCourseName(course)}：${course.lastSyncError}`).join('；');
   $('footer-sync').classList.toggle('error', failures > 0);
@@ -1107,8 +1311,17 @@ function navigateWork(scope) {
   closeMobileMenu();
 }
 
-window.UBC_OPEN_TASK = taskId => {
-  if (!state || !state.tasks.some(task => task.id === taskId)) return;
+window.UBC_OPEN_TASK = async taskId => {
+  const task = state?.tasks.find(item => item.id === taskId);
+  if (!task) return;
+  const course = courseFor(task);
+  if (course && !courseInPeriod(course)) {
+    showArchived = showArchived || course.archived;
+    state.preferences.academicYear = '';
+    state.preferences.academicTerm = '';
+    try { state = await api('/api/preferences', 'PATCH', { academicYear: '', academicTerm: '' }); }
+    catch { /* Keep the visible scope open even if saving the filter fails. */ }
+  }
   selectedScope = 'all';
   selectedTab = 'all';
   selectedTaskId = taskId;
@@ -1135,6 +1348,13 @@ function navigateCalendar() {
   const today = new Date();
   calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1);
   if (location.hash !== '#calendar') location.hash = 'calendar';
+  render();
+  closeMobileMenu();
+}
+
+function navigateDashboard() {
+  selectedScope = 'all';
+  if (location.hash !== '#dashboard') location.hash = 'dashboard';
   render();
   closeMobileMenu();
 }
@@ -1167,7 +1387,42 @@ function routeFromHash() {
 }
 
 $('nav-all').addEventListener('click', () => navigateWork('all'));
+$('nav-dashboard').addEventListener('click', navigateDashboard);
 $('nav-calendar').addEventListener('click', navigateCalendar);
+$('academic-year').addEventListener('change', async event => {
+  try {
+    state = await api('/api/preferences', 'PATCH', { academicYear: event.target.value,
+      academicTerm: event.target.value && state.preferences.academicTerm === 'unknown' ? '' : state.preferences.academicTerm });
+    selectedScope = 'all'; render();
+  } catch (error) { message(error.message, true); render(); }
+});
+$('academic-term').addEventListener('change', async event => {
+  try {
+    state = await api('/api/preferences', 'PATCH', { academicTerm: event.target.value });
+    selectedScope = 'all'; render();
+  } catch (error) { message(error.message, true); render(); }
+});
+$('current-term').addEventListener('click', async () => {
+  const code = currentAcademicPeriod();
+  try {
+    state = await api('/api/preferences', 'PATCH', { academicYear: periodAcademicYear(code), academicTerm: code.slice(4) });
+    selectedScope = 'all'; render();
+  } catch (error) { message(error.message, true); }
+});
+$('show-archived').addEventListener('change', event => { showArchived = event.target.checked; selectedScope = 'all'; render(); });
+$('archive-period').addEventListener('click', async () => {
+  const year = state.preferences?.academicYear;
+  const term = state.preferences?.academicTerm;
+  if (!year || !term || term === 'unknown') return;
+  const courses = state.courses.filter(course => periodAcademicYear(course.academicPeriod) === year && course.academicPeriod?.slice(4) === term);
+  if (!courses.length) return;
+  const archived = !courses.every(course => course.archived);
+  if (archived && !confirm(i18n.translate(`归档 ${periodLabel()} 的 ${courses.length} 门课程？自动同步和提醒将暂停，历史记录仍会保留。`))) return;
+  try {
+    state = await api('/api/course/archive', 'PATCH', { courseIds: courses.map(course => course.id), archived });
+    render();
+  } catch (error) { message(error.message, true); }
+});
 $('nav-prairielearn').addEventListener('click', () => navigateWork('platform:prairielearn'));
 $('nav-webwork').addEventListener('click', () => navigateWork('platform:webwork'));
 $('nav-gradescope').addEventListener('click', () => navigateWork('platform:gradescope'));

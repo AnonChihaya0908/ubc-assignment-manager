@@ -85,6 +85,8 @@ test('daily digest contains actionable assignments and does not include private 
   const filtered = buildDailyDigest(state, now, { disabledCourseIds: ['c1'] });
   assert.equal(filtered.count, 0);
   assert.doesNotMatch(filtered.desp, /Assignment-03/);
+  state.courses[0].archived = true;
+  assert.equal(buildDailyDigest(state, now).count, 0);
 });
 
 test('ignored category is removed only from its course digest', () => {
