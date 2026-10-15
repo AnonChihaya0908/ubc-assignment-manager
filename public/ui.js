@@ -624,11 +624,19 @@ function examStatusLabel(exam) {
   return { unreserved: '待预约', reserved: '已预约', ended: '已结束', cancelled: '已取消' }[examCategory(exam) === 'ended' && exam.status === 'cancelled' ? 'cancelled' : examCategory(exam)] || '未知';
 }
 function visibleExams() {
-  return (state.exams || []).filter(exam => !exam.linkedExamId && (showArchivedExams || !exam.archived));
+  const latestSync = Date.parse(state.prairieTest?.lastSyncedAt || '');
+  return (state.exams || []).filter(exam => !exam.linkedExamId && (showArchivedExams ||
+    !exam.archived && (exam.source !== 'prairietest' || !Number.isFinite(latestSync) ||
+      Date.parse(exam.lastSyncedAt || '') >= latestSync)));
 }
 function examLocalTime(value) {
   if (!value) return '尚未公布';
-  return `${formatDate(value)} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+  const date = new Date(value);
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const minutes = -date.getTimezoneOffset();
+  const sign = minutes < 0 ? '-' : '+';
+  const offset = `UTC${sign}${String(Math.floor(Math.abs(minutes) / 60)).padStart(2, '0')}:${String(Math.abs(minutes) % 60).padStart(2, '0')}`;
+  return `${formatDate(value)} · ${zone || offset}`;
 }
 function examSourceTime(exam) {
   if (!exam.startsAt || !exam.sourceTimeZone) return '未提供';

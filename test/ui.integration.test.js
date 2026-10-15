@@ -308,6 +308,15 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#work-navigation').hidden"), true);
     assert.equal(await evaluate("document.querySelector('#exam-count-unreserved').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('CPSC 421 Midterm')"), true);
+    await evaluate("(() => { const current = '2026-10-15T12:00:00Z'; const old = '2026-10-14T12:00:00Z'; state.prairieTest = { lastSyncedAt: current }; state.exams.push({ id: 'prairietest:booked', source: 'prairietest', title: 'TEST 123 Quiz 3', courseName: 'TEST 123', status: 'reserved', startsAt: '2026-10-31T21:00:00Z', lastSyncedAt: current, archived: false }, { id: 'prairietest:old-action', source: 'prairietest', title: 'Make a reservation', courseName: 'TEST 123', status: 'unreserved', lastSyncedAt: old, archived: false }); renderExamPage(); })()");
+    assert.equal(await evaluate("document.querySelector('#exam-count-all').textContent"), '2');
+    assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('TEST 123 Quiz 3')"), true);
+    assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('Make a reservation')"), false);
+    const localTimeWithoutZone = await evaluate("(() => { const original = Intl.DateTimeFormat.prototype.resolvedOptions; Intl.DateTimeFormat.prototype.resolvedOptions = function() { return { ...original.call(this), timeZone: undefined }; }; try { return examLocalTime('2026-10-31T21:00:00Z'); } finally { Intl.DateTimeFormat.prototype.resolvedOptions = original; } })()");
+    assert.match(localTimeWithoutZone, /UTC[+-]\d{2}:\d{2}$/);
+    await evaluate("(() => { document.querySelector('#show-archived-exams').click(); })()");
+    assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('Make a reservation')"), true);
+    await evaluate("(() => { document.querySelector('#show-archived-exams').click(); state.exams = state.exams.filter(exam => exam.source !== 'prairietest'); state.prairieTest = {}; renderExamPage(); })()");
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.sync-dock')).display"), 'none');
     await evaluate("document.querySelector('#add-exam').click()");
     assert.equal(await evaluate("document.querySelector('#exam-dialog').open"), true);
