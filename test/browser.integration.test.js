@@ -56,7 +56,7 @@ const prairieTestFixture = `<!doctype html><title>PrairieTest Home</title>
 <section><h2>Exams available for reservation</h2><article data-exam-id="123"><a href="/pt/exams/123">CPSC 421 Midterm</a><p>Reserve now</p></article></section>
 <section><h2>Current and future exam reservations</h2><article data-exam-id="456"><a href="/pt/exams/456">STAT 251 Final</a><p>Your reservation</p><time datetime="2026-12-10T10:00:00-08:00">Exam starts</time></article></section>
 <div class="card"><div class="card-header">Exams available for reservations</div><div>You don't currently have any exams available for reservations.</div></div>
-<div class="card"><div class="card-header">Exam reservations</div><div class="row"><div><a href="/pt/exam_reservations/789">TEST 123 (2026W1): Practice Quiz</a></div><div>Mon, Oct 19, 2pm (PDT)</div><div>ORCA: Room 100</div><div>50min, In-person, No accommodations</div></div></div>
+<div class="card"><div class="card-header">Exam reservations</div><div class="d-flex"><div><a href="/pt/student/reservation/789">TEST 123 (2026W1): Practice Quiz</a></div><div><time datetime="2026-10-19T14:00:00.000-07:00">Mon, Oct 19, 2pm (PDT)</time></div><div>ORCA: Room 100</div><div>50min, In-person, No accommodations</div></div><div class="d-flex"><div><a href="/pt/exam_reservations/790">TEST 456 (2026W1): Other Quiz</a></div><div>Tue, Oct 20, 3pm (PDT)</div></div></div>
 <div class="card"><div class="card-header">Testing center availability</div><a href="/pt/testing_centers/10">ORCA (2026W1): UBC ORCA</a></div>`;
 
 test('browser work is cancelled when the sync deadline expires', async () => {
@@ -110,14 +110,23 @@ test('dedicated background Edge keeps a headless session for both course sources
       examPage = (await browser.cdp(target.webSocketDebuggerUrl, 'Runtime.evaluate', {
         expression: EXTRACT_PRAIRIETEST_PAGE, returnByValue: true,
       })).result.value;
-      if (examPage?.rows?.length === 3) break;
+      if (examPage?.rows?.length === 4) break;
       await sleep(100);
     }
     assert.equal(examPage.hasExamSections, true);
-    assert.deepEqual(examPage.rows.map(row => row.examId), ['123', '456', '']);
+    assert.deepEqual(examPage.rows.map(row => row.examId), ['123', '456', '', '']);
     assert.equal(examPage.rows[1].times[0].datetime, '2026-12-10T10:00:00-08:00');
     assert.equal(examPage.rows[2].section, 'Exam reservations');
     assert.match(examPage.rows[2].text, /Oct 19, 2pm \(PDT\)/);
+    assert.equal(examPage.rows[2].times[0].datetime, '2026-10-19T14:00:00.000-07:00');
+    assert.doesNotMatch(examPage.rows[2].text, /Oct 20/);
+    assert.match(examPage.rows[3].text, /Oct 20, 3pm \(PDT\)/);
+    const parsedExams = require('../lib/prairietest').parsePrairieTestPage({ ...examPage,
+      pageUrl: 'https://us.prairietest.com/pt/',
+      rows: examPage.rows.map(row => ({ ...row, url: row.url.replace(base, 'https://us.prairietest.com') })),
+    });
+    assert.equal(parsedExams.find(row => row.title.includes('Practice Quiz')).startsAt, '2026-10-19T21:00:00.000Z');
+    assert.equal(parsedExams.find(row => row.title.includes('Other Quiz')).startsAt, '2026-10-20T22:00:00.000Z');
     assert.equal(examPage.noExams, false);
     assert.equal(await browser.hideBrowser(webworkUrl), port);
     await browser.closeBrowser();
