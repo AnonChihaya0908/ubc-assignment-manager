@@ -302,6 +302,17 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
       fs.writeFileSync(process.env.UI_DASHBOARD_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
     }
+    await evaluate("(() => { state.exams = [{ id: 'manual:fixture', source: 'manual', title: 'CPSC 421 Midterm', courseName: 'CPSC 421', status: 'unreserved', startsAt: null, reservationDeadline: null, archived: false, linkedExamId: null, createdAt: new Date().toISOString() }]; document.querySelector('#nav-exams').click(); })()");
+    assert.equal(await evaluate("document.querySelector('#exam-page').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#exam-navigation').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#work-navigation').hidden"), true);
+    assert.equal(await evaluate("document.querySelector('#exam-count-unreserved').textContent"), '1');
+    assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('CPSC 421 Midterm')"), true);
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.sync-dock')).display"), 'none');
+    await evaluate("document.querySelector('#add-exam').click()");
+    assert.equal(await evaluate("document.querySelector('#exam-dialog').open"), true);
+    await evaluate("document.querySelector('#exam-cancel').click()");
+    await evaluate("document.querySelector('#nav-dashboard').click()");
     await resizeViewport(680, 800);
     assert.equal(await evaluate("document.querySelector('#dashboard-page').scrollWidth <= document.querySelector('#dashboard-page').clientWidth"), true);
     await resizeViewport(1440, 810);
@@ -523,6 +534,10 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       await sleep(100);
     }
     assert.equal(fixtureState.email.connected, true);
+    for (let i = 0; i < 20; i++) {
+      if (await evaluate("document.querySelector('#email-password').value === ''")) break;
+      await sleep(50);
+    }
     assert.equal(await evaluate("document.querySelector('#email-password').value"), '');
     assert.equal(await evaluate("document.querySelector('#email-test').disabled"), false);
     assert.equal(JSON.stringify(fixtureState).includes('fixture-app-password'), false);
@@ -621,6 +636,10 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     await evaluate("state.tasks.find(task => task.id === 'e').name = '作业日历'; render()");
     assert.equal(await evaluate("document.querySelector('[data-task-id=e] .assignment-title').textContent"), '作业日历');
     await evaluate("state.tasks.find(task => task.id === 'e').name = '复习作业'; render()");
+    await evaluate("(() => { state.exams = [{ id: 'manual:fixture', source: 'manual', title: 'CPSC 421 Midterm', courseName: 'CPSC 421', status: 'unreserved', startsAt: null, reservationDeadline: null, archived: false, linkedExamId: null, createdAt: new Date().toISOString() }]; document.querySelector('#nav-exams').click(); })()");
+    assert.equal(await evaluate("document.querySelector('#exam-page h1').textContent"), 'Exam reminders');
+    assert.equal(await evaluate("document.querySelector('#exam-count-unreserved').textContent"), '1');
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#exam-page *,#exam-navigation *')].filter(e => e.children.length === 0 && /[\\u3400-\\u9fff]/.test(e.textContent || '')).map(e => e.textContent.trim()).filter(Boolean)"), []);
     const englishDate = await evaluate("formatDate('2026-10-08T22:00:00.000Z')");
     await evaluate("document.querySelector('#nav-calendar').click()");
     assert.deepEqual(await evaluate("[...document.querySelectorAll('#calendar-page *')].filter(e => e.children.length === 0 && /[\\u3400-\\u9fff]/.test(e.textContent || '')).map(e => e.textContent.trim()).filter(Boolean)"), []);

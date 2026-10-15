@@ -5,7 +5,9 @@ const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizePriority, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
   reviewCourseAccess, mergeRows, mergeWebworkRows, mergeGradescopeRows } = require('./lib/store');
 const { normalizeAcademicPeriod, inferAcademicPeriod } = require('./lib/academic-term');
-const { edgePath, activePort, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage, readGradescopePage } = require('./lib/browser');
+const { edgePath, activePort, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage, readGradescopePage, readPrairieTestPage } = require('./lib/browser');
+const { PRAIRIETEST_HOME, validateExam, mergePrairieTestExams, normalizeExamLeads, examReminderEvents } = require('./lib/exams');
+const { parsePrairieTestPage } = require('./lib/prairietest');
 const { parseGradescopePage } = require('./lib/gradescope');
 const { NativeBrowserBridge } = require('./lib/native-browser');
 const { parseCopiedTable } = require('./lib/paste');
@@ -33,6 +35,7 @@ const syncingCourseIds = new Set();
 let syncAllPromise = null;
 let sendingWechat = false;
 let sendingEmail = false;
+let syncingPrairieTest = false;
 let autoSyncEnabled = state.courses.some(course => !course.archived && courseAccessConfirmed(course) && course.lastSyncedAt);
 let server;
 let trayProcess = null;
@@ -55,7 +58,8 @@ function publicState() {
     const personal = state.taskPersonal?.[task.id] || {};
     return { ...task, priority: normalizePriority(personal.priority), note: typeof personal.note === 'string' ? personal.note : '' };
   });
-  return { version: VERSION, courses: state.courses, tasks, syncing: syncingCourseIds.size > 0,
+  return { version: VERSION, courses: state.courses, tasks, exams: state.exams, prairieTest: state.prairieTest,
+    syncingPrairieTest, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
     browserMode: browserMode(),
     preferences: state.preferences, systemLocale: Intl.DateTimeFormat().resolvedOptions().locale, startup, platform: process.platform,
@@ -178,7 +182,7 @@ function checkReminders() {
   if (process.platform !== 'win32') return;
   let changed = false;
   let configChanged = false;
-  for (const event of pendingReminderEvents(state, wechatConfig, new Date(), taskOptions())) {
+  for (const event of [...pendingReminderEvents(state, wechatConfig, new Date(), taskOptions()), ...examReminderEvents(state, wechatConfig, new Date())]) {
     state.notified[event.key] = new Date().toISOString();
     changed = true;
     notify(event.title, event.message);
@@ -187,6 +191,23 @@ function checkReminders() {
   }
   if (changed) saveState(state);
   if (configChanged) saveConfig(wechatConfig);
+}
+
+async function syncPrairieTest() {
+  if (syncingPrairieTest) throw new Error('PrairieTest 正在同步，请稍等。');
+  syncingPrairieTest = true;
+  try {
+    const page = await readPrairieTestPage(PRAIRIETEST_HOME);
+    const rows = parsePrairieTestPage(page);
+    const count = mergePrairieTestExams(state, rows);
+    saveState(state);
+    return count;
+  } catch (error) {
+    state.prairieTest ||= {};
+    state.prairieTest.lastError = String(error.message || 'PrairieTest 同步失败。').slice(0, 300);
+    saveState(state);
+    throw error;
+  } finally { syncingPrairieTest = false; }
 }
 
 async function checkDailyWechat() {
@@ -279,7 +300,8 @@ async function handle(request, response) {
     return json(response, 200, { command: nativeBrowser.next() });
   }
   if (request.method === 'GET' && url.pathname === '/api/native/reminders' && nativeToken && process.platform === 'darwin') {
-    return json(response, 200, { events: pendingReminderEvents(state, wechatConfig, new Date(), taskOptions()) });
+    return json(response, 200, { events: [...pendingReminderEvents(state, wechatConfig, new Date(), taskOptions()),
+      ...examReminderEvents(state, wechatConfig, new Date())] });
   }
   if (!url.pathname.startsWith('/api/') || request.method === 'GET') return json(response, 404, { error: '未找到。' });
   if (request.headers['content-type']?.split(';')[0] !== 'application/json') return json(response, 415, { error: '需要 JSON 请求。' });
@@ -294,7 +316,8 @@ async function handle(request, response) {
     }
     if (request.method === 'POST' && url.pathname === '/api/native/reminders/ack' && nativeToken && process.platform === 'darwin') {
       const event = typeof body.key === 'string' && body.key.length <= 400 &&
-        pendingReminderEvents(state, wechatConfig, new Date(), taskOptions()).find(item => item.key === body.key);
+        [...pendingReminderEvents(state, wechatConfig, new Date(), taskOptions()), ...examReminderEvents(state, wechatConfig, new Date())]
+          .find(item => item.key === body.key);
       if (!event) {
         throw new Error('提醒项目已过期或无效。');
       }
@@ -412,6 +435,10 @@ async function handle(request, response) {
         state.preferences.academicTerm = term;
         changed = true;
       }
+      if (Object.hasOwn(body, 'examLeadHours')) {
+        state.preferences.examLeadHours = normalizeExamLeads(body.examLeadHours);
+        changed = true;
+      }
       if (!changed) throw new Error('没有可保存的设置。');
       saveState(state);
       return json(response, 200, publicState());
@@ -524,6 +551,59 @@ async function handle(request, response) {
         lastSyncError: null, lastSyncErrorKind: null, ignoredSections: [], origin: 'user_added', accessConfirmedAt: new Date().toISOString() });
       saveState(state);
       return json(response, 200, publicState());
+    }
+    if (request.method === 'POST' && url.pathname === '/api/exam') {
+      const exam = validateExam(body);
+      if (exam.courseId && !state.courses.some(course => course.id === exam.courseId)) throw new Error('关联课程不存在。');
+      state.exams.push(exam); saveState(state);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/exam') {
+      const index = state.exams.findIndex(exam => exam.id === body.id && exam.source === 'manual');
+      if (index < 0) throw new Error('只能编辑手动录入的考试。');
+      const exam = validateExam(body, { id: body.id, old: state.exams[index] });
+      if (exam.courseId && !state.courses.some(course => course.id === exam.courseId)) throw new Error('关联课程不存在。');
+      state.exams[index] = exam; saveState(state);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'DELETE' && url.pathname === '/api/exam') {
+      if (!state.exams.some(exam => exam.id === body.id && exam.source === 'manual')) throw new Error('只能删除手动录入的考试。');
+      state.exams = state.exams.filter(exam => exam.id !== body.id);
+      saveState(state); return json(response, 200, publicState());
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/exam/archive') {
+      const exam = state.exams.find(item => item.id === body.id);
+      if (!exam || typeof body.archived !== 'boolean') throw new Error('考试归档内容无效。');
+      exam.archived = body.archived; saveState(state);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/exam/link') {
+      const manual = state.exams.find(exam => exam.id === body.manualId && exam.source === 'manual');
+      if (!manual) throw new Error('考试关联内容无效。');
+      if (body.importedId === null) manual.linkedExamId = null;
+      else {
+        const imported = state.exams.find(exam => exam.id === body.importedId && exam.source === 'prairietest');
+        if (!imported || state.exams.some(exam => exam.linkedExamId === imported.id && exam.id !== manual.id)) throw new Error('考试关联内容无效。');
+        manual.linkedExamId = imported.id;
+      }
+      saveState(state);
+      return json(response, 200, publicState());
+    }
+    if (request.method === 'PATCH' && url.pathname === '/api/exam/associate') {
+      const exam = state.exams.find(item => item.id === body.id);
+      if (!exam || body.courseId !== null && !state.courses.some(course => course.id === body.courseId) ||
+          body.academicPeriod !== null && normalizeAcademicPeriod(body.academicPeriod) !== body.academicPeriod) throw new Error('考试课程或学期设置无效。');
+      exam.courseId = body.courseId;
+      exam.academicPeriod = body.academicPeriod;
+      saveState(state); return json(response, 200, publicState());
+    }
+    if (request.method === 'POST' && url.pathname === '/api/prairietest/open') {
+      await openCoursePage(PRAIRIETEST_HOME);
+      return json(response, 200, { message: 'PrairieTest 登录窗口已打开。登录后请停留在 Home 页面。', state: publicState() });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/prairietest/sync') {
+      const count = await syncPrairieTest();
+      return json(response, 200, { message: `已同步 ${count} 项 PrairieTest 考试。`, state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/course/access-review') {
       const result = reviewCourseAccess(state, body.confirmedIds);
@@ -760,6 +840,10 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 setInterval(checkReminders, 60_000).unref();
 setInterval(() => { checkDailyWechat().catch(error => console.error(`微信提醒检查失败：${error.message}`)); }, 60_000).unref();
 setInterval(() => { checkDailyEmail().catch(error => console.error(`邮件提醒检查失败：${error.message}`)); }, 60_000).unref();
+setInterval(() => {
+  if (!state.prairieTest?.lastSyncedAt || syncingPrairieTest || browserMode() === 'visible') return;
+  syncPrairieTest().catch(error => console.error(`PrairieTest 自动同步失败：${error.message}`));
+}, 30 * 60_000).unref();
 setInterval(async () => {
   if (!autoSyncEnabled || syncingCourseIds.size) return;
   if (browserMode() === 'visible' && (nativeBrowser && state.preferences?.browserEngine !== 'chrome' && state.preferences?.browserEngine !== 'edge' || await activePort())) return;

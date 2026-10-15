@@ -7,6 +7,7 @@ let editingTaskId = null;
 let wechatFormDirty = false;
 let emailFormDirty = false;
 let reminderFormDirty = false;
+let examLeadsDirty = false;
 let selectedTaskId = null;
 let showArchived = false;
 let searchTerm = '';
@@ -17,6 +18,10 @@ let promptedUpdate = null;
 let onboardingActive = false;
 let pendingBackup = null;
 let macNotificationStatus = 'checking';
+let selectedExamId = null;
+let examFilter = 'all';
+let showArchivedExams = false;
+let editingExamId = null;
 
 const $ = id => document.getElementById(id);
 const taskStatus = window.TaskStatus;
@@ -216,13 +221,17 @@ function setDot(element, show) { element.hidden = !show; }
 
 function renderFolders() {
   renderAcademicFilter();
-  const workRoute = !location.hash.startsWith('#settings') && !location.hash.startsWith('#calendar') && !location.hash.startsWith('#dashboard');
+  const workRoute = !location.hash.startsWith('#settings') && !location.hash.startsWith('#calendar') && !location.hash.startsWith('#dashboard') && !location.hash.startsWith('#exams');
   const allPending = filteredTasks().filter(task => needsAttention(task)).length;
   $('all-count').textContent = allPending || '';
   $('all-folder').classList.toggle('active', workRoute && selectedScope === 'all');
   $('nav-all').classList.toggle('active', workRoute && selectedScope === 'all');
   $('nav-calendar').classList.toggle('active', location.hash.startsWith('#calendar'));
   $('nav-dashboard').classList.toggle('active', location.hash.startsWith('#dashboard'));
+  $('nav-exams').classList.toggle('active', location.hash.startsWith('#exams'));
+  $('nav-exams').querySelector('.notification-dot').hidden = !(state.exams || []).some(exam => !exam.archived && !exam.linkedExamId && examCategory(exam) !== 'ended' &&
+    (exam.source !== 'prairietest' || state.prairieTest?.lastSyncedAt &&
+      Date.parse(exam.lastSyncedAt || '') >= Date.parse(state.prairieTest.lastSyncedAt)));
   for (const platform of Object.keys(platformFolders)) {
     const [countId, railId, groupId, containerId] = platformFolders[platform];
     const courses = filteredCourses().filter(course => coursePlatform(course) === platform);
@@ -601,6 +610,157 @@ function renderDashboardPage() {
   root.append(context, main, sidebar);
 }
 
+function examCategory(exam) {
+  if (['ended', 'cancelled'].includes(exam.status) || exam.status === 'reserved' && exam.startsAt && exam.durationMinutes &&
+      Date.parse(exam.startsAt) + exam.durationMinutes * 60000 < Date.now()) return 'ended';
+  return exam.status;
+}
+function examStatusLabel(exam) {
+  return { unreserved: '待预约', reserved: '已预约', ended: '已结束', cancelled: '已取消' }[examCategory(exam) === 'ended' && exam.status === 'cancelled' ? 'cancelled' : examCategory(exam)] || '未知';
+}
+function visibleExams() {
+  return (state.exams || []).filter(exam => !exam.linkedExamId && (showArchivedExams || !exam.archived));
+}
+function examLocalTime(value) {
+  if (!value) return '尚未公布';
+  return `${formatDate(value)} · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
+}
+function examSourceTime(exam) {
+  if (!exam.startsAt || !exam.sourceTimeZone) return '未提供';
+  try { return `${new Intl.DateTimeFormat(i18n.locale(), { dateStyle: 'medium', timeStyle: 'short', timeZone: exam.sourceTimeZone }).format(new Date(exam.startsAt))} · ${exam.sourceTimeZone}`; }
+  catch { return '未提供'; }
+}
+function examDetailField(list, label, value) {
+  list.append(node('dt', '', label), node('dd', '', value || '未提供'));
+}
+function examCourseOptions(select, selected = '') {
+  select.replaceChildren(new Option('不关联', ''));
+  for (const course of state.courses) select.append(new Option(shortCourseName(course), course.id));
+  select.value = selected || '';
+}
+function examPeriodOptions(select, selected = '') {
+  select.replaceChildren(new Option('待分类', ''));
+  const years = new Set(state.courses.map(course => course.academicPeriod?.slice(0, 4)).filter(Boolean));
+  const now = new Date().getFullYear();
+  for (let year = now - 1; year <= now + 2; year++) years.add(String(year));
+  if (selected) years.add(selected.slice(0, 4));
+  for (const year of [...years].sort().reverse()) for (const [term, label] of Object.entries(academicTerms)) {
+    if (term === 'unknown') continue;
+    select.append(new Option(`${year} · ${label}`, `${year}${term}`));
+  }
+  select.value = selected || '';
+}
+function renderExamPage() {
+  const all = visibleExams();
+  const counts = { all: all.length, unreserved: 0, reserved: 0, ended: 0 };
+  for (const exam of all) counts[examCategory(exam)]++;
+  for (const [key, count] of Object.entries(counts)) $('exam-count-' + key).textContent = count;
+  for (const button of document.querySelectorAll('[data-exam-filter]')) button.classList.toggle('active', button.dataset.examFilter === examFilter);
+  $('show-archived-exams').checked = showArchivedExams;
+  const activeCount = (state.exams || []).filter(exam => !exam.archived && !exam.linkedExamId && examCategory(exam) !== 'ended' &&
+    (exam.source !== 'prairietest' || state.prairieTest?.lastSyncedAt &&
+      Date.parse(exam.lastSyncedAt || '') >= Date.parse(state.prairieTest.lastSyncedAt))).length;
+  $('nav-exams').querySelector('.notification-dot').hidden = activeCount === 0;
+  const synced = state.prairieTest?.lastSyncedAt;
+  $('prairietest-status').textContent = state.syncingPrairieTest ? '正在只读同步 PrairieTest…' :
+    `${synced ? `上次同步：${formatDate(synced)}` : '尚未同步 PrairieTest。'}${state.prairieTest?.lastError ? ` · 同步失败，已保留上次数据：${state.prairieTest.lastError}` : ''}`;
+  $('prairietest-status').classList.toggle('error', Boolean(state.prairieTest?.lastError));
+  $('sync-prairietest').disabled = Boolean(state.syncingPrairieTest);
+  const list = $('exam-list'); list.replaceChildren();
+  const filtered = all.filter(exam => (examFilter === 'all' || examCategory(exam) === examFilter) &&
+    (!searchTerm || [exam.title, exam.courseName, exam.location].some(value => String(value || '').toLocaleLowerCase().includes(searchTerm))))
+    .sort((a, b) => (Date.parse(a.startsAt || a.reservationDeadline || '') || Infinity) - (Date.parse(b.startsAt || b.reservationDeadline || '') || Infinity));
+  if (!filtered.some(exam => exam.id === selectedExamId)) selectedExamId = filtered[0]?.id || null;
+  if (!filtered.length) list.append(node('p', 'form-note', '当前分类暂无考试。可手动添加，或登录 PrairieTest 后只读同步。'));
+  for (const exam of filtered) {
+    const stale = exam.source === 'prairietest' && (!state.prairieTest?.lastSyncedAt ||
+      Date.parse(exam.lastSyncedAt || '') < Date.parse(state.prairieTest.lastSyncedAt));
+    const item = node('button', `exam-list-item${exam.id === selectedExamId ? ' active' : ''}`);
+    item.type = 'button'; item.setAttribute('aria-current', String(exam.id === selectedExamId));
+    item.append(node('span', `exam-status-chip ${examCategory(exam)}`, stale ? '待核实' : examStatusLabel(exam)),
+      node('strong', '', exam.title), node('small', '', `${exam.courseName || '未关联课程'} · ${exam.source === 'manual' ? '手动添加' : 'PrairieTest'}`),
+      node('small', '', exam.status === 'unreserved' ? exam.reservationDeadline ? `预约截止：${examLocalTime(exam.reservationDeadline)}` : '尚未预约，暂无确定场次'
+        : `考试时间：${examLocalTime(exam.startsAt)}`));
+    item.addEventListener('click', () => { selectedExamId = exam.id; renderExamPage(); });
+    list.append(item);
+  }
+  const detail = $('exam-detail'); detail.replaceChildren();
+  const exam = filtered.find(item => item.id === selectedExamId);
+  if (!exam) { detail.append(node('p', 'form-note', '选择考试后可查看预约、时间与提醒信息。')); return; }
+  const stale = exam.source === 'prairietest' && (!state.prairieTest?.lastSyncedAt ||
+    Date.parse(exam.lastSyncedAt || '') < Date.parse(state.prairieTest.lastSyncedAt));
+  detail.append(node('h2', '', exam.title), node('span', `exam-status-chip ${examCategory(exam)}`, examStatusLabel(exam)));
+  if (stale) detail.append(node('p', 'exam-error', '这项考试尚未在最近一次 PrairieTest 同步中确认。已保留记录并暂停该项提醒，请在原网站核实。'));
+  const fields = node('dl', '');
+  examDetailField(fields, '课程', exam.courseName || state.courses.find(course => course.id === exam.courseId)?.name || '未关联');
+  examDetailField(fields, '来源', exam.source === 'manual' ? '手动添加' : 'PrairieTest');
+  examDetailField(fields, '设备当地时间', exam.status === 'unreserved' ? '尚未确定场次' : examLocalTime(exam.startsAt));
+  examDetailField(fields, '来源时区时间', exam.status === 'unreserved' ? '尚未确定场次' : examSourceTime(exam));
+  examDetailField(fields, '时长', exam.durationMinutes ? `${exam.durationMinutes} 分钟` : '未提供');
+  examDetailField(fields, '地点或方式', exam.location || '未提供');
+  examDetailField(fields, '预约截止', exam.reservationDeadline ? examLocalTime(exam.reservationDeadline) : '未提供');
+  examDetailField(fields, '学期', exam.academicPeriod || '待分类');
+  examDetailField(fields, '上次同步', exam.lastSyncedAt ? formatDate(exam.lastSyncedAt) : '仅保存在本机');
+  detail.append(fields);
+  const actions = node('div', 'exam-detail-actions');
+  const action = (label, handler, style = 'secondary-button') => {
+    const button = node('button', style, label); button.type = 'button'; button.addEventListener('click', handler); actions.append(button); return button;
+  };
+  if (exam.url) {
+    const link = node('a', 'secondary-button', '查看原始页面 ↗'); link.href = exam.url; link.target = '_blank'; link.rel = 'noopener noreferrer'; actions.append(link);
+  }
+  if (exam.source === 'manual') {
+    action('编辑', () => openExamForm(exam));
+    action('删除', async () => {
+      if (!confirm(i18n.translate(`删除考试 ${exam.title}？`))) return;
+      try { state = await api('/api/exam', 'DELETE', { id: exam.id }); selectedExamId = null; render(); }
+      catch (error) { message(error.message, true); }
+    });
+  }
+  action(exam.archived ? '恢复考试' : '归档考试', async () => {
+    try { state = await api('/api/exam/archive', 'PATCH', { id: exam.id, archived: !exam.archived }); render(); }
+    catch (error) { message(error.message, true); }
+  });
+  detail.append(actions);
+  if (exam.source === 'prairietest') {
+    const association = node('div', 'exam-association');
+    association.append(node('h3', '', '课程与学期'));
+    const linkedManual = (state.exams || []).find(item => item.source === 'manual' && item.linkedExamId === exam.id);
+    if (linkedManual) {
+      association.append(node('p', 'form-note', `已关联手动记录：${linkedManual.title}`));
+      const unlink = node('button', 'secondary-button', '解除关联'); unlink.type = 'button';
+      unlink.addEventListener('click', async () => {
+        try { state = await api('/api/exam/link', 'PATCH', { manualId: linkedManual.id, importedId: null }); render(); }
+        catch (error) { message(error.message, true); }
+      });
+      association.append(unlink);
+    }
+    const course = document.createElement('select'), period = document.createElement('select');
+    course.setAttribute('aria-label', '关联课程'); period.setAttribute('aria-label', '考试学期');
+    examCourseOptions(course, exam.courseId); examPeriodOptions(period, exam.academicPeriod);
+    const save = node('button', 'secondary-button', '保存分类'); save.type = 'button';
+    save.addEventListener('click', async () => {
+      try { state = await api('/api/exam/associate', 'PATCH', { id: exam.id, courseId: course.value || null, academicPeriod: period.value || null }); render(); }
+      catch (error) { message(error.message, true); }
+    });
+    association.append(course, period, save);
+    const manualCandidates = (state.exams || []).filter(item => item.source === 'manual' && !item.linkedExamId);
+    if (manualCandidates.length) {
+      const pair = document.createElement('select'); pair.setAttribute('aria-label', '关联手动考试');
+      pair.append(new Option('选择手动记录', ''));
+      for (const item of manualCandidates) pair.append(new Option(item.title, item.id));
+      const link = node('button', 'secondary-button', '确认关联'); link.type = 'button';
+      link.addEventListener('click', async () => {
+        if (!pair.value || !confirm(i18n.translate('关联后会保留手动记录，但只显示和提醒 PrairieTest 考试。'))) return;
+        try { state = await api('/api/exam/link', 'PATCH', { manualId: pair.value, importedId: exam.id }); render(); }
+        catch (error) { message(error.message, true); }
+      });
+      association.append(pair, link);
+    }
+    detail.append(association);
+  }
+}
+
 function sortTasks(tasks, category = selectedTab) {
   return tasks.sort((a, b) => {
     if (category === 'pending') {
@@ -759,12 +919,12 @@ function renderSelection() {
   renderInspector();
 }
 
-function renderToolbarContext(settings, calendar = false, dashboard = false) {
+function renderToolbarContext(settings, calendar = false, dashboard = false, exams = false) {
   const course = selectedScope.startsWith('course:') ? state.courses.find(item => item.id === selectedScope.slice(7)) : null;
   const platform = course ? coursePlatform(course) : selectedScope.startsWith('platform:') ? selectedScope.slice('platform:'.length) : null;
-  const context = settings ? 'settings' : calendar ? 'calendar' : dashboard ? 'dashboard' : platform || 'all';
-  const labels = { all: '全部作业', calendar: '作业日历', dashboard: '作业仪表盘', prairielearn: 'PrairieLearn', webwork: 'WeBWorK', gradescope: 'Gradescope', settings: '设置' };
-  const marks = { prairielearn: 'PL', webwork: 'W', gradescope: 'G', dashboard: 'DB', settings: 'ST' };
+  const context = settings ? 'settings' : calendar ? 'calendar' : dashboard ? 'dashboard' : exams ? 'exam' : platform || 'all';
+  const labels = { all: '全部作业', calendar: '作业日历', dashboard: '作业仪表盘', exam: '考试提醒', prairielearn: 'PrairieLearn', webwork: 'WeBWorK', gradescope: 'Gradescope', settings: '设置' };
+  const marks = { prairielearn: 'PL', webwork: 'W', gradescope: 'G', dashboard: 'DB', exam: 'E', settings: 'ST' };
   const toolbar = document.querySelector('.window-toolbar');
   const rail = document.querySelector('.app-rail');
   const mark = $('toolbar-scope-mark');
@@ -1085,6 +1245,7 @@ function renderSettings() {
     $('quiet-start').value = wechat.quietStart || '22:00';
     $('quiet-end').value = wechat.quietEnd || '08:00';
   }
+  if (!examLeadsDirty) $('exam-leads').value = (state.preferences?.examLeadHours || [168, 24, 3]).join(', ');
   const disabledCourseIds = new Set(wechat.disabledCourseIds || []);
   const reminderCourses = $('reminder-course-list');
   reminderCourses.replaceChildren();
@@ -1231,20 +1392,25 @@ function render() {
   const settings = location.hash.startsWith('#settings');
   const calendar = location.hash.startsWith('#calendar');
   const dashboard = location.hash.startsWith('#dashboard');
+  const exams = location.hash.startsWith('#exams');
   document.body.classList.toggle('settings-view', settings);
   document.body.classList.toggle('dashboard-view', dashboard);
+  document.body.classList.toggle('exam-view', exams);
   $('work-layout').hidden = settings;
-  $('work-page').hidden = settings || calendar || dashboard;
+  $('work-page').hidden = settings || calendar || dashboard || exams;
   $('calendar-page').hidden = settings || !calendar;
   $('dashboard-page').hidden = settings || !dashboard;
-  $('task-inspector').hidden = dashboard;
+  $('exam-page').hidden = settings || !exams;
+  $('task-inspector').hidden = dashboard || exams;
   $('settings-page').hidden = !settings;
-  $('work-navigation').hidden = settings;
+  $('work-navigation').hidden = settings || exams;
+  $('exam-navigation').hidden = !exams;
   $('settings-navigation').hidden = !settings;
   $('nav-settings').classList.toggle('active', settings);
-  renderToolbarContext(settings, calendar, dashboard);
+  renderToolbarContext(settings, calendar, dashboard, exams);
   renderFolders();
-  if (calendar) renderCalendarPage();
+  if (exams) renderExamPage();
+  else if (calendar) renderCalendarPage();
   else if (dashboard) renderDashboardPage();
   else if (!settings) renderWork();
   renderSettings();
@@ -1359,6 +1525,37 @@ function navigateDashboard() {
   closeMobileMenu();
 }
 
+function navigateExams() {
+  if (location.hash !== '#exams') location.hash = 'exams';
+  render();
+  closeMobileMenu();
+}
+
+function openExamForm(exam = null) {
+  editingExamId = exam?.id || null;
+  $('exam-form-title').textContent = exam ? '编辑考试' : '添加考试';
+  $('exam-title').value = exam?.title || '';
+  $('exam-course-name').value = exam?.courseName || '';
+  examCourseOptions($('exam-course-id'), exam?.courseId);
+  examPeriodOptions($('exam-period'), exam?.academicPeriod);
+  $('exam-status').value = exam?.status || 'unreserved';
+  $('exam-start').value = exam?.startsAt ? localDateInput(exam.startsAt) : '';
+  $('exam-booking-deadline').value = exam?.reservationDeadline ? localDateInput(exam.reservationDeadline) : '';
+  $('exam-duration').value = exam?.durationMinutes || '';
+  $('exam-location').value = exam?.location || '';
+  $('exam-url').value = exam?.url || '';
+  $('exam-start').disabled = $('exam-status').value === 'unreserved';
+  $('exam-dialog').showModal();
+}
+
+window.UBC_OPEN_EXAM = examId => {
+  if (!(state?.exams || []).some(exam => exam.id === examId)) return;
+  selectedExamId = examId;
+  examFilter = 'all';
+  showArchivedExams = true;
+  navigateExams();
+};
+
 function navigateSettings(panel = 'general') {
   settingsPanel = panel;
   const target = `#settings/${panel}`;
@@ -1388,7 +1585,42 @@ function routeFromHash() {
 
 $('nav-all').addEventListener('click', () => navigateWork('all'));
 $('nav-dashboard').addEventListener('click', navigateDashboard);
+$('nav-exams').addEventListener('click', navigateExams);
 $('nav-calendar').addEventListener('click', navigateCalendar);
+for (const button of document.querySelectorAll('[data-exam-filter]')) button.addEventListener('click', () => { examFilter = button.dataset.examFilter; renderExamPage(); });
+$('show-archived-exams').addEventListener('change', event => { showArchivedExams = event.target.checked; renderExamPage(); });
+$('add-exam').addEventListener('click', () => openExamForm());
+$('exam-cancel').addEventListener('click', () => $('exam-dialog').close());
+$('exam-status').addEventListener('change', () => {
+  $('exam-start').disabled = $('exam-status').value === 'unreserved';
+  if ($('exam-start').disabled) $('exam-start').value = '';
+});
+$('exam-course-id').addEventListener('change', () => {
+  const course = state.courses.find(item => item.id === $('exam-course-id').value);
+  if (course && !$('exam-period').value && course.academicPeriod) $('exam-period').value = course.academicPeriod;
+});
+$('exam-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const time = id => $(id).value ? new Date($(id).value).toISOString() : null;
+  const payload = { title: $('exam-title').value, courseName: $('exam-course-name').value,
+    courseId: $('exam-course-id').value || null, academicPeriod: $('exam-period').value || null,
+    status: $('exam-status').value, startsAt: $('exam-status').value === 'unreserved' ? null : time('exam-start'),
+    reservationDeadline: time('exam-booking-deadline'), durationMinutes: $('exam-duration').value || null,
+    location: $('exam-location').value, url: $('exam-url').value, sourceTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+  try {
+    state = await api('/api/exam', editingExamId ? 'PATCH' : 'POST', editingExamId ? { ...payload, id: editingExamId } : payload);
+    $('exam-dialog').close(); editingExamId = null; render();
+  } catch (error) { message(error.message, true); }
+});
+$('open-prairietest').addEventListener('click', async () => {
+  try { const result = await api('/api/prairietest/open', 'POST', {}); message(result.message); }
+  catch (error) { message(error.message, true); }
+});
+$('sync-prairietest').addEventListener('click', async () => {
+  $('sync-prairietest').disabled = true;
+  try { const result = await api('/api/prairietest/sync', 'POST', {}); state = result.state; render(); message(result.message); }
+  catch (error) { state = await api('/api/state'); render(); message(error.message, true); }
+});
 $('academic-year').addEventListener('change', async event => {
   try {
     state = await api('/api/preferences', 'PATCH', { academicYear: event.target.value,
@@ -1515,7 +1747,8 @@ $('toolbar-menu').addEventListener('click', () => {
 $('task-search').addEventListener('input', event => {
   searchTerm = event.target.value.trim().toLocaleLowerCase();
   if (state) {
-    if (location.hash.startsWith('#calendar')) renderCalendarPage();
+    if (location.hash.startsWith('#exams')) renderExamPage();
+    else if (location.hash.startsWith('#calendar')) renderCalendarPage();
     else renderWork();
   }
 });
@@ -1598,6 +1831,15 @@ for (const id of ['reminder-leads', 'quiet-enabled', 'quiet-start', 'quiet-end']
   $(id).addEventListener('input', () => { reminderFormDirty = true; });
   $(id).addEventListener('change', () => { reminderFormDirty = true; });
 }
+$('exam-leads').addEventListener('input', () => { examLeadsDirty = true; });
+$('exam-leads-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const leadHours = $('exam-leads').value.split(/[,，\s]+/).filter(Boolean).map(Number);
+  try {
+    state = await api('/api/preferences', 'PATCH', { examLeadHours: leadHours });
+    examLeadsDirty = false; render(); message('考试提醒时间已保存。');
+  } catch (error) { message(error.message, true); }
+});
 $('reminder-form').addEventListener('submit', async event => {
   event.preventDefault();
   const leadHours = $('reminder-leads').value.split(/[,，\s]+/).filter(Boolean).map(Number);
@@ -1800,7 +2042,7 @@ $('backup-import').addEventListener('click', async () => {
     const result = await api('/api/backup/import', 'POST', { backup: pendingBackup });
     state = result.state;
     selectedScope = 'all'; selectedTaskId = null; settingsCourseId = null;
-    wechatFormDirty = false; reminderFormDirty = false;
+    wechatFormDirty = false; reminderFormDirty = false; examLeadsDirty = false;
     pendingBackup = null; $('backup-file').value = '';
     delete $('backup-file-name').dataset.i18nSkip;
     $('backup-file-name').textContent = '未选择文件';

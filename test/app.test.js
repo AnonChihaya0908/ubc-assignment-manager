@@ -113,7 +113,7 @@ test('existing saved data defaults to automatic full-score completion', () => {
   try {
     fs.writeFileSync(file, JSON.stringify({ version: 1, courses: [], tasks: [], notified: {} }));
     assert.deepEqual(loadState(file).preferences, { requireManualCompletion: false, onboardingDismissed: true,
-      language: 'auto', browserEngine: 'auto', academicYear: '', academicTerm: '' });
+      language: 'auto', browserEngine: 'auto', academicYear: '', academicTerm: '', examLeadHours: [168, 24, 3] });
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
