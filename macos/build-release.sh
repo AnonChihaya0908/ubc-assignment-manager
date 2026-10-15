@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'echo "macOS release build failed at line ${LINENO}: ${BASH_COMMAND}" >&2' ERR
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "macOS release archives must be built on macOS." >&2
@@ -82,8 +83,8 @@ codesign --verify --deep --strict --verbose=2 "$temp_dir/extracted/UBC作业管�
 mkdir -p "$temp_dir/dmg" "$temp_dir/mounted"
 ditto "$app_bundle" "$temp_dir/dmg/UBC作业管理工具.app"
 ln -s /Applications "$temp_dir/dmg/Applications"
-hdiutil create -quiet -ov -srcfolder "$temp_dir/dmg" -volname "UBC作业管理工具" -fs APFS -format UDZO "$dmg"
-hdiutil attach -quiet -readonly -nobrowse -mountpoint "$temp_dir/mounted" "$dmg"
+hdiutil create -ov -srcfolder "$temp_dir/dmg" -volname "UBC作业管理工具" -fs APFS -format UDZO "$dmg"
+hdiutil attach -readonly -nobrowse -mountpoint "$temp_dir/mounted" "$dmg"
 mounted=true
 test "$(readlink "$temp_dir/mounted/Applications")" = /Applications
 diff -qr "$app_bundle" "$temp_dir/mounted/UBC作业管理工具.app"
