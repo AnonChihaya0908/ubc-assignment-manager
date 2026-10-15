@@ -49,6 +49,17 @@ test('PrairieTest Home reservation without a time element is parsed from its car
   assert.match(rows[0].sourceId, /^link-/);
 });
 
+test('PrairieTest reservation action is not an exam even beside a real booking', () => {
+  const rows = parsePrairieTestPage({ pageUrl: home, hasExamSections: true, noExams: false, candidateCount: 2, rows: [
+    { name: 'Make a reservation', url: home + 'student/reservation/new', section: 'Exams available for reservations',
+      text: 'Make a reservation', times: [] },
+    { name: 'TEST 123 Quiz 3', url: home + 'student/reservation/789', section: 'Exam reservations',
+      text: 'TEST 123 Quiz 3 Oct 31, 2pm (PDT)', times: [] },
+  ] });
+  assert.deepEqual(rows.map(row => row.title), ['TEST 123 Quiz 3']);
+  assert.equal(rows[0].status, 'reserved');
+});
+
 test('unexpected page, missing zone and invalid links fail without erasing cached exams', () => {
   const state = emptyState();
   state.exams.push(validateExam({ title: 'Own exam', status: 'unreserved' }));

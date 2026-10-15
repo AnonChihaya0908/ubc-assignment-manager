@@ -13,7 +13,7 @@
     '作业仪表盘': 'Assignment dashboard', '学年': 'Academic year', '学期': 'Term',
     '考试提醒': 'Exam reminders', '考试 / 考试提醒': 'Exams / Exam reminders',
     '独立于作业目录': 'Separate from assignments', '全部考试': 'All exams', '待预约': 'Not reserved',
-    '已预约': 'Reserved', '已结束': 'Ended', '已取消': 'Cancelled', '显示已归档考试': 'Show archived exams',
+    '已预约': 'Reserved', '已结束': 'Ended', '已取消': 'Cancelled', '显示已归档及未确认考试': 'Show archived and unconfirmed exams',
     '独立管理考试预约与提醒，不计入作业完成率。': 'Manage exam reservations and reminders separately from assignment progress.',
     '手动添加考试': 'Add exam manually', '打开 PrairieTest 登录窗口': 'Open PrairieTest sign-in', '只读同步': 'Read-only sync',
     '尚未同步 PrairieTest。': 'PrairieTest has not been synced yet.', '正在只读同步 PrairieTest…': 'Reading PrairieTest…',
