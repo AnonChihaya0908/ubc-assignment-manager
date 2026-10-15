@@ -9,7 +9,8 @@ private let reopenNotification = Notification.Name("com.anonchihaya.ubc-assignme
 
 private struct ReminderEvent: Decodable {
     let key: String
-    let taskId: String
+    let taskId: String?
+    let examId: String?
     let title: String
     let message: String
 }
@@ -372,7 +373,8 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
                 return
             }
             let current = view.url
-            let wrongPage = current?.host != url.host || current?.path != url.path
+            let wrongPage = current?.host != url.host ||
+                (url.host != "us.prairietest.com" && current?.path != url.path)
             if command.reload == true || wrongPage {
                 view.load(URLRequest(url: url))
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
@@ -533,7 +535,8 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
         content.title = event.title
         content.body = event.message
         content.sound = .default
-        content.userInfo = ["taskId": event.taskId]
+        if let taskId = event.taskId { content.userInfo = ["taskId": taskId] }
+        if let examId = event.examId { content.userInfo = ["examId": examId] }
         let request = UNNotificationRequest(identifier: event.key, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request) { [weak self] error in
             if error == nil { self?.acknowledgeReminder(event.key) }
@@ -563,6 +566,11 @@ final class AssignmentManagerApp: NSObject, NSApplicationDelegate, NSWindowDeleg
                let encoded = try? JSONSerialization.data(withJSONObject: [taskId]),
                let json = String(data: encoded, encoding: .utf8) {
                 self.webView.evaluateJavaScript("window.UBC_OPEN_TASK?.(\(json)[0])")
+            }
+            if let examId = response.notification.request.content.userInfo["examId"] as? String,
+               let encoded = try? JSONSerialization.data(withJSONObject: [examId]),
+               let json = String(data: encoded, encoding: .utf8) {
+                self.webView.evaluateJavaScript("window.UBC_OPEN_EXAM?.(\(json)[0])")
             }
             completionHandler()
         }

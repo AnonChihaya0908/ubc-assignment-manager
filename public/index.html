@@ -32,6 +32,7 @@
       <button id="nav-all" class="rail-button active" type="button" aria-label="全部作业" title="全部作业"><span class="rail-context-mark all" aria-hidden="true"><span class="rail-grid"><i></i><i></i><i></i><i></i></span></span></button>
       <button id="nav-dashboard" class="rail-button" type="button" aria-label="作业仪表盘" title="作业仪表盘"><span class="rail-context-mark all" aria-hidden="true">▥</span></button>
       <button id="nav-calendar" class="rail-button" type="button" aria-label="作业日历" title="作业日历"><span class="rail-context-mark calendar" aria-hidden="true"><span class="calendar-glyph"><i></i></span></span></button>
+      <button id="nav-exams" class="rail-button" type="button" aria-label="考试提醒" title="考试提醒"><span class="rail-context-mark exam" aria-hidden="true">E</span><span class="notification-dot" hidden></span></button>
       <button id="nav-prairielearn" class="rail-button" type="button" aria-label="PrairieLearn 作业" title="PrairieLearn"><span class="rail-context-mark pl" aria-hidden="true">PL</span><span class="notification-dot" hidden></span></button>
       <button id="nav-webwork" class="rail-button" type="button" aria-label="WeBWorK 作业" title="WeBWorK"><span class="rail-context-mark ww" aria-hidden="true">W</span><span class="notification-dot" hidden></span></button>
       <button id="nav-gradescope" class="rail-button" type="button" aria-label="Gradescope 作业" title="Gradescope"><span class="rail-context-mark gs" aria-hidden="true">G</span><span class="notification-dot" hidden></span></button>
@@ -69,6 +70,15 @@
         <button class="settings-link" data-settings="courses" type="button">课程与登录</button>
         <button class="settings-link" data-settings="data" type="button">数据与退出</button>
       </div>
+      <div id="exam-navigation" class="folder-content" hidden>
+        <div class="pane-heading"><h2>考试提醒</h2></div>
+        <p class="pane-label">独立于作业目录</p>
+        <button class="folder-link active" data-exam-filter="all" type="button"><span>全部考试</span><span id="exam-count-all" class="folder-count">0</span></button>
+        <button class="folder-link" data-exam-filter="unreserved" type="button"><span>待预约</span><span id="exam-count-unreserved" class="folder-count">0</span></button>
+        <button class="folder-link" data-exam-filter="reserved" type="button"><span>已预约</span><span id="exam-count-reserved" class="folder-count">0</span></button>
+        <button class="folder-link" data-exam-filter="ended" type="button"><span>已结束</span><span id="exam-count-ended" class="folder-count">0</span></button>
+        <label class="exam-archive-toggle"><input id="show-archived-exams" type="checkbox">显示已归档考试</label>
+      </div>
       <div class="sync-dock">
         <button id="sync" class="sync-button" type="button">立即同步</button>
         <span id="sync-status">尚未同步</span>
@@ -105,6 +115,14 @@
       <section id="dashboard-page" class="page" hidden>
         <header class="page-header"><div class="page-title"><p id="dashboard-breadcrumb" class="breadcrumb">概览 / 所有学期</p><h1>作业仪表盘</h1><p class="page-summary">掌握当前范围的任务、进度与课程负载。</p></div></header>
         <div id="dashboard-content" class="dashboard-content"></div>
+      </section>
+      <section id="exam-page" class="page" hidden>
+        <header class="page-header"><div class="page-title"><p class="breadcrumb">考试 / 考试提醒</p><h1>考试提醒</h1><p class="page-summary">独立管理考试预约与提醒，不计入作业完成率。</p></div></header>
+        <div class="exam-page-content">
+          <div class="exam-actions"><button id="add-exam" class="primary-button" type="button">手动添加考试</button><button id="open-prairietest" class="secondary-button" type="button">打开 PrairieTest 登录窗口</button><button id="sync-prairietest" class="secondary-button" type="button">只读同步</button></div>
+          <p id="prairietest-status" class="form-note" role="status" aria-live="polite"></p>
+          <div class="exam-columns"><div id="exam-list" class="exam-list"></div><aside id="exam-detail" class="exam-detail" aria-label="考试详情"></aside></div>
+        </div>
       </section>
       <aside id="task-inspector" class="task-inspector" aria-label="作业详情"><div class="inspector-heading">作业详情</div><div id="inspector-content" class="inspector-content"></div></aside>
       </div>
@@ -146,6 +164,10 @@
         </div>
 
         <div id="settings-reminders" class="settings-panel" hidden>
+          <section class="setting-block"><h2>考试提前提醒</h2>
+            <p class="setting-intro">考试提醒独立于作业截止提醒。已预约按确定场次提醒；未预约且没有明确截止时间的考试，每周最多提醒一次预约。</p>
+            <form id="exam-leads-form" class="wechat-form"><label for="exam-leads">提前小时数（逗号分隔）</label><input id="exam-leads" type="text" value="168, 24, 3" required><p class="form-note">最多 6 个时间点，每个在 0.25 到 720 小时之间。</p><button class="primary-button" type="submit">保存考试提醒</button></form>
+          </section>
           <section class="setting-block">
             <h2>截止提醒</h2>
             <div id="mac-notification-row" class="setting-row" hidden><div><h3>macOS 系统通知</h3><p id="mac-notification-status" role="status" aria-live="polite">正在检查通知权限…</p><p class="form-note">主窗口关闭后，只要应用仍在运行，就会按下方规则提醒；完全退出或关机期间不会实时提醒。</p></div><div class="update-actions"><button id="mac-notification-permission" class="secondary-button" type="button">允许通知</button><button id="mac-notification-test" class="secondary-button" type="button">发送测试通知</button></div></div>
@@ -258,6 +280,20 @@
   </div>
 
   <dialog id="update-dialog"><h2>发现新版本</h2><p id="update-dialog-text"></p><div class="dialog-actions"><button id="update-later" class="secondary-button" type="button">稍后</button><button id="update-now" class="primary-button" type="button">立即更新并重启</button></div></dialog>
+  <dialog id="exam-dialog" class="exam-dialog"><form id="exam-form"><h2 id="exam-form-title">添加考试</h2>
+    <label for="exam-title">考试名称<input id="exam-title" maxlength="200" required></label>
+    <label for="exam-course-name">课程名称<input id="exam-course-name" maxlength="200"></label>
+    <label for="exam-course-id">关联现有课程<select id="exam-course-id"><option value="">不关联</option></select></label>
+    <label for="exam-period">学期<select id="exam-period"><option value="">待分类</option></select></label>
+    <label for="exam-status">状态<select id="exam-status"><option value="unreserved">待预约</option><option value="reserved">已预约</option><option value="ended">已结束</option><option value="cancelled">已取消</option></select></label>
+    <label for="exam-start">考试开始时间（设备当地时间）<input id="exam-start" type="datetime-local"></label>
+    <label for="exam-duration">时长（分钟）<input id="exam-duration" type="number" min="1" max="1440"></label>
+    <label for="exam-booking-deadline">预约截止时间（仅网站明确提供时填写）<input id="exam-booking-deadline" type="datetime-local"></label>
+    <label for="exam-location">地点或线上方式<input id="exam-location" maxlength="300"></label>
+    <label for="exam-url">考试链接（可选）<input id="exam-url" type="url" placeholder="https://..."></label>
+    <p class="form-note">待预约状态不填写场次时间；预约成功后再改为已预约。时间按设备当地时区保存。</p>
+    <div class="dialog-actions"><button id="exam-cancel" class="secondary-button" type="button">取消</button><button class="primary-button" type="submit">保存考试</button></div>
+  </form></dialog>
   <dialog id="onboarding-dialog" class="onboarding-dialog">
     <div class="onboarding-progress"><span>首次设置</span><strong id="onboarding-step-label">第 1 步，共 3 步</strong></div>
     <section id="onboarding-add">

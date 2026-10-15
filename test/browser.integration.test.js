@@ -8,6 +8,7 @@ const { spawn } = require('node:child_process');
 const { edgePath, cdp, withinSyncDeadline, EXTRACT_PAGE, EXTRACT_WEBWORK_PAGE, EXTRACT_WEBWORK_PROGRESS } = require('../lib/browser');
 const { parseWebworkText, parseWebworkProgress } = require('../lib/webwork');
 const { parseGradescopePage } = require('../lib/gradescope');
+const { EXTRACT_PRAIRIETEST_PAGE } = require('../lib/prairietest');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -51,6 +52,10 @@ const gradescopeFixture = `<!doctype html><title>Gradescope</title><h1>Example 2
 <tbody><tr><th><button data-assignment-id="1" data-post-url="/courses/12345/assignments/1/submissions">Homework A</button></th><td>No Submission</td><td><span>1 day left</span><time class="submissionTimeChart--releaseDate" datetime="2026-10-05 13:15:00 -0700">Oct 05 at 1:15PM</time><time class="submissionTimeChart--dueDate" datetime="2026-10-09 23:59:00 -0700">Oct 09 at 11:59PM</time></td></tr>
 <tr><th><a href="/courses/12345/assignments/2/submissions/9">Homework B</a></th><td>45 / 50</td><td><time class="submissionTimeChart--releaseDate" datetime="2026-09-10 15:00:00 -0700">Sep 10 at 3:00PM</time><time class="submissionTimeChart--dueDate" datetime="2026-09-21 23:59:00 -0700">Sep 21 at 11:59PM</time><time class="submissionTimeChart--dueDate" datetime="2026-09-22 02:00:00 -0700">Late Due Date: Sep 22 at 2:00AM</time></td></tr></tbody></table>`;
 
+const prairieTestFixture = `<!doctype html><title>PrairieTest Home</title>
+<section><h2>Exams available for reservation</h2><article data-exam-id="123"><a href="/pt/exams/123">CPSC 421 Midterm</a><p>Reserve now</p></article></section>
+<section><h2>Current and future exam reservations</h2><article data-exam-id="456"><a href="/pt/exams/456">STAT 251 Final</a><p>Your reservation</p><time datetime="2026-12-10T10:00:00-08:00">Exam starts</time></article></section>`;
+
 test('browser work is cancelled when the sync deadline expires', async () => {
   const started = Date.now();
   await assert.rejects(() => withinSyncDeadline(signal => new Promise((resolve, reject) => {
@@ -62,7 +67,7 @@ test('browser work is cancelled when the sync deadline expires', async () => {
 test('dedicated background Edge keeps a headless session for both course sources and closes on exit', { timeout: 45000 }, async () => {
   const httpServer = http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(request.url.startsWith('/courses/') ? gradescopeFixture : request.url.includes('Assignment-03') ? webworkDetailFixture :
+    response.end(request.url.startsWith('/pt') ? prairieTestFixture : request.url.startsWith('/courses/') ? gradescopeFixture : request.url.includes('Assignment-03') ? webworkDetailFixture :
       request.url.includes('Assignment-02') ? webworkPastDetailFixture : request.url.startsWith('/webwork2/') ? webworkFixture : fixture);
   });
   await new Promise(resolve => httpServer.listen(0, '127.0.0.1', resolve));
@@ -96,6 +101,18 @@ test('dedicated background Edge keeps a headless session for both course sources
     assert.equal(gradescopeTasks[0].dueAt, '2026-10-10T06:59:00.000Z');
     assert.equal(gradescopeTasks[1].dueAt, '2026-09-22T06:59:00.000Z');
     assert.equal(gradescopeTasks[1].lateDueAt, '2026-09-22T09:00:00.000Z');
+    await browser.cdp(target.webSocketDebuggerUrl, 'Page.navigate', { url: `${base}/pt/` });
+    let examPage;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      examPage = (await browser.cdp(target.webSocketDebuggerUrl, 'Runtime.evaluate', {
+        expression: EXTRACT_PRAIRIETEST_PAGE, returnByValue: true,
+      })).result.value;
+      if (examPage?.rows?.length === 2) break;
+      await sleep(100);
+    }
+    assert.equal(examPage.hasExamSections, true);
+    assert.deepEqual(examPage.rows.map(row => row.examId), ['123', '456']);
+    assert.equal(examPage.rows[1].times[0].datetime, '2026-12-10T10:00:00-08:00');
     assert.equal(await browser.hideBrowser(webworkUrl), port);
     await browser.closeBrowser();
     const restartedPort = await browser.ensureBrowser(prairieUrl);
