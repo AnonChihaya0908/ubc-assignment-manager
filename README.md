@@ -2,13 +2,13 @@
 
 [English installation and first-use guide](README.en.md)
 
-本地作业管理应用，将 PrairieLearn、UBC WeBWorK 和 Gradescope Canada 的作业、开放时间与截止时间集中到一个界面，并提供系统通知、日历视图和微信每日汇总。
+本地作业管理应用，将 PrairieLearn、UBC WeBWorK 和 Gradescope Canada 的作业、开放时间与截止时间集中到一个界面，并提供考试提醒、系统通知、日历视图和微信每日汇总。
 
-当前正式版本：**1.3.4** · [下载 Windows 与 macOS 安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.4) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
+当前正式版本：**1.3.5** · [下载 Windows 与 macOS 安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.5) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
 
-1.3.4 在同一 Release 提供 Windows 安装版与便携版，以及 macOS arm64 / x64 的 DMG、ZIP、PKG。macOS 包未做 Apple Developer ID 签名和公证，首次打开可能需要手动允许；真实 Mac 上的完整登录与通知流程仍在验证。
+1.3.5 在同一 Release 提供 Windows 安装版与便携版，以及 macOS arm64 / x64 的 DMG、ZIP、PKG。macOS 包未做 Apple Developer ID 签名和公证，首次打开可能需要手动允许；真实 Mac 上的完整登录与通知流程仍在验证。
 
-1.3.4 已包含 Gradescope Canada 课程适配。Windows 上已使用真实课程页面验证未提交、已评分作业及普通截止时间；macOS WebKit 仍需真实账号验证。
+1.3.5 增加按学年学期查看的仪表盘和独立考试提醒；考试可手动录入，也可在本人登录后从 PrairieTest Home 只读同步。PrairieTest 真实账号同步与 macOS WebKit 仍需用户设备验证。
 
 > 本项目不是 UBC、PrairieLearn、WeBWorK 或 Gradescope 的官方产品。应用只读取用户登录后有权访问且页面上可见的数据，不使用教师 API，也不需要 PrairieLearn API token。
 
@@ -22,6 +22,8 @@
 | Gradescope | 从 Gradescope Canada 课程页读取作业；已提交或已评分视为完成，成绩不必达到满分。 |
 | 作业状态 | 区分待完成、完成中、将开放、已过日期、已完成和已忽略；成绩以进度条显示。 |
 | 作业日历 | 在月视图中查看开放日期、截止日期和手动提醒日期。 |
+| 仪表盘 | 按学年学期汇总课程、作业状态与近期截止日期。 |
+| 考试提醒 | 独立管理手动考试与 PrairieTest 预约，按预约时间提醒，不混入作业完成率。 |
 | 本地提醒 | 默认在截止前 24 小时和 3 小时发送系统通知，可调整提前时间和免打扰时段。 |
 | 微信汇总 | 可通过 Server酱向个人微信发送每日待办汇总。 |
 | 课程管理 | 可按课程忽略不计分的作业类别，并单独关闭某门课程的提醒。 |
@@ -35,18 +37,18 @@
 ### Windows 安装版（推荐）
 
 1. 前往 [Releases](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest)。
-2. 下载并运行 `ubc-assignment-manager-1.3.4-setup.exe`。
+2. 下载并运行 `ubc-assignment-manager-1.3.5-setup.exe`。
 3. 从桌面或开始菜单打开“UBC作业管理工具”。
 
 安装程序只为当前 Windows 账户安装应用。运行时无需打开 CMD，也无需另行安装 Node.js。
 
 ### Windows 便携版
 
-下载 `ubc-assignment-manager-1.3.4-windows.zip` 并完整解压后运行。请勿只移动其中的 EXE，运行时还需要压缩包内的 `runtime` 等文件。Release 同时提供安装包和 ZIP 的 `.sha256` 校验文件。
+下载 `ubc-assignment-manager-1.3.5-windows.zip` 并完整解压后运行。请勿只移动其中的 EXE，运行时还需要压缩包内的 `runtime` 等文件。Release 同时提供安装包和 ZIP 的 `.sha256` 校验文件。
 
 ### macOS 桌面版
 
-macOS 版是独立 `.app`；1.3.4 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），PKG 也保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。
+macOS 版是独立 `.app`；1.3.5 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），PKG 也保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。
 
 下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。macOS 包没有 Developer ID 签名或公证；首次打开可能需要按[安装说明](docs/macos-preview.md)手动允许，学校管理的设备可能禁止侧载。CI 已验证 Sonoma 14 启动与包完整性，真实设备上的首次安装、通知和 Gradescope 登录仍需确认。
 

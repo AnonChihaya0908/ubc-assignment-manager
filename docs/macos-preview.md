@@ -1,6 +1,6 @@
 # macOS 桌面版：安装与使用
 
-从 [v1.3.4 正式版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.4) 下载对应芯片的 DMG 或 ZIP。CI 已检查安装包完整性及 Sonoma 14 启动；真实 Mac 上的首次安装、通知和 Gradescope 登录仍需验证。此版本没有 Apple Developer ID 签名或公证。
+从 [v1.3.5 正式版](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.5) 下载对应芯片的 DMG 或 ZIP。CI 已检查安装包完整性及 Sonoma 14 启动；真实 Mac 上的首次安装、通知和 Gradescope 登录仍需验证。此版本没有 Apple Developer ID 签名或公证。
 
 ## 选择安装包
 
@@ -21,7 +21,7 @@
 
 ## 课程、通知和退出
 
-首次使用时自行添加 PrairieLearn、WeBWorK 或 Gradescope Canada 的具体课程网址；不会预置开发者课程。1.3.4 默认使用应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。在“设置 → 课程与登录”打开登录窗口，完成登录后返回 App，点击左下角“立即同步”。作业主界面留在 App 窗口中。
+首次使用时自行添加 PrairieLearn、WeBWorK 或 Gradescope Canada 的具体课程网址；不会预置开发者课程。1.3.5 默认使用应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。在“设置 → 课程与登录”打开登录窗口，完成登录后返回 App，点击左下角“立即同步”。作业主界面留在 App 窗口中。
 
 在“设置 → 提醒与同步”允许 macOS 系统通知，可用测试按钮检查授权。提醒由正在运行的 App 发送，无需保持作业窗口打开，也不需要浏览器通知权限。关闭主窗口后，可从菜单栏图标或 Dock 重新打开；在应用菜单或“数据与退出”中选择退出才会停止后台服务。应用完全退出、电脑关机或睡眠期间不能实时发送本地通知；重新运行后，仍未截止且符合规则的作业会继续检查。每日微信汇总沿用同一天补发规则。
 
