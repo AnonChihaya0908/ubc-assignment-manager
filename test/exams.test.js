@@ -36,10 +36,24 @@ test('PrairieTest reserved and available exams remain separate and unreserved ha
   assert.equal(activeExams(state, new Date('2026-10-17T13:00:00Z')).some(exam => exam.id === state.exams[0].id), false);
 });
 
+test('PrairieTest Home reservation without a time element is parsed from its card text', () => {
+  const rows = parsePrairieTestPage({ pageUrl: home, hasExamSections: true, noExams: false, candidateCount: 1, rows: [
+    { name: 'TEST 123 (2026W1): Practice Quiz', url: home + 'exam_reservations/789', section: 'Exam reservations',
+      text: 'TEST 123 (2026W1): Practice Quiz Mon, Oct 19, 2pm (PDT) ORCA: Room 100 50min, In-person, No accommodations', times: [] },
+  ] });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].status, 'reserved');
+  assert.equal(rows[0].startsAt, '2026-10-19T21:00:00.000Z');
+  assert.equal(rows[0].durationMinutes, 50);
+  assert.equal(rows[0].location, 'ORCA: Room 100');
+  assert.match(rows[0].sourceId, /^link-/);
+});
+
 test('unexpected page, missing zone and invalid links fail without erasing cached exams', () => {
   const state = emptyState();
   state.exams.push(validateExam({ title: 'Own exam', status: 'unreserved' }));
   assert.throws(() => parsePrairieTestPage({ pageUrl: 'https://us.prairielearn.com/login', hasExamSections: true }), /登录/);
+  assert.throws(() => parsePrairieTestPage(snapshot([])), /原有数据已保留/);
   assert.throws(() => parsePrairieTestPage(snapshot([{ name: 'Midterm', url: `${home}exams/1`, examId: '1',
     section: 'Current reservations', text: 'Reservation 10:00', times: [] }])), /时间及时区/);
   assert.throws(() => parsePrairieTestPage(snapshot([{ name: 'Midterm', url: 'https://evil.example/exams/1',
