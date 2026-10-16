@@ -287,12 +287,12 @@
     <label for="exam-course-id">关联现有课程<select id="exam-course-id"><option value="">不关联</option></select></label>
     <label for="exam-period">学期<select id="exam-period"><option value="">待分类</option></select></label>
     <label for="exam-status">状态<select id="exam-status"><option value="unreserved">待预约</option><option value="reserved">已预约</option><option value="ended">已结束</option><option value="cancelled">已取消</option></select></label>
-    <label for="exam-start">考试开始时间（设备当地时间）<input id="exam-start" type="datetime-local"></label>
+    <label for="exam-start">考试开始时间（设备当地时间）<input id="exam-start" type="text" inputmode="numeric" placeholder="YYYY/MM/DD HH:mm" autocomplete="off"></label>
     <label for="exam-duration">时长（分钟）<input id="exam-duration" type="number" min="1" max="1440"></label>
-    <label for="exam-booking-deadline">预约截止时间（仅网站明确提供时填写）<input id="exam-booking-deadline" type="datetime-local"></label>
+    <label for="exam-booking-deadline">预约截止时间（仅网站明确提供时填写）<input id="exam-booking-deadline" type="text" inputmode="numeric" placeholder="YYYY/MM/DD HH:mm" autocomplete="off"></label>
     <label for="exam-location">地点或线上方式<input id="exam-location" maxlength="300"></label>
     <label for="exam-url">考试链接（可选）<input id="exam-url" type="url" placeholder="https://..."></label>
-    <p class="form-note">待预约状态不填写场次时间；预约成功后再改为已预约。时间按设备当地时区保存。</p>
+    <p class="form-note">已知考试时间可以先填写，预约成功后再改为已预约。时间格式：YYYY/MM/DD HH:mm，按设备当地时区保存。</p>
     <div class="dialog-actions"><button id="exam-cancel" class="secondary-button" type="button">取消</button><button class="primary-button" type="submit">保存考试</button></div>
   </form></dialog>
   <dialog id="onboarding-dialog" class="onboarding-dialog">

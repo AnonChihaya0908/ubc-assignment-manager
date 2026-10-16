@@ -322,9 +322,13 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('Make a reservation')"), true);
     await evaluate("(() => { document.querySelector('#show-archived-exams').click(); state.exams = state.exams.filter(exam => exam.source !== 'prairietest'); state.prairieTest = {}; renderExamPage(); })()");
     assert.equal(await evaluate("getComputedStyle(document.querySelector('.sync-dock')).display"), 'none');
-    await evaluate("document.querySelector('#add-exam').click()");
+    await evaluate("(() => { state.systemTimeZone = 'America/Vancouver'; render(); document.querySelector('#add-exam').click(); })()");
     assert.equal(await evaluate("document.querySelector('#exam-dialog').open"), true);
-    await evaluate("document.querySelector('#exam-cancel').click()");
+    assert.equal(await evaluate("document.querySelector('#exam-start').disabled"), false);
+    assert.equal(await evaluate("document.querySelector('#exam-start').placeholder"), 'YYYY/MM/DD HH:mm');
+    assert.equal(await evaluate("(() => { document.querySelector('#exam-start').value = '2026/11/02 09:00'; return parseExamTimeInput('exam-start'); })()"), '2026-11-02T16:00:00.000Z');
+    assert.equal(await evaluate("(() => { document.querySelector('#exam-start').value = '2026/02/30 09:00'; try { parseExamTimeInput('exam-start'); return false; } catch { return true; } })()"), true);
+    await evaluate("(() => { document.querySelector('#exam-cancel').click(); state.systemTimeZone = null; render(); })()");
     await evaluate("document.querySelector('#nav-dashboard').click()");
     await resizeViewport(680, 800);
     assert.equal(await evaluate("document.querySelector('#dashboard-page').scrollWidth <= document.querySelector('#dashboard-page').clientWidth"), true);
@@ -500,7 +504,11 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     for (let i = 0; i < 20 && fixtureState.browserMode !== 'visible'; i++) await sleep(50);
     assert.equal(await evaluate("document.querySelector('#hide-browser').hidden"), false);
     await evaluate("document.querySelector('#hide-browser').click()");
-    for (let i = 0; i < 20 && fixtureState.browserMode !== 'background'; i++) await sleep(50);
+    for (let i = 0; i < 30; i++) {
+      if (fixtureState.browserMode === 'background' && await evaluate("document.querySelector('#hide-browser').hidden")) break;
+      await sleep(100);
+    }
+    assert.equal(fixtureState.browserMode, 'background');
     assert.equal(await evaluate("document.querySelector('#hide-browser').hidden"), true);
     if (process.env.UI_SETTINGS_PREVIEW_PATH) {
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });

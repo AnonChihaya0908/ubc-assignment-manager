@@ -180,6 +180,21 @@ function localDateInput(iso) {
   return UBCClock.inputValue(iso);
 }
 
+function examTimeInput(iso) {
+  return iso ? localDateInput(iso).replace(/-/g, '/').replace('T', ' ') : '';
+}
+
+function parseExamTimeInput(id) {
+  const value = $(id).value.trim();
+  if (!value) return null;
+  const match = /^(20\d{2})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2})$/.exec(value);
+  if (!match) throw new Error('时间格式应为 YYYY/MM/DD HH:mm。');
+  const input = `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}`;
+  const date = UBCClock.parseInput(input);
+  if (!Number.isFinite(date.getTime()) || UBCClock.inputValue(date) !== input) throw new Error('日期或时间无效，请检查输入。');
+  return date.toISOString();
+}
+
 function shortCourseName(course) {
   const name = course.name || '';
   const match = name.match(/\b([A-Z]{2,5})[_\s]*(?:V[_\s]*)?(\d{3})\b/i);
@@ -691,7 +706,7 @@ function renderExamPage() {
     item.type = 'button'; item.setAttribute('aria-current', String(exam.id === selectedExamId));
     item.append(node('span', `exam-status-chip ${examCategory(exam)}`, stale ? '待核实' : examStatusLabel(exam)),
       node('strong', '', exam.title), node('small', '', `${exam.courseName || '未关联课程'} · ${exam.source === 'manual' ? '手动添加' : 'PrairieTest'}`),
-      node('small', '', exam.status === 'unreserved' ? exam.reservationDeadline ? `预约截止：${examLocalTime(exam.reservationDeadline)}` : '尚未预约，暂无确定场次'
+      node('small', '', exam.status === 'unreserved' ? exam.startsAt ? `考试时间：${examLocalTime(exam.startsAt)} · 待预约` : exam.reservationDeadline ? `预约截止：${examLocalTime(exam.reservationDeadline)}` : '尚未预约，暂无确定场次'
         : `考试时间：${examLocalTime(exam.startsAt)}`));
     item.addEventListener('click', () => { selectedExamId = exam.id; renderExamPage(); });
     list.append(item);
@@ -706,8 +721,8 @@ function renderExamPage() {
   const fields = node('dl', '');
   examDetailField(fields, '课程', exam.courseName || state.courses.find(course => course.id === exam.courseId)?.name || '未关联');
   examDetailField(fields, '来源', exam.source === 'manual' ? '手动添加' : 'PrairieTest');
-  examDetailField(fields, '设备当地时间', exam.status === 'unreserved' ? '尚未确定场次' : examLocalTime(exam.startsAt));
-  examDetailField(fields, '来源时区时间', exam.status === 'unreserved' ? '尚未确定场次' : examSourceTime(exam));
+  examDetailField(fields, '设备当地时间', examLocalTime(exam.startsAt));
+  examDetailField(fields, '来源时区时间', exam.startsAt ? examSourceTime(exam) : '尚未确定场次');
   examDetailField(fields, '时长', exam.durationMinutes ? `${exam.durationMinutes} 分钟` : '未提供');
   examDetailField(fields, '地点或方式', exam.location || '未提供');
   examDetailField(fields, '预约截止', exam.reservationDeadline ? examLocalTime(exam.reservationDeadline) : '未提供');
@@ -1553,12 +1568,11 @@ function openExamForm(exam = null) {
   examCourseOptions($('exam-course-id'), exam?.courseId);
   examPeriodOptions($('exam-period'), exam?.academicPeriod);
   $('exam-status').value = exam?.status || 'unreserved';
-  $('exam-start').value = exam?.startsAt ? localDateInput(exam.startsAt) : '';
-  $('exam-booking-deadline').value = exam?.reservationDeadline ? localDateInput(exam.reservationDeadline) : '';
+  $('exam-start').value = examTimeInput(exam?.startsAt);
+  $('exam-booking-deadline').value = examTimeInput(exam?.reservationDeadline);
   $('exam-duration').value = exam?.durationMinutes || '';
   $('exam-location').value = exam?.location || '';
   $('exam-url').value = exam?.url || '';
-  $('exam-start').disabled = $('exam-status').value === 'unreserved';
   $('exam-dialog').showModal();
 }
 
@@ -1605,10 +1619,6 @@ for (const button of document.querySelectorAll('[data-exam-filter]')) button.add
 $('show-archived-exams').addEventListener('change', event => { showArchivedExams = event.target.checked; renderExamPage(); });
 $('add-exam').addEventListener('click', () => openExamForm());
 $('exam-cancel').addEventListener('click', () => $('exam-dialog').close());
-$('exam-status').addEventListener('change', () => {
-  $('exam-start').disabled = $('exam-status').value === 'unreserved';
-  if ($('exam-start').disabled) $('exam-start').value = '';
-});
 $('exam-course-id').addEventListener('change', () => {
   const course = state.courses.find(item => item.id === $('exam-course-id').value);
   if (course && !$('exam-period').value && course.academicPeriod) $('exam-period').value = course.academicPeriod;
@@ -1616,11 +1626,10 @@ $('exam-course-id').addEventListener('change', () => {
 $('exam-form').addEventListener('submit', async event => {
   event.preventDefault();
   try {
-    const time = id => $(id).value ? UBCClock.parseInput($(id).value).toISOString() : null;
     const payload = { title: $('exam-title').value, courseName: $('exam-course-name').value,
       courseId: $('exam-course-id').value || null, academicPeriod: $('exam-period').value || null,
-      status: $('exam-status').value, startsAt: $('exam-status').value === 'unreserved' ? null : time('exam-start'),
-      reservationDeadline: time('exam-booking-deadline'), durationMinutes: $('exam-duration').value || null,
+      status: $('exam-status').value, startsAt: parseExamTimeInput('exam-start'),
+      reservationDeadline: parseExamTimeInput('exam-booking-deadline'), durationMinutes: $('exam-duration').value || null,
       location: $('exam-location').value, url: $('exam-url').value, sourceTimeZone: UBCClock.label() };
     state = await api('/api/exam', editingExamId ? 'PATCH' : 'POST', editingExamId ? { ...payload, id: editingExamId } : payload);
     $('exam-dialog').close(); editingExamId = null; render();
