@@ -167,7 +167,8 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       return;
     }
     const files = { '/': ['index.html', 'text/html'], '/style.css': ['style.css', 'text/css'],
-      '/task-status.js': ['task-status.js', 'text/javascript'], '/i18n.js': ['i18n.js', 'text/javascript'], '/dialogs.js': ['dialogs.js', 'text/javascript'],
+      '/task-status.js': ['task-status.js', 'text/javascript'], '/local-time.js': ['local-time.js', 'text/javascript'],
+      '/i18n.js': ['i18n.js', 'text/javascript'], '/dialogs.js': ['dialogs.js', 'text/javascript'],
       '/ui.js': ['ui.js', 'text/javascript'] };
     const target = files[request.url];
     if (!target) { response.writeHead(404); response.end(); return; }
@@ -312,6 +313,9 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#exam-count-all').textContent"), '2');
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('TEST 123 Quiz 3')"), true);
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('Make a reservation')"), false);
+    assert.equal(await evaluate("(() => { state.systemTimeZone = 'America/Vancouver'; render(); return /09:00 · America\\/Vancouver$/.test(examLocalTime('2026-11-02T16:00:00Z')); })()"), true);
+    assert.equal(await evaluate("UBCClock.parseInput('2026-11-02T09:00').toISOString()"), '2026-11-02T16:00:00.000Z');
+    await evaluate("(() => { state.systemTimeZone = null; render(); })()");
     const localTimeWithoutZone = await evaluate("(() => { const original = Intl.DateTimeFormat.prototype.resolvedOptions; Intl.DateTimeFormat.prototype.resolvedOptions = function() { return { ...original.call(this), timeZone: undefined }; }; try { return examLocalTime('2026-10-31T21:00:00Z'); } finally { Intl.DateTimeFormat.prototype.resolvedOptions = original; } })()");
     assert.match(localTimeWithoutZone, /UTC[+-]\d{2}:\d{2}$/);
     await evaluate("(() => { document.querySelector('#show-archived-exams').click(); })()");

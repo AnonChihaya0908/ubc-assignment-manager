@@ -11,7 +11,7 @@ let examLeadsDirty = false;
 let selectedTaskId = null;
 let showArchived = false;
 let searchTerm = '';
-let calendarCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let calendarCursor = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), 1, 12));
 let inspectorTasks = [];
 let updateStatus = { kind: 'checking', currentVersion: '1.3.7' };
 let promptedUpdate = null;
@@ -102,8 +102,7 @@ const academicTerms = { W1: '冬季 · Term 1', W2: '冬季 · Term 2', WA: '冬
 function academicYearLabel(year) { return `${year}/${String(Number(year) + 1).slice(-2)}`; }
 function periodAcademicYear(code) { return code ? String(Number(code.slice(0, 4)) - (code[4] === 'S' ? 1 : 0)) : ''; }
 function currentAcademicPeriod(now = new Date()) {
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+  const { month, year } = UBCClock.parts(now);
   return `${month <= 4 ? year - 1 : year}${month <= 4 ? 'W2' : month <= 6 ? 'S1' : month <= 8 ? 'S2' : 'W1'}`;
 }
 function periodLabel() {
@@ -171,16 +170,14 @@ function formatDate(iso) {
   if (!iso) return '暂无日期';
   const date = new Date(iso);
   if (!Number.isFinite(date.getTime())) return '暂无日期';
-  return new Intl.DateTimeFormat(i18n.locale(), {
+  return UBCClock.format(i18n.locale(), {
     year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
-  }).format(date);
+  }, date);
 }
 
 function localDateInput(iso) {
   if (!iso) return '';
-  const date = new Date(iso);
-  const pad = value => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return UBCClock.inputValue(iso);
 }
 
 function shortCourseName(course) {
@@ -422,13 +419,13 @@ function calendarEvents(task) {
 }
 
 function sameLocalDay(first, second) {
-  return first.getFullYear() === second.getFullYear() && first.getMonth() === second.getMonth() && first.getDate() === second.getDate();
+  return first.toISOString().slice(0, 10) === UBCClock.dateKey(second);
 }
 
 function renderCalendar(tasks, container) {
   const calendar = node('section', 'calendar-view');
   const toolbar = node('div', 'calendar-toolbar');
-  const title = node('h2', '', new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long' }).format(calendarCursor));
+  const title = node('h2', '', new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long', timeZone: 'UTC' }).format(calendarCursor));
   const legend = node('div', 'calendar-legend');
   for (const [kind, label] of [['due', '截止'], ['open', '开放'], ['manual', '手动日期']]) {
     const item = node('span');
@@ -440,7 +437,8 @@ function renderCalendar(tasks, container) {
   todayButton.type = 'button';
   todayButton.addEventListener('click', () => {
     const today = new Date();
-    calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+    const { year, month } = UBCClock.parts(today);
+    calendarCursor = new Date(Date.UTC(year, month - 1, 1, 12));
     renderCalendarPage();
   });
   controls.append(todayButton);
@@ -449,7 +447,7 @@ function renderCalendar(tasks, container) {
     button.type = 'button';
     button.setAttribute('aria-label', label);
     button.addEventListener('click', () => {
-      calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + direction, 1);
+      calendarCursor = new Date(Date.UTC(calendarCursor.getUTCFullYear(), calendarCursor.getUTCMonth() + direction, 1, 12));
       renderCalendarPage();
     });
     controls.append(button);
@@ -460,22 +458,22 @@ function renderCalendar(tasks, container) {
   const grid = node('div', 'calendar-grid');
   grid.setAttribute('role', 'grid');
   for (const weekday of ['日', '一', '二', '三', '四', '五', '六']) grid.append(node('div', 'calendar-weekday', weekday));
-  const first = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
-  const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay());
+  const first = new Date(Date.UTC(calendarCursor.getUTCFullYear(), calendarCursor.getUTCMonth(), 1, 12));
+  const gridStart = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 1 - first.getUTCDay(), 12));
   const events = tasks.flatMap(calendarEvents);
   const today = new Date();
   for (let index = 0; index < 42; index++) {
-    const day = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + index);
+    const day = new Date(Date.UTC(gridStart.getUTCFullYear(), gridStart.getUTCMonth(), gridStart.getUTCDate() + index, 12));
     const cell = node('div', 'calendar-day');
     cell.setAttribute('role', 'gridcell');
-    cell.classList.toggle('outside', day.getMonth() !== calendarCursor.getMonth());
+    cell.classList.toggle('outside', day.getUTCMonth() !== calendarCursor.getUTCMonth());
     cell.classList.toggle('today', sameLocalDay(day, today));
-    const dateLabel = node('time', 'calendar-date', String(day.getDate()));
-    dateLabel.dateTime = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+    const dateLabel = node('time', 'calendar-date', String(day.getUTCDate()));
+    dateLabel.dateTime = day.toISOString().slice(0, 10);
     cell.append(dateLabel);
     for (const event of events.filter(item => sameLocalDay(day, new Date(item.at)))) {
       const typeName = { due: '截止', open: '开放', manual: '手动日期' }[event.kind];
-      const time = new Intl.DateTimeFormat(i18n.locale(), { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(event.at));
+      const time = UBCClock.format(i18n.locale(), { hour: '2-digit', minute: '2-digit', hour12: false }, event.at);
       const button = node('button', `calendar-event ${event.kind}`, `${time}  ${event.task.name}`);
       button.type = 'button';
       button.dataset.i18nSkip = '';
@@ -499,8 +497,8 @@ function renderCalendar(tasks, container) {
 function renderCalendarPage() {
   const tasks = filteredTasks().filter(task => !searchTerm || [task.name, task.code, task.section, courseFor(task)?.name, platformNames[coursePlatform(courseFor(task))]]
     .filter(Boolean).some(value => value.toLocaleLowerCase().includes(searchTerm)));
-  $('calendar-breadcrumb').textContent = `日历 / ${new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long' }).format(calendarCursor)}`;
-  $('calendar-today-label').textContent = new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
+  $('calendar-breadcrumb').textContent = `日历 / ${new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long', timeZone: 'UTC' }).format(calendarCursor)}`;
+  $('calendar-today-label').textContent = UBCClock.format(i18n.locale(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }, new Date());
   inspectorTasks = [...tasks];
   if (!inspectorTasks.some(task => task.id === selectedTaskId)) selectedTaskId = inspectorTasks[0]?.id || null;
   const container = $('calendar-content');
@@ -539,15 +537,16 @@ function renderDashboardPage() {
   const chart = node('section', 'dashboard-panel');
   chart.append(node('h2', '', '未来 14 天截止分布'));
   const bars = node('div', 'dashboard-bars');
-  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  const today = UBCClock.parts(new Date());
+  const dayStart = new Date(Date.UTC(today.year, today.month - 1, today.day, 12));
   const daily = Array.from({ length: 14 }, (_, offset) => {
-    const start = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + offset).getTime();
-    const end = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + offset + 1).getTime();
-    return pending.filter(task => { const due = Date.parse(dueOf(task) || ''); return due >= start && due < end; });
+    const day = new Date(Date.UTC(dayStart.getUTCFullYear(), dayStart.getUTCMonth(), dayStart.getUTCDate() + offset, 12));
+    const key = day.toISOString().slice(0, 10);
+    return pending.filter(task => { const due = dueOf(task); return due && Number.isFinite(Date.parse(due)) && UBCClock.dateKey(due) === key; });
   });
   const max = Math.max(1, ...daily.map(items => items.length));
   for (let index = 0; index < 14; index++) {
-    const day = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + index);
+    const day = new Date(Date.UTC(dayStart.getUTCFullYear(), dayStart.getUTCMonth(), dayStart.getUTCDate() + index, 12));
     const column = node('div', 'dashboard-bar-column');
     const stack = node('div', 'dashboard-bar-stack');
     stack.style.height = `${Math.max(2, daily[index].length / max * 100)}%`;
@@ -558,8 +557,8 @@ function renderDashboardPage() {
       segment.style.flex = String(count);
       stack.append(segment);
     }
-    column.title = `${new Intl.DateTimeFormat(i18n.locale(), { month: 'numeric', day: 'numeric' }).format(day)} · ${daily[index].length} 项`;
-    column.append(stack, node('small', '', new Intl.DateTimeFormat(i18n.locale(), { month: 'numeric', day: 'numeric' }).format(day)));
+    column.title = `${new Intl.DateTimeFormat(i18n.locale(), { month: 'numeric', day: 'numeric', timeZone: 'UTC' }).format(day)} · ${daily[index].length} 项`;
+    column.append(stack, node('small', '', new Intl.DateTimeFormat(i18n.locale(), { month: 'numeric', day: 'numeric', timeZone: 'UTC' }).format(day)));
     bars.append(column);
   }
   chart.append(bars); main.append(chart);
@@ -632,15 +631,15 @@ function visibleExams() {
 function examLocalTime(value) {
   if (!value) return '尚未公布';
   const date = new Date(value);
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const minutes = -date.getTimezoneOffset();
+  const zone = UBCClock.label();
+  const minutes = UBCClock.offsetMinutes(date);
   const sign = minutes < 0 ? '-' : '+';
   const offset = `UTC${sign}${String(Math.floor(Math.abs(minutes) / 60)).padStart(2, '0')}:${String(Math.abs(minutes) % 60).padStart(2, '0')}`;
   return `${formatDate(value)} · ${zone || offset}`;
 }
 function examSourceTime(exam) {
   if (!exam.startsAt || !exam.sourceTimeZone) return '未提供';
-  try { return `${new Intl.DateTimeFormat(i18n.locale(), { dateStyle: 'medium', timeStyle: 'short', timeZone: exam.sourceTimeZone }).format(new Date(exam.startsAt))} · ${exam.sourceTimeZone}`; }
+  try { return `${UBCClock.format(i18n.locale(), { dateStyle: 'medium', timeStyle: 'short' }, exam.startsAt, exam.sourceTimeZone)} · ${exam.sourceTimeZone}`; }
   catch { return '未提供'; }
 }
 function examDetailField(list, label, value) {
@@ -654,7 +653,7 @@ function examCourseOptions(select, selected = '') {
 function examPeriodOptions(select, selected = '') {
   select.replaceChildren(new Option('待分类', ''));
   const years = new Set(state.courses.map(course => course.academicPeriod?.slice(0, 4)).filter(Boolean));
-  const now = new Date().getFullYear();
+  const now = UBCClock.parts(new Date()).year;
   for (let year = now - 1; year <= now + 2; year++) years.add(String(year));
   if (selected) years.add(selected.slice(0, 4));
   for (const year of [...years].sort().reverse()) for (const [term, label] of Object.entries(academicTerms)) {
@@ -970,7 +969,7 @@ function renderWork() {
     $('work-summary').textContent = '查看这个平台的课程和作业。';
   }
   const tasks = visibleTasks();
-  $('today-label').textContent = new Intl.DateTimeFormat(i18n.locale(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }).format(new Date());
+  $('today-label').textContent = UBCClock.format(i18n.locale(), { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }, new Date());
   const pendingCount = tasks.filter(task => needsAttention(task)).length;
   $('pending-badge').querySelector('span:last-child').textContent = `${pendingCount} 项需处理`;
   $('pending-badge').querySelector('.notification-dot').hidden = pendingCount === 0;
@@ -1147,7 +1146,7 @@ function renderSettings() {
     const periodYear = document.createElement('select');
     periodYear.setAttribute('aria-label', `${course.name} 学年起始年`);
     periodYear.append(new Option('待分类', ''));
-    const currentYear = new Date().getFullYear();
+    const currentYear = UBCClock.parts(new Date()).year;
     for (let year = currentYear + 2; year >= currentYear - 12; year--) periodYear.append(new Option(String(year), String(year)));
     if (course.academicPeriod && ![...periodYear.options].some(option => option.value === course.academicPeriod.slice(0, 4))) {
       periodYear.append(new Option(course.academicPeriod.slice(0, 4), course.academicPeriod.slice(0, 4)));
@@ -1322,7 +1321,7 @@ function renderSettings() {
   $('next-reminder-detail').textContent = wechat.remindersPaused ? '提醒已暂停；恢复后若仍是当天且计划时间已过，会发送当天尚未成功的汇总。' :
     !wechat.enabled ? '每日微信汇总尚未启用。' : !wechat.hasKey ? '请先保存 Server酱 SendKey。' :
     wechat.quietEnabled ? `免打扰 ${wechat.quietStart}–${wechat.quietEnd}；时段内的当天汇总将在结束后补发。` : '计划按电脑当地时间执行。';
-  $('reminder-timezone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  $('reminder-timezone').textContent = UBCClock.label();
   const history = $('reminder-history');
   history.replaceChildren();
   const typeNames = { daily: '自动汇总', test: '手动测试', windows: 'Windows 通知', macos: 'macOS 通知' };
@@ -1400,6 +1399,7 @@ async function installUpdate() {
 
 function render() {
   if (!state) return;
+  UBCClock.configure(state.systemTimeZone);
   i18n.setPreference(state.preferences?.language, state.systemLocale);
   if (selectedScope.startsWith('course:') && !state.courses.some(course => course.id === selectedScope.slice(7))) selectedScope = 'all';
   const settings = location.hash.startsWith('#settings');
@@ -1444,7 +1444,7 @@ function render() {
   $('footer-sources').textContent = `PrairieLearn ${plCount} 门课程 · WeBWorK ${wwCount} 门课程 · Gradescope ${gsCount} 门课程`;
   $('footer-reminder').textContent = state.wechat?.remindersPaused ? '提醒已暂停' : state.wechat?.lastError ? '每日提醒发送失败' : state.wechat?.enabled ? '每日提醒已启用' : '每日提醒未启用';
   $('footer-reminder').classList.toggle('error', Boolean(state.wechat?.lastError && !state.wechat?.remindersPaused));
-  $('footer-timezone').textContent = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  $('footer-timezone').textContent = UBCClock.label();
 }
 
 function showCourseAccessReview() {
@@ -1525,7 +1525,8 @@ function clearTaskSearch() {
 function navigateCalendar() {
   selectedScope = 'all';
   const today = new Date();
-  calendarCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+  const { year, month } = UBCClock.parts(today);
+  calendarCursor = new Date(Date.UTC(year, month - 1, 1, 12));
   if (location.hash !== '#calendar') location.hash = 'calendar';
   render();
   closeMobileMenu();
@@ -1614,13 +1615,13 @@ $('exam-course-id').addEventListener('change', () => {
 });
 $('exam-form').addEventListener('submit', async event => {
   event.preventDefault();
-  const time = id => $(id).value ? new Date($(id).value).toISOString() : null;
-  const payload = { title: $('exam-title').value, courseName: $('exam-course-name').value,
-    courseId: $('exam-course-id').value || null, academicPeriod: $('exam-period').value || null,
-    status: $('exam-status').value, startsAt: $('exam-status').value === 'unreserved' ? null : time('exam-start'),
-    reservationDeadline: time('exam-booking-deadline'), durationMinutes: $('exam-duration').value || null,
-    location: $('exam-location').value, url: $('exam-url').value, sourceTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
   try {
+    const time = id => $(id).value ? UBCClock.parseInput($(id).value).toISOString() : null;
+    const payload = { title: $('exam-title').value, courseName: $('exam-course-name').value,
+      courseId: $('exam-course-id').value || null, academicPeriod: $('exam-period').value || null,
+      status: $('exam-status').value, startsAt: $('exam-status').value === 'unreserved' ? null : time('exam-start'),
+      reservationDeadline: time('exam-booking-deadline'), durationMinutes: $('exam-duration').value || null,
+      location: $('exam-location').value, url: $('exam-url').value, sourceTimeZone: UBCClock.label() };
     state = await api('/api/exam', editingExamId ? 'PATCH' : 'POST', editingExamId ? { ...payload, id: editingExamId } : payload);
     $('exam-dialog').close(); editingExamId = null; render();
   } catch (error) { message(error.message, true); }
@@ -2070,7 +2071,7 @@ $('deadline-form').addEventListener('submit', async event => {
   const value = $('deadline-input').value;
   if (!value) { message('请先选择日期和时间。', true); return; }
   try {
-    state = await api('/api/task', 'PATCH', { id: editingTaskId, deadlineOverride: new Date(value).toISOString() });
+    state = await api('/api/task', 'PATCH', { id: editingTaskId, deadlineOverride: UBCClock.parseInput(value).toISOString() });
     $('deadline-dialog').close();
     render();
   } catch (error) { message(error.message, true); }
@@ -2086,6 +2087,9 @@ $('quit').addEventListener('click', async () => {
 
 api('/api/state').then(result => {
   state = result;
+  UBCClock.configure(state.systemTimeZone);
+  const { year, month } = UBCClock.parts(new Date());
+  calendarCursor = new Date(Date.UTC(year, month - 1, 1, 12));
   routeFromHash();
   window.webkit?.messageHandlers?.nativeHost?.postMessage({ action: 'setLanguage', language: i18n.locale() });
   checkUpdate();
