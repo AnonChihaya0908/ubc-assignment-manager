@@ -1,3 +1,4 @@
+const systemTimeZone = require('./lib/system-time-zone').configureSystemTimeZone();
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -62,7 +63,8 @@ function publicState() {
     syncingPrairieTest, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
     browserMode: browserMode(),
-    preferences: state.preferences, systemLocale: Intl.DateTimeFormat().resolvedOptions().locale, startup, platform: process.platform,
+    preferences: state.preferences, systemLocale: Intl.DateTimeFormat().resolvedOptions().locale,
+    systemTimeZone, startup, platform: process.platform,
     wechat: publicConfig(wechatConfig), email: publicEmailConfig(emailConfig, emailConnected, wechatConfig.remindersPaused),
     now: new Date().toISOString() };
 }
@@ -291,6 +293,7 @@ async function handle(request, response) {
   if (request.method === 'GET' && url.pathname === '/') return serveFile(response, 'index.html', 'text/html; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/style.css') return serveFile(response, 'style.css', 'text/css; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/task-status.js') return serveFile(response, 'task-status.js', 'text/javascript; charset=utf-8');
+  if (request.method === 'GET' && url.pathname === '/local-time.js') return serveFile(response, 'local-time.js', 'text/javascript; charset=utf-8');
     if (request.method === 'GET' && url.pathname === '/dialogs.js') return serveFile(response, 'dialogs.js', 'text/javascript; charset=utf-8');
     if (request.method === 'GET' && url.pathname === '/i18n.js') return serveFile(response, 'i18n.js', 'text/javascript; charset=utf-8');
   if (request.method === 'GET' && url.pathname === '/ui.js') return serveFile(response, 'ui.js', 'text/javascript; charset=utf-8');

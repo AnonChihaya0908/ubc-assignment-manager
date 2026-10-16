@@ -74,7 +74,10 @@ test('unexpected page, missing zone and invalid links fail without erasing cache
 
 test('manual exam validation rejects fabricated reserved time and reminders deduplicate by state and time', () => {
   assert.throws(() => validateExam({ title: 'Midterm', status: 'reserved' }), /开始时间/);
-  assert.throws(() => validateExam({ title: 'Midterm', status: 'unreserved', startsAt: '2026-11-01T10:00:00Z' }), /未预约/);
+  const scheduled = validateExam({ title: 'Midterm', status: 'unreserved', startsAt: '2026-11-01T10:00:00Z' });
+  assert.equal(scheduled.startsAt, '2026-11-01T10:00:00.000Z');
+  assert.equal(scheduled.status, 'unreserved');
+  assert.throws(() => validateExam({ title: 'Midterm', status: 'unreserved', startsAt: '2026-11-01T10:00:00Z', sourceId: '1' }, { source: 'prairietest' }), /未预约/);
   const state = emptyState();
   const now = new Date('2026-10-15T12:00:00Z');
   const reserved = validateExam({ title: 'Midterm', status: 'reserved', startsAt: '2026-10-16T12:00:00Z',
@@ -112,7 +115,7 @@ test('daily WeChat and email summaries count exams, while restored PrairieTest r
     startsAt: '2026-10-16T13:00:00Z', sourceTimeZone: 'America/Los_Angeles',
     url: 'https://us.prairietest.com/pt/exams/321' };
   mergePrairieTestExams(state, [imported], now);
-  assert.match(buildDailyDigest(state, now).title, /1 exams/);
+  assert.match(buildDailyDigest(state, now).title, /1 exam/);
   assert.match(buildDigest(state, { scope: 'all' }, now).subject, /1 exams/);
   const backup = createBackup(state, emptyConfig(), now);
   const restored = validateBackup(backup).state;

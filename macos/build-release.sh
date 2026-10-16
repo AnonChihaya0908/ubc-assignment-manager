@@ -83,7 +83,16 @@ codesign --verify --deep --strict --verbose=2 "$temp_dir/extracted/UBC作业管�
 mkdir -p "$temp_dir/dmg" "$temp_dir/mounted"
 ditto "$app_bundle" "$temp_dir/dmg/UBC作业管理工具.app"
 ln -s /Applications "$temp_dir/dmg/Applications"
-hdiutil create -ov -srcfolder "$temp_dir/dmg" -volname "UBC作业管理工具" -fs APFS -format UDZO "$dmg"
+for attempt in 1 2 3; do
+  if hdiutil create -ov -srcfolder "$temp_dir/dmg" -volname "UBC作业管理工具" -fs APFS -format UDZO "$dmg"; then
+    break
+  fi
+  if [[ "$attempt" == 3 ]]; then
+    echo "DMG creation failed after 3 attempts." >&2
+    exit 1
+  fi
+  sleep "$((attempt * 2))"
+done
 hdiutil attach -readonly -nobrowse -mountpoint "$temp_dir/mounted" "$dmg"
 mounted=true
 test "$(readlink "$temp_dir/mounted/Applications")" = /Applications

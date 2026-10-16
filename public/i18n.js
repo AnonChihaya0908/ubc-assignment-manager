@@ -34,7 +34,7 @@
     '考试开始时间（设备当地时间）': 'Exam start (device local time)', '时长（分钟）': 'Duration (minutes)',
     '预约截止时间（仅网站明确提供时填写）': 'Reservation deadline (only if explicitly provided)',
     '地点或线上方式': 'Location or online format', '考试链接（可选）': 'Exam URL (optional)',
-    '待预约状态不填写场次时间；预约成功后再改为已预约。时间按设备当地时区保存。': 'Do not enter a confirmed exam time before reserving. Times are saved in the device time zone.',
+    '已知考试时间可以先填写，预约成功后再改为已预约。时间格式：YYYY/MM/DD HH:mm，按设备当地时区保存。': 'Enter the exam time if known, then change the status to Reserved after booking. Format: YYYY/MM/DD HH:mm. Times use the device time zone.',
     '保存考试': 'Save exam', '取消': 'Cancel', '分钟': 'minutes', '正在同步 PrairieTest…': 'Syncing PrairieTest…',
     '考试提前提醒': 'Exam advance reminders', '考试提醒独立于作业截止提醒。已预约按确定场次提醒；未预约且没有明确截止时间的考试，每周最多提醒一次预约。': 'Exam reminders use their own schedule. Reserved exams use the confirmed time; unreserved exams without a deadline prompt at most weekly.',
     '提前小时数（逗号分隔）': 'Hours in advance (comma separated)', '最多 6 个时间点，每个在 0.25 到 720 小时之间。': 'Up to six times, from 0.25 to 720 hours.',
