@@ -93,7 +93,19 @@ for attempt in 1 2 3; do
   fi
   sleep "$((attempt * 2))"
 done
-hdiutil attach -readonly -nobrowse -mountpoint "$temp_dir/mounted" "$dmg"
+for attempt in 1 2 3 4; do
+  if hdiutil attach -readonly -nobrowse -mountpoint "$temp_dir/mounted" "$dmg"; then
+    break
+  fi
+  if [[ -d "$temp_dir/mounted/UBC作业管理工具.app" ]]; then
+    break
+  fi
+  if [[ "$attempt" == 4 ]]; then
+    echo "DMG attachment failed after 4 attempts." >&2
+    exit 1
+  fi
+  sleep "$((attempt * 3))"
+done
 mounted=true
 test "$(readlink "$temp_dir/mounted/Applications")" = /Applications
 diff -qr "$app_bundle" "$temp_dir/mounted/UBC作业管理工具.app"
