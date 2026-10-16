@@ -4,11 +4,11 @@
 
 本地作业管理应用，将 PrairieLearn、UBC WeBWorK 和 Gradescope Canada 的作业、开放时间与截止时间集中到一个界面，并提供考试提醒、系统通知、日历视图和微信每日汇总。
 
-当前正式版本：**1.3.7** · [下载 Windows 与 macOS 安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.7) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
+当前正式版本：**1.3.8** · [下载 Windows 与 macOS 安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.8) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
 
-1.3.7 在同一 Release 提供 Windows 安装版与便携版，以及 macOS arm64 / x64 的 DMG、ZIP、PKG。macOS 包未做 Apple Developer ID 签名和公证，首次打开可能需要手动允许；真实 Mac 上的完整登录与通知流程仍在验证。
+1.3.8 在同一 Release 提供 Windows 安装版与便携版，以及 macOS arm64 / x64 的 DMG、ZIP、PKG。macOS 包未做 Apple Developer ID 签名和公证，首次打开可能需要手动允许；真实 Mac 上的完整登录与通知流程仍在验证。
 
-1.3.7 修复 PrairieTest 已预约后仍出现“Make a reservation”假考试，以及设备未返回时区名称时显示 `undefined` 的问题；同时包含 1.3.6 的预约时间解析修复。已在用户授权的 PrairieTest Home 页面只读核对当前预约列表；新版安装后的实际同步与提醒仍需用户设备确认。
+1.3.8 修正 British Columbia 本地时间和手动考试时间输入，将微信每日提醒按考试、平台及课程分组，并把同步状态集中放在末尾。考试时间采用固定的 `YYYY/MM/DD HH:mm` 输入格式；待预约考试也能记录已知的开始时间。
 
 > 本项目不是 UBC、PrairieLearn、WeBWorK 或 Gradescope 的官方产品。应用只读取用户登录后有权访问且页面上可见的数据，不使用教师 API，也不需要 PrairieLearn API token。
 
@@ -37,18 +37,18 @@
 ### Windows 安装版（推荐）
 
 1. 前往 [Releases](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest)。
-2. 下载并运行 `ubc-assignment-manager-1.3.7-setup.exe`。
+2. 下载并运行 `ubc-assignment-manager-1.3.8-setup.exe`。
 3. 从桌面或开始菜单打开“UBC作业管理工具”。
 
 安装程序只为当前 Windows 账户安装应用。运行时无需打开 CMD，也无需另行安装 Node.js。
 
 ### Windows 便携版
 
-下载 `ubc-assignment-manager-1.3.7-windows.zip` 并完整解压后运行。请勿只移动其中的 EXE，运行时还需要压缩包内的 `runtime` 等文件。Release 同时提供安装包和 ZIP 的 `.sha256` 校验文件。
+下载 `ubc-assignment-manager-1.3.8-windows.zip` 并完整解压后运行。请勿只移动其中的 EXE，运行时还需要压缩包内的 `runtime` 等文件。Release 同时提供安装包和 ZIP 的 `.sha256` 校验文件。
 
 ### macOS 桌面版
 
-macOS 版是独立 `.app`；1.3.7 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），PKG 也保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。
+macOS 版是独立 `.app`；1.3.8 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），PKG 也保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。
 
 下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。macOS 包没有 Developer ID 签名或公证；首次打开可能需要按[安装说明](docs/macos-preview.md)手动允许，学校管理的设备可能禁止侧载。CI 已验证 Sonoma 14 启动与包完整性，真实设备上的首次安装、通知和 Gradescope 登录仍需确认。
 
