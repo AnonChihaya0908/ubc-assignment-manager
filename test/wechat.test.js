@@ -125,6 +125,11 @@ test('daily digest groups assignments and nearby exams, then summarizes sync wit
   assert.doesNotMatch(digest.desp, /CPSC 310 Midterm|Exam without a date/);
   assert.match(digest.desp, /数据状态：2 门作业课程于今天 09:26 同步；CPSC 421 · 2026W1：本次同步失败（网络连接失败），保留原有数据；PrairieTest 于今天 09:39 同步；CPSC 421 Midterm 为手动添加。/);
   assert.ok(digest.desp.indexOf('数据状态：') > digest.desp.indexOf('Assignment-05'));
+  state.exams.push({ source: 'manual', title: 'CPSC 310 Quiz', courseName: 'CPSC 310', status: 'unreserved',
+    startsAt: new Date(2026, 9, 20, 10).toISOString() });
+  const scheduled = buildDailyDigest(state, now);
+  assert.match(scheduled.desp, /CPSC 310\n    - Quiz：考试 10\/20 10:00 · 待预约/);
+  state.exams.pop();
   state.preferences.language = 'en-US';
   const english = buildDailyDigest(state, now);
   assert.match(english.title, /2 exams, 2 assignments to handle/);
