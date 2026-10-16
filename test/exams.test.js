@@ -112,7 +112,7 @@ test('daily WeChat and email summaries count exams, while restored PrairieTest r
     startsAt: '2026-10-16T13:00:00Z', sourceTimeZone: 'America/Los_Angeles',
     url: 'https://us.prairietest.com/pt/exams/321' };
   mergePrairieTestExams(state, [imported], now);
-  assert.match(buildDailyDigest(state, now).title, /1 exams/);
+  assert.match(buildDailyDigest(state, now).title, /1 exam/);
   assert.match(buildDigest(state, { scope: 'all' }, now).subject, /1 exams/);
   const backup = createBackup(state, emptyConfig(), now);
   const restored = validateBackup(backup).state;

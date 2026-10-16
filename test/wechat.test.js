@@ -72,12 +72,11 @@ test('daily digest contains actionable assignments and does not include private 
   const digest = buildDailyDigest(state, now);
   assert.equal(digest.count, 4);
   assert.match(digest.title, /4 项需处理/);
-  assert.match(digest.desp, /STAT 251.*Assignment-03/);
-  assert.match(digest.desp, /STAT 251.*Assignment-00/);
-  assert.match(digest.desp, /STAT 251.*Assignment-02.*网页标记已截止/);
-  assert.match(digest.desp, /数据状态.*STAT 251.*最近刷新失败（网络连接失败）/s);
-  assert.match(digest.desp, /【100% 待确认】STAT 251.*Assignment-00/);
-  assert.match(digest.desp, /【100% 待确认】STAT 251.*Assignment-01/);
+  assert.match(digest.desp, /- WeBWorK\n  - STAT 251\n    - 【100% 待确认】Assignment-00/);
+  assert.match(digest.desp, /    - A03 Assignment-03：截止/);
+  assert.match(digest.desp, /    - Assignment-02：网页标记已截止/);
+  assert.match(digest.desp, /数据状态.*STAT 251.*本次同步失败（网络连接失败）/s);
+  assert.match(digest.desp, /【100% 待确认】Assignment-01/);
   assert.doesNotMatch(digest.desp, /Assignment-04|private-id|effectiveUser/);
   assert.doesNotMatch(digest.desp, /复习第三章/);
   const withNotes = buildDailyDigest(state, now, { includeNotes: true });
@@ -87,6 +86,50 @@ test('daily digest contains actionable assignments and does not include private 
   assert.doesNotMatch(filtered.desp, /Assignment-03/);
   state.courses[0].archived = true;
   assert.equal(buildDailyDigest(state, now).count, 0);
+});
+
+test('daily digest groups assignments and nearby exams, then summarizes sync with exceptions', () => {
+  const now = new Date(2026, 9, 16, 9, 40);
+  const recent = new Date(2026, 9, 16, 9, 26).toISOString();
+  const testSync = new Date(2026, 9, 16, 9, 39).toISOString();
+  const state = {
+    preferences: { language: 'zh-CN' },
+    courses: [
+      { id: 'pl', name: 'CPSC 317, 2026W1', lastSyncedAt: recent },
+      { id: 'ww', name: 'STAT_V 251 101 2026W1', platform: 'webwork', lastSyncedAt: new Date(2026, 9, 16, 9, 26, 30).toISOString() },
+      { id: 'gs', name: 'CPSC_V 421 101 2026W1', platform: 'gradescope', lastSyncedAt: recent,
+        lastSyncError: 'network failed', lastSyncErrorKind: 'network' },
+    ],
+    tasks: [
+      { courseId: 'pl', code: 'PA3', name: 'A POP3 Server', sourceComplete: false, dueAt: new Date(2026, 9, 25, 23, 59).toISOString() },
+      { courseId: 'ww', name: 'Assignment-05', sourceComplete: false, dueAt: new Date(2026, 9, 22, 23, 59).toISOString() },
+    ],
+    exams: [
+      { source: 'prairietest', title: 'CPSC 317 (2026W1): Quiz 2', courseName: 'CPSC 317', status: 'reserved',
+        startsAt: new Date(2026, 9, 17, 14).toISOString(), location: 'ORCA ICCS 014', lastSyncedAt: testSync },
+      { source: 'manual', title: 'CPSC 421 Midterm', courseName: 'CPSC 421', status: 'reserved',
+        startsAt: new Date(2026, 9, 19, 12).toISOString(), location: 'SHRM B1009' },
+      { source: 'manual', title: 'CPSC 310 Midterm', courseName: 'CPSC 310', status: 'reserved',
+        startsAt: new Date(2026, 9, 29, 20).toISOString() },
+      { source: 'manual', title: 'Exam without a date', courseName: 'CPSC 310', status: 'unreserved', startsAt: null },
+    ],
+    prairieTest: { lastSyncedAt: testSync, lastError: null },
+  };
+  const digest = buildDailyDigest(state, now);
+  assert.equal(digest.count, 4);
+  assert.equal(digest.title, 'UBC作业管理工具：2 场考试、2 项作业需关注');
+  assert.match(digest.desp, /考试提醒（未来 7 天）\n- PrairieTest\n  - CPSC 317 · 2026W1\n    - Quiz 2：明天 14:00 · 已预约\n      - 地点：ORCA ICCS 014/);
+  assert.match(digest.desp, /- 手动添加\n  - CPSC 421\n    - Midterm：10\/19 12:00 · 已预约/);
+  assert.match(digest.desp, /作业提醒\n- PrairieLearn\n  - CPSC 317 · 2026W1\n    - PA3 A POP3 Server/);
+  assert.match(digest.desp, /- WeBWorK\n  - STAT 251 · 2026W1\n    - Assignment-05/);
+  assert.doesNotMatch(digest.desp, /CPSC 310 Midterm|Exam without a date/);
+  assert.match(digest.desp, /数据状态：2 门作业课程于今天 09:26 同步；CPSC 421 · 2026W1：本次同步失败（网络连接失败），保留原有数据；PrairieTest 于今天 09:39 同步；CPSC 421 Midterm 为手动添加。/);
+  assert.ok(digest.desp.indexOf('数据状态：') > digest.desp.indexOf('Assignment-05'));
+  state.preferences.language = 'en-US';
+  const english = buildDailyDigest(state, now);
+  assert.match(english.title, /2 exams, 2 assignments to handle/);
+  assert.match(english.desp, /Exams \(next 7 days\).*Assignments.*Data status:/s);
+  assert.doesNotMatch(english.desp, /考试提醒|作业提醒|数据状态/);
 });
 
 test('ignored category is removed only from its course digest', () => {
