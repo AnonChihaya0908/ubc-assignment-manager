@@ -72,7 +72,7 @@
         <button class="settings-link" data-settings="data" type="button">数据与退出</button>
       </div>
       <div id="exam-navigation" class="folder-content" hidden>
-        <div class="pane-heading"><h2>考试提醒</h2></div>
+        <div class="pane-heading exam-pane-heading"><h2>考试提醒</h2><button id="add-exam" class="exam-add-button" type="button" aria-label="手动添加考试" title="手动添加考试">+</button></div>
         <p class="pane-label">独立于作业目录</p>
         <button class="folder-link active" data-exam-filter="all" type="button"><span>全部考试</span><span id="exam-count-all" class="folder-count">0</span></button>
         <button class="folder-link" data-exam-filter="unreserved" type="button"><span>待预约</span><span id="exam-count-unreserved" class="folder-count">0</span></button>
@@ -120,8 +120,7 @@
       <section id="exam-page" class="page" hidden>
         <header class="page-header"><div class="page-title"><p class="breadcrumb">考试 / 考试提醒</p><h1>考试提醒</h1><p class="page-summary">独立管理考试预约与提醒，不计入作业完成率。</p></div></header>
         <div class="exam-page-content">
-          <div class="exam-actions"><button id="add-exam" class="primary-button" type="button">手动添加考试</button><button id="open-prairietest" class="secondary-button" type="button">打开 PrairieTest 登录窗口</button><button id="sync-prairietest" class="secondary-button" type="button">只读同步</button></div>
-          <p id="prairietest-status" class="form-note" role="status" aria-live="polite"></p>
+          <div class="exam-topline"><p id="prairietest-status" class="form-note" role="status" aria-live="polite"></p><a href="#settings/courses">登录账户：设置 → 课程与登录</a></div>
           <div class="exam-columns"><div id="exam-list" class="exam-list"></div><aside id="exam-detail" class="exam-detail" aria-label="考试详情"></aside></div>
         </div>
       </section>
@@ -251,6 +250,7 @@
             <label for="browser-engine">同步浏览器</label>
             <select id="browser-engine"><option value="auto">自动选择</option><option value="edge">Microsoft Edge</option><option value="chrome">Google Chrome</option><option value="webkit">应用内置 WebKit（Mac）</option></select>
             <p id="browser-engine-hint" class="form-note">Windows 优先使用 Edge，未安装时使用 Chrome；Mac 默认使用内置 WebKit。</p>
+            <div class="setting-row prairie-test-login"><div><h3>PrairieTest</h3><p>登录后可在“考试提醒”中只读同步考试预约。</p></div><button id="open-prairietest" class="secondary-button" type="button">打开登录窗口</button></div>
             <label for="settings-course-select">选择课程</label>
             <div class="input-action"><select id="settings-course-select"></select><button id="open-browser" class="secondary-button" type="button">打开登录窗口</button><button id="hide-browser" class="secondary-button" type="button" hidden>隐藏登录窗口</button></div>
             <details class="paste-panel"><summary>PrairieLearn 页面无法同步？粘贴作业表格</summary><p>在已登录的浏览器中复制 PrairieLearn 作业表格，粘贴到下方导入。WeBWorK 和 Gradescope 请使用登录窗口同步。</p><label for="paste-data">作业表格文字</label><textarea id="paste-data" rows="5"></textarea><button id="import-text" class="secondary-button" type="button">导入所选课程</button></details>

@@ -20,6 +20,7 @@ let pendingBackup = null;
 let macNotificationStatus = 'checking';
 let selectedExamId = null;
 let examFilter = 'all';
+let syncBusy = false;
 let showArchivedExams = false;
 let editingExamId = null;
 
@@ -692,27 +693,50 @@ function renderExamPage() {
   $('prairietest-status').textContent = state.syncingPrairieTest ? '正在只读同步 PrairieTest…' :
     `${synced ? `上次同步：${formatDate(synced)}` : '尚未同步 PrairieTest。'}${state.prairieTest?.lastError ? ` · 同步失败，已保留上次数据：${state.prairieTest.lastError}` : ''}`;
   $('prairietest-status').classList.toggle('error', Boolean(state.prairieTest?.lastError));
-  $('sync-prairietest').disabled = Boolean(state.syncingPrairieTest);
   const list = $('exam-list'); list.replaceChildren();
   const filtered = all.filter(exam => (examFilter === 'all' || examCategory(exam) === examFilter) &&
-    (!searchTerm || [exam.title, exam.courseName, exam.location].some(value => String(value || '').toLocaleLowerCase().includes(searchTerm))))
-    .sort((a, b) => (Date.parse(a.startsAt || a.reservationDeadline || '') || Infinity) - (Date.parse(b.startsAt || b.reservationDeadline || '') || Infinity));
-  if (!filtered.some(exam => exam.id === selectedExamId)) selectedExamId = filtered[0]?.id || null;
+    (!searchTerm || [exam.title, exam.courseName, exam.location].some(value => String(value || '').toLocaleLowerCase().includes(searchTerm))));
+  const examTime = exam => {
+    const parsed = Date.parse(exam.startsAt || exam.reservationDeadline || '');
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const finishedTime = exam => {
+    const started = Date.parse(exam.startsAt || '');
+    if (Number.isFinite(started)) return started + (Number(exam.durationMinutes) || 0) * 60000;
+    return examTime(exam);
+  };
+  const upcoming = filtered.filter(exam => examCategory(exam) !== 'ended')
+    .sort((a, b) => (examTime(a) ?? Infinity) - (examTime(b) ?? Infinity) || a.title.localeCompare(b.title));
+  const ended = filtered.filter(exam => examCategory(exam) === 'ended')
+    .sort((a, b) => (finishedTime(b) ?? -Infinity) - (finishedTime(a) ?? -Infinity) || a.title.localeCompare(b.title));
+  const ordered = [...upcoming, ...ended];
+  if (!ordered.some(exam => exam.id === selectedExamId)) selectedExamId = ordered[0]?.id || null;
   if (!filtered.length) list.append(node('p', 'form-note', '当前分类暂无考试。可手动添加，或登录 PrairieTest 后只读同步。'));
-  for (const exam of filtered) {
-    const stale = exam.source === 'prairietest' && (!state.prairieTest?.lastSyncedAt ||
-      Date.parse(exam.lastSyncedAt || '') < Date.parse(state.prairieTest.lastSyncedAt));
-    const item = node('button', `exam-list-item${exam.id === selectedExamId ? ' active' : ''}`);
-    item.type = 'button'; item.setAttribute('aria-current', String(exam.id === selectedExamId));
-    item.append(node('span', `exam-status-chip ${examCategory(exam)}`, stale && examCategory(exam) !== 'ended' ? '待核实' : examStatusLabel(exam)),
-      node('strong', '', exam.title), node('small', '', `${exam.courseName || '未关联课程'} · ${exam.source === 'manual' ? '手动添加' : 'PrairieTest'}`),
-      node('small', '', exam.status === 'unreserved' ? exam.startsAt ? `考试时间：${examLocalTime(exam.startsAt)} · 待预约` : exam.reservationDeadline ? `预约截止：${examLocalTime(exam.reservationDeadline)}` : '尚未预约，暂无确定场次'
-        : `考试时间：${examLocalTime(exam.startsAt)}`));
-    item.addEventListener('click', () => { selectedExamId = exam.id; renderExamPage(); });
-    list.append(item);
+  const sections = examFilter === 'all' ? [['即将到来', upcoming], ['已结束', ended]] : [[null, ordered]];
+  for (const [label, exams] of sections) {
+    if (!exams.length) continue;
+    const section = node('section', 'exam-list-section');
+    if (label) {
+      const heading = node('h2', 'exam-section-heading', label);
+      heading.append(node('span', '', `${exams.length} 项考试`));
+      section.append(heading);
+    }
+    for (const exam of exams) {
+      const stale = exam.source === 'prairietest' && (!state.prairieTest?.lastSyncedAt ||
+        Date.parse(exam.lastSyncedAt || '') < Date.parse(state.prairieTest.lastSyncedAt));
+      const item = node('button', `exam-list-item${exam.id === selectedExamId ? ' active' : ''}`);
+      item.type = 'button'; item.setAttribute('aria-current', String(exam.id === selectedExamId));
+      item.append(node('span', `exam-status-chip ${examCategory(exam)}`, stale && examCategory(exam) !== 'ended' ? '待核实' : examStatusLabel(exam)),
+        node('strong', '', exam.title), node('small', '', `${exam.courseName || '未关联课程'} · ${exam.source === 'manual' ? '手动添加' : 'PrairieTest'}`),
+        node('small', '', exam.status === 'unreserved' ? exam.startsAt ? `考试时间：${examLocalTime(exam.startsAt)} · 待预约` : exam.reservationDeadline ? `预约截止：${examLocalTime(exam.reservationDeadline)}` : '尚未预约，暂无确定场次'
+          : `考试时间：${examLocalTime(exam.startsAt)}`));
+      item.addEventListener('click', () => { selectedExamId = exam.id; renderExamPage(); });
+      section.append(item);
+    }
+    list.append(section);
   }
   const detail = $('exam-detail'); detail.replaceChildren();
-  const exam = filtered.find(item => item.id === selectedExamId);
+  const exam = ordered.find(item => item.id === selectedExamId);
   if (!exam) { detail.append(node('p', 'form-note', '选择考试后可查看预约、时间与提醒信息。')); return; }
   const stale = exam.source === 'prairietest' && (!state.prairieTest?.lastSyncedAt ||
     Date.parse(exam.lastSyncedAt || '') < Date.parse(state.prairieTest.lastSyncedAt));
@@ -1450,8 +1474,13 @@ function render() {
   const last = activeCourses.map(course => course.lastSyncedAt).filter(Boolean).sort().at(-1);
   const failures = activeCourses.filter(course => course.lastSyncError).length;
   const stale = activeCourses.filter(course => ['stale', 'never'].includes(courseSyncStatus(course).kind)).length;
-  $('sync-status').textContent = state.syncing ? '正在同步' : failures ? `${failures} 门课程同步失败` : stale ? `${stale} 门课程数据需要更新` : last ? `上次同步：${formatDate(last)}` : '尚未同步';
-  $('sync').disabled = state.syncing || !activeCourses.some(courseAccessConfirmed);
+  $('sync-status').textContent = exams
+    ? state.syncingPrairieTest ? '正在只读同步 PrairieTest…' : state.prairieTest?.lastError ? 'PrairieTest 同步失败，已保留上次数据' : state.prairieTest?.lastSyncedAt ? `PrairieTest 只读同步 · 上次 ${formatDate(state.prairieTest.lastSyncedAt)}` : 'PrairieTest · 尚未同步'
+    : state.syncing ? '正在同步' : failures ? `${failures} 门课程同步失败` : stale ? `${stale} 门课程数据需要更新` : last ? `上次同步：${formatDate(last)}` : '尚未同步';
+  $('sync-status').title = exams ? state.prairieTest?.lastError || '' : '';
+  $('sync-status').classList.toggle('error', Boolean(exams && state.prairieTest?.lastError));
+  $('sync').setAttribute('aria-label', exams ? '立即只读同步 PrairieTest 考试' : '立即同步作业');
+  $('sync').disabled = syncBusy || (exams ? Boolean(state.syncingPrairieTest) : state.syncing || !activeCourses.some(courseAccessConfirmed));
   $('footer-sync').textContent = state.syncing ? '正在同步' : failures ? `${failures} 门同步失败` : stale ? `${stale} 门数据可能过旧` : last ? `上次同步 ${formatDate(last)}` : '尚未同步';
   $('footer-sync').title = state.courses.filter(course => course.lastSyncError).map(course => `${shortCourseName(course)}：${course.lastSyncError}`).join('；');
   $('footer-sync').classList.toggle('error', failures > 0);
@@ -1641,11 +1670,6 @@ $('open-prairietest').addEventListener('click', async () => {
   try { const result = await api('/api/prairietest/open', 'POST', {}); message(result.message); }
   catch (error) { message(error.message, true); }
 });
-$('sync-prairietest').addEventListener('click', async () => {
-  $('sync-prairietest').disabled = true;
-  try { const result = await api('/api/prairietest/sync', 'POST', {}); state = result.state; render(); message(result.message); }
-  catch (error) { state = await api('/api/state'); render(); message(error.message, true); }
-});
 $('academic-year').addEventListener('change', async event => {
   try {
     state = await api('/api/preferences', 'PATCH', { academicYear: event.target.value,
@@ -1790,18 +1814,31 @@ window.addEventListener('hashchange', routeFromHash);
 
 $('sync').addEventListener('click', async () => {
   const button = $('sync');
+  syncBusy = true;
   button.disabled = true;
   button.textContent = '正在同步…';
   try {
+    if (location.hash.startsWith('#exams')) {
+      const result = await api('/api/prairietest/sync', 'POST', {});
+      state = result.state;
+      render();
+      message(result.message);
+      return;
+    }
     const result = await api('/api/sync-all', 'POST', {});
     state = result.state;
     const total = result.results.filter(item => item.ok).reduce((sum, item) => sum + item.count, 0);
     const errors = result.results.filter(item => !item.ok);
     message(`${total ? `已读取 ${total} 项。` : ''}${errors.length ? `${errors.length} 门课程同步失败，请在课程设置中查看。` : '同步完成。'}`, errors.length > 0);
     render();
+  } catch (error) {
+    try { state = await api('/api/state'); } catch { /* Keep the last visible state. */ }
+    render();
+    message(error.message, true);
   } finally {
+    syncBusy = false;
     button.textContent = '立即同步';
-    button.disabled = !state.courses.some(courseAccessConfirmed);
+    render();
   }
 });
 

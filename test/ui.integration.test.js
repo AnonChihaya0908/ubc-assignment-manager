@@ -50,6 +50,19 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       response.end(JSON.stringify({ results: courses.map(course => ({ courseId: course.id, ok: true, count: 2 })), state: fixtureState }));
       return;
     }
+    if (request.url === '/api/prairietest/sync' && request.method === 'POST') {
+      fixtureState.prairieTest = { ...fixtureState.prairieTest,
+        lastSyncedAt: fixtureState.prairieTest?.lastSyncedAt || new Date().toISOString(),
+        lastError: null, syncRequests: (fixtureState.prairieTest?.syncRequests || 0) + 1 };
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ message: '已同步 1 项 PrairieTest 考试。', state: fixtureState }));
+      return;
+    }
+    if (request.url === '/api/prairietest/open' && request.method === 'POST') {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ message: 'PrairieTest 登录窗口已打开。登录后请停留在 Home 页面。' }));
+      return;
+    }
     if (request.url === '/api/startup' && request.method === 'PATCH') {
       let body = '';
       request.on('data', chunk => { body += chunk; });
@@ -303,22 +316,44 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
       fs.writeFileSync(process.env.UI_DASHBOARD_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
     }
-    await evaluate("(() => { state.exams = [{ id: 'manual:fixture', source: 'manual', title: 'CPSC 421 Midterm', courseName: 'CPSC 421', status: 'unreserved', startsAt: null, reservationDeadline: null, archived: false, linkedExamId: null, createdAt: new Date().toISOString() }]; document.querySelector('#nav-exams').click(); })()");
+    await evaluate("document.querySelector('#nav-exams').click()");
     assert.equal(await evaluate("document.querySelector('#exam-page').hidden"), false);
     assert.equal(await evaluate("document.querySelector('#exam-navigation').hidden"), false);
     assert.equal(await evaluate("document.querySelector('#work-navigation').hidden"), true);
+    assert.equal(await evaluate("document.querySelector('#add-exam').closest('#exam-navigation') !== null"), true);
+    assert.equal(await evaluate("document.querySelector('#exam-page .exam-actions') === null"), true);
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.sync-dock')).display !== 'none'"), true);
+    assert.equal(await evaluate("document.querySelector('#sync-status').textContent.includes('PrairieTest')"), true);
+    await evaluate("(() => { state.exams = [{ id: 'manual:fixture', source: 'manual', title: 'CPSC 421 Midterm', courseName: 'CPSC 421', status: 'unreserved', startsAt: null, reservationDeadline: null, archived: false, linkedExamId: null, createdAt: new Date().toISOString() }]; renderExamPage(); })()");
     assert.equal(await evaluate("document.querySelector('#exam-count-unreserved').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('CPSC 421 Midterm')"), true);
-    await evaluate("(() => { const current = '2026-10-15T12:00:00Z'; const old = '2026-10-14T12:00:00Z'; state.prairieTest = { lastSyncedAt: current }; state.exams.push({ id: 'prairietest:booked', source: 'prairietest', title: 'TEST 123 Quiz 3', courseName: 'TEST 123', status: 'reserved', startsAt: '2026-10-31T21:00:00Z', lastSyncedAt: current, archived: false }, { id: 'prairietest:old-ended', source: 'prairietest', title: 'TEST 123 Quiz 2', courseName: 'TEST 123', status: 'reserved', startsAt: new Date(Date.now() - 7200000).toISOString(), durationMinutes: 50, lastSyncedAt: old, archived: false }, { id: 'prairietest:old-action', source: 'prairietest', title: 'Make a reservation', courseName: 'TEST 123', status: 'unreserved', lastSyncedAt: old, archived: false }); renderExamPage(); })()");
+    await evaluate("(() => { const current = '2026-10-15T12:00:00Z'; const old = '2026-10-14T12:00:00Z'; state.prairieTest = { lastSyncedAt: current }; state.exams.push({ id: 'prairietest:booked', source: 'prairietest', title: 'TEST 123 Quiz 3', courseName: 'TEST 123', status: 'reserved', startsAt: '2026-10-31T21:00:00Z', lastSyncedAt: current, archived: false }, { id: 'prairietest:old-ended', source: 'prairietest', title: 'TEST 123 Quiz 2', courseName: 'TEST 123', status: 'reserved', startsAt: new Date(Date.now() - 7200000).toISOString(), durationMinutes: 50, url: 'https://us.prairietest.com/', lastSyncedAt: old, archived: false }, { id: 'prairietest:old-action', source: 'prairietest', title: 'Make a reservation', courseName: 'TEST 123', status: 'unreserved', lastSyncedAt: old, archived: false }); renderExamPage(); })()");
     assert.equal(await evaluate("document.querySelector('#exam-count-all').textContent"), '3');
     assert.equal(await evaluate("document.querySelector('#exam-count-ended').textContent"), '1');
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('TEST 123 Quiz 3')"), true);
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('TEST 123 Quiz 2')"), true);
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('Make a reservation')"), false);
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('#exam-list .exam-list-section h2')].map(item => item.firstChild.textContent)"), ['即将到来', '已结束']);
+    assert.equal(await evaluate("document.querySelector('#exam-list .exam-list-section:last-child .exam-list-item strong').textContent"), 'TEST 123 Quiz 2');
+    await evaluate("(() => { state.exams.push({ id: 'manual:short-ended', source: 'manual', title: 'Short ended exam', status: 'ended', startsAt: new Date(Date.now() - 5400000).toISOString(), durationMinutes: 10, archived: false }); renderExamPage(); })()");
+    assert.equal(await evaluate("document.querySelector('#exam-list .exam-list-section:last-child .exam-list-item strong').textContent"), 'TEST 123 Quiz 2');
+    await evaluate("(() => { state.exams = state.exams.filter(exam => exam.id !== 'manual:short-ended'); renderExamPage(); })()");
+    if (process.env.UI_EXAM_PREVIEW_PATH) {
+      await evaluate("document.querySelector('#exam-list .exam-list-section:last-child .exam-list-item').click()");
+      await resizeViewport(1600, 1000);
+      const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(process.env.UI_EXAM_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
+      await resizeViewport(1440, 810);
+    }
     await evaluate("document.querySelector('[data-exam-filter=ended]').click()");
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('TEST 123 Quiz 2')"), true);
     assert.equal(await evaluate("document.querySelector('#exam-list .exam-status-chip').textContent"), '已结束');
     assert.equal(await evaluate("document.querySelector('#exam-detail').textContent.includes('历史记录已保留')"), true);
+    assert.equal(await evaluate("(() => { const [link, button] = document.querySelector('#exam-detail .exam-detail-actions').children; const a = link.getBoundingClientRect(); const b = button.getBoundingClientRect(); return Math.abs(a.y - b.y) < 1 && Math.abs(a.height - b.height) < 1 && Math.abs(a.width - b.width) < 1; })()"), true);
+    await resizeViewport(680, 800);
+    assert.equal(await evaluate("document.querySelector('#exam-page').scrollWidth <= document.querySelector('#exam-page').clientWidth"), true);
+    assert.equal(await evaluate("(() => { const [link, button] = document.querySelector('#exam-detail .exam-detail-actions').children; return link.getBoundingClientRect().right <= button.getBoundingClientRect().left; })()"), true);
+    await resizeViewport(1440, 810);
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('TEST 123 Quiz 3')"), false);
     await evaluate("document.querySelector('[data-exam-filter=all]').click()");
     assert.equal(await evaluate("(() => { state.systemTimeZone = 'America/Vancouver'; render(); return /09:00 · America\\/Vancouver$/.test(examLocalTime('2026-11-02T16:00:00Z')); })()"), true);
@@ -329,7 +364,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     await evaluate("(() => { document.querySelector('#show-archived-exams').click(); })()");
     assert.equal(await evaluate("document.querySelector('#exam-list').textContent.includes('Make a reservation')"), true);
     await evaluate("(() => { document.querySelector('#show-archived-exams').click(); state.exams = state.exams.filter(exam => exam.source !== 'prairietest'); state.prairieTest = {}; renderExamPage(); })()");
-    assert.equal(await evaluate("getComputedStyle(document.querySelector('.sync-dock')).display"), 'none');
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.sync-dock')).display !== 'none'"), true);
     await evaluate("(() => { state.systemTimeZone = 'America/Vancouver'; render(); document.querySelector('#add-exam').click(); })()");
     assert.equal(await evaluate("document.querySelector('#exam-dialog').open"), true);
     assert.equal(await evaluate("document.querySelector('#exam-start').disabled"), false);
@@ -586,6 +621,10 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(fixtureState.email.scope, 'week');
     await evaluate("document.querySelector('[data-settings=courses]').click()");
     assert.equal(await evaluate("document.querySelector('#settings-courses').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#open-prairietest').closest('#settings-courses') !== null"), true);
+    await evaluate("document.querySelector('#open-prairietest').click()");
+    for (let i = 0; i < 20; i++) { if (await evaluate("document.querySelector('#message').textContent.includes('PrairieTest')")) break; await sleep(50); }
+    assert.equal(await evaluate("document.querySelector('#message').textContent.includes('PrairieTest')"), true);
     assert.equal(await evaluate("document.querySelectorAll('.settings-course').length"), 2);
     assert.equal(await evaluate("document.querySelector('.settings-course').textContent.includes('需要重新登录')"), true);
     assert.equal(await evaluate("document.querySelector('.settings-course').textContent.includes('保留')"), true);
@@ -668,6 +707,9 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     await evaluate("(() => { state.exams = [{ id: 'manual:fixture', source: 'manual', title: 'CPSC 421 Midterm', courseName: 'CPSC 421', status: 'unreserved', startsAt: null, reservationDeadline: null, archived: false, linkedExamId: null, createdAt: new Date().toISOString() }]; document.querySelector('#nav-exams').click(); })()");
     assert.equal(await evaluate("document.querySelector('#exam-page h1').textContent"), 'Exam reminders');
     assert.equal(await evaluate("document.querySelector('#exam-count-unreserved').textContent"), '1');
+    assert.equal(await evaluate("document.querySelector('#add-exam').getAttribute('aria-label')"), 'Add exam manually');
+    assert.equal(await evaluate("document.querySelector('#sync').getAttribute('aria-label')"), 'Read-only sync PrairieTest exams');
+    assert.equal(await evaluate("document.querySelector('#exam-list .exam-section-heading').firstChild.textContent"), 'Coming up');
     assert.deepEqual(await evaluate("[...document.querySelectorAll('#exam-page *,#exam-navigation *')].filter(e => e.children.length === 0 && /[\\u3400-\\u9fff]/.test(e.textContent || '')).map(e => e.textContent.trim()).filter(Boolean)"), []);
     const englishDate = await evaluate("formatDate('2026-10-08T22:00:00.000Z')");
     await evaluate("document.querySelector('#nav-calendar').click()");
@@ -712,6 +754,9 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });
       fs.writeFileSync(process.env.UI_NARROW_PREVIEW_PATH, Buffer.from(screenshot.data, 'base64'));
     }
+    await evaluate("(() => { document.querySelector('#onboarding-dialog').close(); document.querySelector('#nav-exams').click(); document.querySelector('#sync').click(); })()");
+    for (let i = 0; i < 20; i++) { if (await evaluate("state.prairieTest?.syncRequests === 1")) break; await sleep(50); }
+    assert.equal(await evaluate("state.prairieTest?.syncRequests"), 1);
   } finally {
     if (debugPort) {
       try {
