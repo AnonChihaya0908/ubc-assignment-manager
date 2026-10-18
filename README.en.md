@@ -4,6 +4,8 @@ A desktop app that brings PrairieLearn, UBC WeBWorK, and Gradescope Canada assig
 
 [Version 1.3.9 for Windows and macOS](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.9) · [Report a problem](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues) · [中文说明](README.md)
 
+`main` now includes an updated Exam reminders screen. It groups upcoming and ended exams and moves the add, sign-in, and sync controls. These interface changes are not in the 1.3.9 installers yet.
+
 Version 1.3.9 keeps a completed PrairieTest exam in the Ended list after it disappears from the current reservations on the source website. Previously synced history stays on this device, so it does not need to be entered again. The time and daily WeChat digest improvements from 1.3.8 remain available.
 
 This is an independent project. It is not an official UBC, PrairieLearn, WeBWorK, or Gradescope app. It reads assignments visible to you after you sign in; it does not need a PrairieLearn API token.
@@ -22,6 +24,16 @@ This is an independent project. It is not an official UBC, PrairieLearn, WeBWorK
 4. The app starts in your device language. Change it at **Settings → General and window → Display language**. Language changes do not change assignment dates, completion states, sign-in sessions, or other settings.
 
 If PrairieLearn syncing fails, you can copy its assignment table from an already signed-in browser and use the manual import under Courses and login. WeBWorK and Gradescope must sync through the dedicated sign-in window. Gradescope uses the regular due date for reminders, shows a late due date separately, and treats a submission or published grade as complete even below full credit. Newly installed copies do not contain another user’s courses. Imported or older courses must be confirmed before the app opens their pages, syncs them, or sends reminders.
+
+## Exam reminders
+
+Select the exam icon on the left to open the separate Exam reminders screen. The controls below describe the current `main` branch. In the 1.3.9 installers, Add exam, PrairieTest sign-in, and read-only sync are still at the top of the exam screen.
+
+1. **Add an exam:** Select **+** beside the Exam reminders heading in the secondary sidebar. Enter the exam name, course, status, and any known time. You can save an unreserved exam and update it after making a reservation.
+2. **Sync PrairieTest:** Open **Settings → Courses and login → PrairieTest**, sign in through the dedicated window, then return to Exam reminders and select **Sync now** at the bottom left. On this screen, the button reads PrairieTest reservations without changing them. On assignment screens, the same button syncs assignments.
+3. **Review exams:** The sidebar has All exams, Not reserved, Reserved, and Ended views. All exams places upcoming exams first and ended exams below them. Select an exam to see its time, location, and source-page link when available.
+
+Previously synced PrairieTest exams remain in Ended history after they disappear from the site's current reservations. Future exams not confirmed in the latest sync are hidden from the default list and their reminders are paused; turn on **Show archived and unconfirmed exams** to inspect the cached entries. Reserved exams remind you before their start time. Unreserved exams use the reservation deadline when provided, or prompt you to book at most once a week when no deadline is known. Change exam reminder lead times under **Settings → Reminders and sync**. Exams do not affect assignment completion rates.
 
 ## Reminders and data
 
