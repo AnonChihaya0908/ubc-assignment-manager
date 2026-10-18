@@ -641,7 +641,7 @@ function visibleExams() {
   const latestSync = Date.parse(state.prairieTest?.lastSyncedAt || '');
   return (state.exams || []).filter(exam => !exam.linkedExamId && (showArchivedExams ||
     !exam.archived && (exam.source !== 'prairietest' || !Number.isFinite(latestSync) ||
-      Date.parse(exam.lastSyncedAt || '') >= latestSync)));
+      examCategory(exam) === 'ended' || Date.parse(exam.lastSyncedAt || '') >= latestSync)));
 }
 function examLocalTime(value) {
   if (!value) return '尚未公布';
@@ -704,7 +704,7 @@ function renderExamPage() {
       Date.parse(exam.lastSyncedAt || '') < Date.parse(state.prairieTest.lastSyncedAt));
     const item = node('button', `exam-list-item${exam.id === selectedExamId ? ' active' : ''}`);
     item.type = 'button'; item.setAttribute('aria-current', String(exam.id === selectedExamId));
-    item.append(node('span', `exam-status-chip ${examCategory(exam)}`, stale ? '待核实' : examStatusLabel(exam)),
+    item.append(node('span', `exam-status-chip ${examCategory(exam)}`, stale && examCategory(exam) !== 'ended' ? '待核实' : examStatusLabel(exam)),
       node('strong', '', exam.title), node('small', '', `${exam.courseName || '未关联课程'} · ${exam.source === 'manual' ? '手动添加' : 'PrairieTest'}`),
       node('small', '', exam.status === 'unreserved' ? exam.startsAt ? `考试时间：${examLocalTime(exam.startsAt)} · 待预约` : exam.reservationDeadline ? `预约截止：${examLocalTime(exam.reservationDeadline)}` : '尚未预约，暂无确定场次'
         : `考试时间：${examLocalTime(exam.startsAt)}`));
@@ -717,7 +717,9 @@ function renderExamPage() {
   const stale = exam.source === 'prairietest' && (!state.prairieTest?.lastSyncedAt ||
     Date.parse(exam.lastSyncedAt || '') < Date.parse(state.prairieTest.lastSyncedAt));
   detail.append(node('h2', '', exam.title), node('span', `exam-status-chip ${examCategory(exam)}`, examStatusLabel(exam)));
-  if (stale) detail.append(node('p', 'exam-error', '这项考试尚未在最近一次 PrairieTest 同步中确认。已保留记录并暂停该项提醒，请在原网站核实。'));
+  if (stale) detail.append(node('p', examCategory(exam) === 'ended' ? 'form-note' : 'exam-error', examCategory(exam) === 'ended'
+    ? '这项考试已结束，最新 PrairieTest 当前预约列表不再显示；历史记录已保留。'
+    : '这项考试尚未在最近一次 PrairieTest 同步中确认。已保留记录并暂停该项提醒，请在原网站核实。'));
   const fields = node('dl', '');
   examDetailField(fields, '课程', exam.courseName || state.courses.find(course => course.id === exam.courseId)?.name || '未关联');
   examDetailField(fields, '来源', exam.source === 'manual' ? '手动添加' : 'PrairieTest');

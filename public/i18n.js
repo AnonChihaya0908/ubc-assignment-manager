@@ -20,6 +20,7 @@
     '当前分类暂无考试。可手动添加，或登录 PrairieTest 后只读同步。': 'No exams in this category. Add one manually or sign in to PrairieTest and sync.',
     '选择考试后可查看预约、时间与提醒信息。': 'Select an exam to see its reservation, time, and reminders.',
     '待核实': 'Check status', '这项考试尚未在最近一次 PrairieTest 同步中确认。已保留记录并暂停该项提醒，请在原网站核实。': 'This exam was not confirmed in the latest PrairieTest sync. Its record is kept and reminders are paused until you verify it on the source site.',
+    '这项考试已结束，最新 PrairieTest 当前预约列表不再显示；历史记录已保留。': 'This exam has ended and no longer appears in the current PrairieTest reservations. Its history is kept.',
     '未关联课程': 'No linked course', '手动添加': 'Manual', '尚未预约，暂无确定场次': 'No reservation or confirmed exam time',
     '课程': 'Course', '来源': 'Source', '设备当地时间': 'Device local time', '来源时区时间': 'Source time zone',
     '时长': 'Duration', '地点或方式': 'Location or format', '预约截止': 'Reservation deadline',
