@@ -54,6 +54,7 @@ test('Gradescope merge preserves manual decisions and accepts a valid empty cour
 });
 
 test('Gradescope rejects malformed dates and cross-course assignment links without erasing cached rows', () => {
+  assert.throws(() => parseGradescopePage({ hasTable: true, bodyRowCount: 1, linkedRowCount: 0, rows: [] }, courseUrl), /仅有无法打开的作业行/);
   assert.throws(() => parseGradescopePage({ hasTable: true, bodyRowCount: 1, rows: [] }, courseUrl), /作业行/);
   assert.throws(() => parseGradescopePage({ hasTable: true, bodyRowCount: 2, rows: [{
     name: 'Homework A', url: `${courseUrl}/assignments/42`, due: 'Oct 09 at 11:59PM', status: 'No Submission',

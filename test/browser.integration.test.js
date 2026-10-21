@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { edgePath, cdp, withinSyncDeadline, EXTRACT_PAGE, EXTRACT_WEBWORK_PAGE, EXTRACT_WEBWORK_PROGRESS } = require('../lib/browser');
+const { edgePath, cdp, withinSyncDeadline, EXTRACT_PAGE, EXTRACT_WEBWORK_PAGE, EXTRACT_WEBWORK_PROGRESS, EXTRACT_GRADESCOPE_PAGE } = require('../lib/browser');
 const { parseWebworkText, parseWebworkProgress } = require('../lib/webwork');
 const { parseGradescopePage } = require('../lib/gradescope');
 const { EXTRACT_PRAIRIETEST_PAGE } = require('../lib/prairietest');
@@ -59,6 +59,16 @@ const prairieTestFixture = `<!doctype html><title>PrairieTest Home</title>
 <div class="card"><div class="card-header">Exam reservations</div><div class="d-flex"><div><a href="/pt/student/reservation/789">TEST 123 (2026W1): Practice Quiz</a></div><div><time datetime="2026-10-19T14:00:00.000-07:00">Mon, Oct 19, 2pm (PDT)</time></div><div>ORCA: Room 100</div><div>50min, In-person, No accommodations</div></div><div class="d-flex"><div><a href="/pt/exam_reservations/790">TEST 456 (2026W1): Other Quiz</a></div><div>Tue, Oct 20, 3pm (PDT)</div></div></div>
 <div class="card"><div class="card-header">Testing center availability</div><a href="/pt/testing_centers/10">ORCA (2026W1): UBC ORCA</a></div>`;
 
+const gradescopeMixedFixture = `<!doctype html><title>Gradescope</title><h1>STAT_V 251 101 2026W1</h1>
+<table><thead><tr><th>Name</th><th>Status</th><th>Released</th><th>Due (PDT)</th></tr></thead><tbody>
+<tr><td><a href="/courses/41020/assignments/3">Written Assignment 1</a></td><td>No Submission</td><td>Oct 12 at 12:00AM</td><td><time class="submissionTimeChart--dueDate" datetime="2026-10-25 23:59:00 -0700">Oct 25 at 11:59PM</time></td></tr>
+<tr><td>Lab_3 (Only for L1A)</td><td>No Submission</td><td>Oct 16 at 2:00PM</td><td>Oct 19 at 11:59PM</td></tr></tbody></table>`;
+const gradescopeEmptyFixture = `<!doctype html><title>Gradescope</title><h1>Empty 2026W1</h1>
+<table><thead><tr><th>Name</th><th>Status</th><th>Due (PDT)</th></tr></thead><tbody></tbody></table>`;
+const gradescopeInvalidFixture = `<!doctype html><title>Gradescope</title><h1>Invalid 2026W1</h1>
+<table><thead><tr><th>Name</th><th>Status</th><th>Due (PDT)</th></tr></thead><tbody>
+<tr><td><a href="/courses/99999/assignments/1">Wrong course</a></td><td>No Submission</td><td>Oct 25 at 11:59PM</td></tr></tbody></table>`;
+
 test('browser work is cancelled when the sync deadline expires', async () => {
   const started = Date.now();
   await assert.rejects(() => withinSyncDeadline(signal => new Promise((resolve, reject) => {
@@ -67,10 +77,12 @@ test('browser work is cancelled when the sync deadline expires', async () => {
   assert.ok(Date.now() - started < 1000, 'deadline should stop waiting promptly');
 });
 
-test('dedicated background Edge keeps a headless session for both course sources and closes on exit', { timeout: 45000 }, async () => {
+test('dedicated background Edge keeps a headless session for both course sources and closes on exit', { timeout: 55000 }, async () => {
   const httpServer = http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(request.url.startsWith('/pt') ? prairieTestFixture : request.url.startsWith('/courses/') ? gradescopeFixture : request.url.includes('Assignment-03') ? webworkDetailFixture :
+    response.end(request.url.startsWith('/pt') ? prairieTestFixture : request.url.startsWith('/courses/41020') ? gradescopeMixedFixture :
+      request.url.startsWith('/courses/41021') ? gradescopeEmptyFixture : request.url.startsWith('/courses/41022') ? gradescopeInvalidFixture :
+      request.url.startsWith('/courses/') ? gradescopeFixture : request.url.includes('Assignment-03') ? webworkDetailFixture :
       request.url.includes('Assignment-02') ? webworkPastDetailFixture : request.url.startsWith('/webwork2/') ? webworkFixture : fixture);
   });
   await new Promise(resolve => httpServer.listen(0, '127.0.0.1', resolve));
@@ -104,6 +116,31 @@ test('dedicated background Edge keeps a headless session for both course sources
     assert.equal(gradescopeTasks[0].dueAt, '2026-10-10T06:59:00.000Z');
     assert.equal(gradescopeTasks[1].dueAt, '2026-09-22T06:59:00.000Z');
     assert.equal(gradescopeTasks[1].lateDueAt, '2026-09-22T09:00:00.000Z');
+    const mixedUrl = base + '/courses/41020';
+    const mixed = await browser.readGradescopePage(mixedUrl);
+    assert.equal(mixed.bodyRowCount, 2);
+    assert.equal(mixed.linkedRowCount, 1);
+    assert.deepEqual(mixed.rows.map(row => row.name), ['Written Assignment 1']);
+    assert.equal(parseGradescopePage(mixed, mixedUrl).rows[0].dueAt, '2026-10-26T06:59:00.000Z');
+    const emptyUrl = base + '/courses/41021';
+    const empty = await browser.readGradescopePage(emptyUrl);
+    assert.equal(empty.bodyRowCount, 0);
+    assert.equal(empty.linkedRowCount, 0);
+    assert.equal(parseGradescopePage(empty, emptyUrl).rows.length, 0);
+    const invalidUrl = base + '/courses/41022';
+    await browser.cdp(target.webSocketDebuggerUrl, 'Page.navigate', { url: invalidUrl });
+    let invalid;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      invalid = (await browser.cdp(target.webSocketDebuggerUrl, 'Runtime.evaluate', {
+        expression: EXTRACT_GRADESCOPE_PAGE, returnByValue: true,
+      })).result.value;
+      if (invalid?.pageUrl === invalidUrl) break;
+      await sleep(100);
+    }
+    assert.equal(invalid.bodyRowCount, 1);
+    assert.equal(invalid.linkedRowCount, 1);
+    assert.equal(invalid.rows.length, 0);
+    assert.throws(() => parseGradescopePage(invalid, invalidUrl), /作业行尚未识别/);
     await browser.cdp(target.webSocketDebuggerUrl, 'Page.navigate', { url: `${base}/pt/` });
     let examPage;
     for (let attempt = 0; attempt < 20; attempt++) {
