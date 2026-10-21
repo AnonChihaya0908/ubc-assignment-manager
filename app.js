@@ -446,6 +446,7 @@ async function handle(request, response) {
         if (!['auto', 'edge', 'chrome', 'webkit'].includes(body.browserEngine) ||
             body.browserEngine === 'webkit' && !nativeBrowser) throw new Error('浏览器设置无效。');
         if (body.browserEngine !== state.preferences.browserEngine) {
+          if (browserSyncSession.active) throw new Error('请等待同步完成后再切换浏览器。');
           await closeBrowser();
           state.preferences.browserEngine = body.browserEngine;
           changed = true;
