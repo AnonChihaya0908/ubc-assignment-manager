@@ -12,6 +12,45 @@ const { categoryOf, needsAttention } = require('../public/task-status');
 const { classifySyncError, markSyncFailure, markSyncSuccess, courseDataStatus } = require('../lib/sync-status');
 const { authorizedNativeRequest } = require('../lib/native-auth');
 const { pendingReminderEvents } = require('../lib/reminders');
+const { createBrowserSyncSession } = require('../lib/browser-sync-session');
+
+test('sync browser closes after the last overlapping sync, including failures', async () => {
+  let releaseFirst;
+  const firstDone = new Promise(resolve => { releaseFirst = resolve; });
+  let closes = 0;
+  const session = createBrowserSyncSession({ close: async () => { closes += 1; }, shouldClose: () => true });
+  const first = session.run(async () => { await firstDone; return 'first'; });
+  const second = session.run(async () => { throw new Error('sync failed'); });
+  await assert.rejects(second, /sync failed/);
+  assert.equal(closes, 0);
+  assert.equal(session.active, true);
+  releaseFirst();
+  assert.equal(await first, 'first');
+  assert.equal(closes, 1);
+  assert.equal(session.active, false);
+  await session.run(async () => session.run(async () => 'batch item'));
+  assert.equal(closes, 2, 'nested batch sync closes once');
+});
+
+test('new sync waits for browser shutdown and never closes a visible login session', async () => {
+  let releaseClose;
+  const closeDone = new Promise(resolve => { releaseClose = resolve; });
+  let visible = false;
+  let closes = 0;
+  const session = createBrowserSyncSession({
+    close: async () => { closes += 1; await closeDone; }, shouldClose: () => !visible,
+  });
+  const first = session.run(async () => 'first');
+  await new Promise(resolve => setImmediate(resolve));
+  let secondStarted = false;
+  const second = session.run(async () => { secondStarted = true; visible = true; });
+  assert.equal(session.active, true);
+  assert.equal(secondStarted, false);
+  releaseClose();
+  await Promise.all([first, second]);
+  assert.equal(closes, 1);
+  assert.equal(visible, true);
+});
 
 test('native app API rejects missing and incorrect window tokens', () => {
   assert.equal(authorizedNativeRequest('desktop-secret', undefined), false);

@@ -6,11 +6,13 @@ const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizePriority, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
   reviewCourseAccess, mergeRows, mergeWebworkRows, mergeGradescopeRows } = require('./lib/store');
 const { normalizeAcademicPeriod, inferAcademicPeriod } = require('./lib/academic-term');
-const { edgePath, activePort, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage, readGradescopePage, readPrairieTestPage } = require('./lib/browser');
+const { edgePath, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage, readGradescopePage, readPrairieTestPage } = require('./lib/browser');
 const { PRAIRIETEST_HOME, validateExam, mergePrairieTestExams, normalizeExamLeads, examReminderEvents } = require('./lib/exams');
 const { parsePrairieTestPage } = require('./lib/prairietest');
 const { parseGradescopePage } = require('./lib/gradescope');
 const { NativeBrowserBridge } = require('./lib/native-browser');
+const { createBrowserSyncSession } = require('./lib/browser-sync-session');
+const { refreshBeforeDailyDigest } = require('./lib/daily-sync');
 const { parseCopiedTable } = require('./lib/paste');
 const { loadConfig, saveConfig, publicConfig, validateSendKey, localDateKey,
   shouldSendDaily, buildDailyDigest, sendServerChan, normalizeLeadHours, appendHistory } = require('./lib/wechat');
@@ -34,6 +36,7 @@ try { emailConnected = Boolean(readEmailSecret()); }
 catch (error) { emailConfig.lastError = error.message; }
 const syncingCourseIds = new Set();
 let syncAllPromise = null;
+let prairieTestSyncPromise = null;
 let sendingWechat = false;
 let sendingEmail = false;
 let syncingPrairieTest = false;
@@ -45,6 +48,12 @@ const updater = createUpdater();
 const nativeToken = process.env.UBC_NATIVE_TOKEN || '';
 const nativeBrowser = process.platform === 'darwin' && nativeToken ? new NativeBrowserBridge() : null;
 configureBrowser({ bridge: nativeBrowser, preference: () => state.preferences?.browserEngine || 'auto' });
+const browserSyncSession = createBrowserSyncSession({
+  close: closeBrowser,
+  shouldClose: () => browserMode() === 'background' &&
+    (!nativeBrowser || ['edge', 'chrome'].includes(state.preferences?.browserEngine)),
+  onCloseError: error => console.error(`关闭空闲同步浏览器失败：${error.message}`),
+});
 
 function taskOptions() {
   return { ...state.preferences, ignoredSectionsByCourse: Object.fromEntries(state.courses.map(course => [course.id, course.ignoredSections || []])) };
@@ -112,6 +121,10 @@ function serveFile(response, fileName, contentType) {
 }
 
 async function syncCourse(courseId) {
+  return browserSyncSession.run(() => syncCourseCore(courseId));
+}
+
+async function syncCourseCore(courseId) {
   const course = state.courses.find(item => item.id === courseId);
   if (!course) throw new Error('课程不存在。');
   requireCourseAccess(course);
@@ -140,6 +153,10 @@ async function syncCourse(courseId) {
 }
 
 async function syncAllCourses({ automatic = false } = {}) {
+  return browserSyncSession.run(() => syncAllCoursesCore(automatic));
+}
+
+async function syncAllCoursesCore(automatic) {
   const results = [];
   for (const course of [...state.courses]) {
     if (course.archived) {
@@ -196,6 +213,17 @@ function checkReminders() {
 }
 
 async function syncPrairieTest() {
+  return browserSyncSession.run(syncPrairieTestCore);
+}
+
+function startPrairieTestSync() {
+  if (!prairieTestSyncPromise) {
+    prairieTestSyncPromise = syncPrairieTest().finally(() => { prairieTestSyncPromise = null; });
+  }
+  return prairieTestSyncPromise;
+}
+
+async function syncPrairieTestCore() {
   if (syncingPrairieTest) throw new Error('PrairieTest 正在同步，请稍等。');
   syncingPrairieTest = true;
   try {
@@ -225,12 +253,18 @@ async function checkDailyWechat() {
   wechatConfig.lastAttemptAt = now.toISOString();
   saveConfig(wechatConfig);
   try {
-    if (browserMode() === 'background' && (nativeBrowser && state.preferences?.browserEngine !== 'chrome' && state.preferences?.browserEngine !== 'edge' || await activePort())) {
-      await startAllCoursesSync({ automatic: true });
-    }
+    const freshness = await refreshBeforeDailyDigest({
+      browserVisible: browserMode() === 'visible',
+      hasCourses: state.courses.some(course => !course.archived && courseAccessConfirmed(course)),
+      hasPrairieTest: Boolean(state.prairieTest?.lastSyncedAt),
+      syncCourses: () => startAllCoursesSync({ automatic: true }),
+      syncPrairieTest: startPrairieTestSync,
+      onError: (source, error) => console.error(`微信推送前${source}同步失败：${error.message}`),
+    });
     const confirmedIds = new Set(state.courses.filter(course => !course.archived && courseAccessConfirmed(course)).map(course => course.id));
     const digest = buildDailyDigest({ ...state, courses: state.courses.filter(course => confirmedIds.has(course.id)),
-      tasks: state.tasks.filter(task => confirmedIds.has(task.courseId)) }, now, wechatConfig);
+      tasks: state.tasks.filter(task => confirmedIds.has(task.courseId)) }, new Date(),
+    { ...wechatConfig, syncSkippedBecauseLogin: freshness.skippedForLogin });
     await sendServerChan(wechatConfig.sendKey, digest.title, digest.desp);
     wechatConfig.lastSentDate = today;
     wechatConfig.lastSentAt = new Date().toISOString();
@@ -412,6 +446,7 @@ async function handle(request, response) {
         if (!['auto', 'edge', 'chrome', 'webkit'].includes(body.browserEngine) ||
             body.browserEngine === 'webkit' && !nativeBrowser) throw new Error('浏览器设置无效。');
         if (body.browserEngine !== state.preferences.browserEngine) {
+          if (browserSyncSession.active) throw new Error('请等待同步完成后再切换浏览器。');
           await closeBrowser();
           state.preferences.browserEngine = body.browserEngine;
           changed = true;
@@ -601,11 +636,12 @@ async function handle(request, response) {
       saveState(state); return json(response, 200, publicState());
     }
     if (request.method === 'POST' && url.pathname === '/api/prairietest/open') {
+      if (browserSyncSession.active) throw new Error('请等待同步完成后再打开登录窗口。');
       await openCoursePage(PRAIRIETEST_HOME);
       return json(response, 200, { message: 'PrairieTest 登录窗口已打开。登录后请停留在 Home 页面。', state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/prairietest/sync') {
-      const count = await syncPrairieTest();
+      const count = await startPrairieTestSync();
       return json(response, 200, { message: `已同步 ${count} 项 PrairieTest 考试。`, state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/course/access-review') {
@@ -675,7 +711,7 @@ async function handle(request, response) {
       const course = state.courses.find(item => item.id === body.courseId);
       if (!course) throw new Error('课程不存在。');
       requireCourseAccess(course);
-      if (syncingCourseIds.size) throw new Error('请等待课程同步完成后再打开登录窗口。');
+      if (browserSyncSession.active) throw new Error('请等待同步完成后再打开登录窗口。');
       await openCoursePage(course.url);
       const platformName = { prairielearn: 'PrairieLearn', webwork: 'WeBWorK', gradescope: 'Gradescope' }[coursePlatform(course)];
       return json(response, 200, { message: `登录窗口已打开。请登录 ${platformName}，然后回到应用点击“同步”。`, state: publicState() });
@@ -684,9 +720,9 @@ async function handle(request, response) {
       const course = state.courses.find(item => item.id === body.courseId);
       if (!course) throw new Error('课程不存在。');
       requireCourseAccess(course);
-      if (syncingCourseIds.size) throw new Error('请等待课程同步完成后再隐藏登录窗口。');
+      if (browserSyncSession.active) throw new Error('请等待同步完成后再隐藏登录窗口。');
       await hideBrowser(course.url);
-      return json(response, 200, { message: '登录窗口已隐藏，后台同步可继续。', state: publicState() });
+      return json(response, 200, { message: '登录窗口已关闭，登录资料已保留。同步时会自动启动后台浏览器。', state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/sync') {
       const count = await syncCourse(body.courseId);
@@ -828,8 +864,6 @@ server.listen(43873, '127.0.0.1', () => {
   startup = startupStatus();
   startTray();
   openDashboard();
-  const firstCourse = state.courses.find(course => !course.archived && courseAccessConfirmed(course) && course.lastSyncedAt);
-  if (firstCourse) hideBrowser(firstCourse.url).catch(error => console.error(`后台浏览器启动失败：${error.message}`));
   updater.check().catch(error => console.error(`更新检查失败：${error.message}`));
 });
 
@@ -845,15 +879,13 @@ setInterval(() => { checkDailyWechat().catch(error => console.error(`微信提�
 setInterval(() => { checkDailyEmail().catch(error => console.error(`邮件提醒检查失败：${error.message}`)); }, 60_000).unref();
 setInterval(() => {
   if (!state.prairieTest?.lastSyncedAt || syncingPrairieTest || browserMode() === 'visible') return;
-  syncPrairieTest().catch(error => console.error(`PrairieTest 自动同步失败：${error.message}`));
+  startPrairieTestSync().catch(error => console.error(`PrairieTest 自动同步失败：${error.message}`));
 }, 30 * 60_000).unref();
 setInterval(async () => {
   if (!autoSyncEnabled || syncingCourseIds.size) return;
-  if (browserMode() === 'visible' && (nativeBrowser && state.preferences?.browserEngine !== 'chrome' && state.preferences?.browserEngine !== 'edge' || await activePort())) return;
+  if (browserMode() === 'visible') return;
   const course = state.courses.find(item => !item.archived && courseAccessConfirmed(item) && item.lastSyncErrorKind !== 'login');
   if (!course) return;
-  try { await hideBrowser(course.url); }
-  catch (error) { console.error(`后台浏览器恢复失败：${error.message}`); return; }
   const results = await startAllCoursesSync({ automatic: true });
   for (const result of results.filter(item => !item.ok)) {
     const course = state.courses.find(item => item.id === result.courseId);

@@ -155,7 +155,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
       return;
     }
     if ((request.url === '/api/open-browser' || request.url === '/api/browser/hide') && request.method === 'POST') {
-      fixtureState.browserMode = request.url === '/api/open-browser' ? 'visible' : 'background';
+      fixtureState.browserMode = request.url === '/api/open-browser' ? 'visible' : 'stopped';
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ message: '浏览器状态已更新。', state: fixtureState }));
       return;
@@ -548,10 +548,10 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#hide-browser').hidden"), false);
     await evaluate("document.querySelector('#hide-browser').click()");
     for (let i = 0; i < 30; i++) {
-      if (fixtureState.browserMode === 'background' && await evaluate("document.querySelector('#hide-browser').hidden")) break;
+      if (fixtureState.browserMode === 'stopped' && await evaluate("document.querySelector('#hide-browser').hidden")) break;
       await sleep(100);
     }
-    assert.equal(fixtureState.browserMode, 'background');
+    assert.equal(fixtureState.browserMode, 'stopped');
     assert.equal(await evaluate("document.querySelector('#hide-browser').hidden"), true);
     if (process.env.UI_SETTINGS_PREVIEW_PATH) {
       const screenshot = await cdp(target.webSocketDebuggerUrl, 'Page.captureScreenshot', { format: 'png' });

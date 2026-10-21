@@ -165,9 +165,14 @@ test('dedicated background Edge keeps a headless session for both course sources
     assert.equal(parsedExams.find(row => row.title.includes('Practice Quiz')).startsAt, '2026-10-19T21:00:00.000Z');
     assert.equal(parsedExams.find(row => row.title.includes('Other Quiz')).startsAt, '2026-10-20T22:00:00.000Z');
     assert.equal(examPage.noExams, false);
-    assert.equal(await browser.hideBrowser(webworkUrl), port);
-    await browser.closeBrowser();
+    assert.equal(await browser.hideBrowser(webworkUrl), null);
+    assert.equal(browser.browserMode(), 'stopped');
+    assert.equal(await browser.activePort(), null);
     const restartedPort = await browser.ensureBrowser(prairieUrl);
+    const restoredPages = (await (await fetch(`http://127.0.0.1:${restartedPort}/json/list`)).json())
+      .filter(item => item.type === 'page');
+    assert.ok(restoredPages.length <= 2, 'old course tabs should not accumulate across syncs');
+    assert.ok(restoredPages.every(item => item.url === 'about:blank'), 'previous course pages should stay closed');
     await browser.readCoursePage(prairieUrl);
     const restartedTarget = (await (await fetch(`http://127.0.0.1:${restartedPort}/json/list`)).json())
       .find(item => item.url.startsWith(prairieUrl));
@@ -293,6 +298,26 @@ test('Chrome can sync a course using its own persistent profile', { timeout: 300
     assert.equal(page.rows.length, 2);
     assert.ok(fs.existsSync(path.join(temporary, 'chrome-profile', 'DevToolsActivePort')));
     assert.equal(browser.browserMode(), 'background');
+    const firstPort = await browser.activePort();
+    const firstTarget = (await (await fetch(`http://127.0.0.1:${firstPort}/json/list`)).json())
+      .find(item => item.url.startsWith(url));
+    await browser.cdp(firstTarget.webSocketDebuggerUrl, 'Runtime.evaluate', {
+      expression: 'document.cookie = "ubc_chrome_session=kept; SameSite=Lax"', returnByValue: true,
+    });
+    await browser.closeBrowser();
+    assert.equal(browser.browserMode(), 'stopped');
+    assert.equal(await browser.activePort(), null);
+    const secondPort = await browser.ensureBrowser(url);
+    const restored = (await (await fetch(`http://127.0.0.1:${secondPort}/json/list`)).json())
+      .filter(item => item.type === 'page');
+    assert.ok(restored.every(item => item.url === 'about:blank'));
+    await browser.readCoursePage(url);
+    const secondTarget = (await (await fetch(`http://127.0.0.1:${secondPort}/json/list`)).json())
+      .find(item => item.url.startsWith(url));
+    const cookie = await browser.cdp(secondTarget.webSocketDebuggerUrl, 'Runtime.evaluate', {
+      expression: 'document.cookie', returnByValue: true,
+    });
+    assert.match(cookie.result.value, /ubc_chrome_session=kept/);
   } finally {
     await browser.closeBrowser();
     if (previous === undefined) delete process.env.PRAIRIELEARN_DATA_DIR;
