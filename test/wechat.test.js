@@ -4,8 +4,73 @@ const {
   emptyConfig, publicConfig, validateSendKey, localDateKey, shouldSendDaily,
   buildDailyDigest, sendServerChan, normalizeLeadHours, inQuietHours, nextDailyAt, appendHistory,
 } = require('../lib/wechat');
+const { refreshBeforeDailyDigest } = require('../lib/daily-sync');
 
 const sendKey = 'SCTabcdefghijklmnop';
+
+test('daily digest waits for fresh course and PrairieTest data before it is built', async () => {
+  const now = new Date(2026, 9, 16, 9, 40);
+  const state = {
+    preferences: { language: 'zh-CN' },
+    courses: [{ id: 'c1', name: 'CPSC 317, 2026W1', lastSyncedAt: null }],
+    tasks: [{ courseId: 'c1', name: 'Old assignment', sourceComplete: false,
+      dueAt: new Date(2026, 9, 20).toISOString() }],
+    exams: [], prairieTest: { lastSyncedAt: now.toISOString(), lastError: null },
+  };
+  let releaseCourse;
+  const courseReady = new Promise(resolve => { releaseCourse = resolve; });
+  const order = [];
+  const refresh = refreshBeforeDailyDigest({
+    browserVisible: false, hasCourses: true, hasPrairieTest: true,
+    syncCourses: async () => {
+      order.push('courses started');
+      await courseReady;
+      state.tasks[0].sourceComplete = true;
+      state.courses[0].lastSyncedAt = now.toISOString();
+      order.push('courses finished');
+    },
+    syncPrairieTest: async () => {
+      order.push('exams finished');
+      state.exams.push({ source: 'prairietest', title: 'CPSC 317 Quiz 2', courseName: 'CPSC 317',
+        status: 'reserved', startsAt: new Date(2026, 9, 17, 14).toISOString(), lastSyncedAt: now.toISOString() });
+    },
+    onError: error => { throw error; },
+  });
+  assert.deepEqual(order, ['courses started']);
+  releaseCourse();
+  const freshness = await refresh;
+  order.push('digest built');
+  const digest = buildDailyDigest(state, now, { syncSkippedBecauseLogin: freshness.skippedForLogin });
+  assert.deepEqual(order, ['courses started', 'courses finished', 'exams finished', 'digest built']);
+  assert.doesNotMatch(digest.desp, /Old assignment/);
+  assert.match(digest.desp, /Quiz 2/);
+  assert.match(digest.desp, /数据状态：.*今天 09:40.*PrairieTest/);
+});
+
+test('daily digest preserves old data and labels it when login window blocks refresh', async () => {
+  let called = false;
+  const freshness = await refreshBeforeDailyDigest({ browserVisible: true, hasCourses: true,
+    hasPrairieTest: true, syncCourses: async () => { called = true; },
+    syncPrairieTest: async () => { called = true; }, onError: () => {} });
+  assert.equal(called, false);
+  const digest = buildDailyDigest({ preferences: { language: 'zh-CN' },
+    courses: [{ id: 'c1', name: 'CPSC 317, 2026W1', lastSyncedAt: new Date(2026, 9, 15).toISOString() }],
+    tasks: [], exams: [], prairieTest: {} }, new Date(2026, 9, 16),
+  { syncSkippedBecauseLogin: freshness.skippedForLogin });
+  assert.match(digest.desp, /登录窗口仍打开，本次未刷新，显示上次数据/);
+});
+
+test('a source refresh failure does not suppress the daily digest or the other source', async () => {
+  const errors = [];
+  let examRefreshed = false;
+  await refreshBeforeDailyDigest({ browserVisible: false, hasCourses: true, hasPrairieTest: true,
+    syncCourses: async () => { throw new Error('network unavailable'); },
+    syncPrairieTest: async () => { examRefreshed = true; },
+    onError: (source, error) => errors.push(`${source}: ${error.message}`),
+  });
+  assert.equal(examRefreshed, true);
+  assert.deepEqual(errors, ['课程: network unavailable']);
+});
 
 test('daily reminder is sent once at or after the local time and retries are spaced out', () => {
   const now = new Date(2026, 9, 2, 9, 1);
