@@ -6,9 +6,10 @@ const { spawn, spawnSync } = require('node:child_process');
 const { loadState, saveState, normalizePriority, normalizeCourseUrl, coursePlatform, courseAccessConfirmed, requireCourseAccess,
   reviewCourseAccess, mergeRows, mergeWebworkRows, mergeGradescopeRows } = require('./lib/store');
 const { normalizeAcademicPeriod, inferAcademicPeriod } = require('./lib/academic-term');
-const { edgePath, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage, readGradescopePage, readPrairieTestPage } = require('./lib/browser');
-const { PRAIRIETEST_HOME, validateExam, mergePrairieTestExams, normalizeExamLeads, examReminderEvents } = require('./lib/exams');
+const { edgePath, configureBrowser, openCoursePage, hideBrowser, closeBrowser, browserMode, readCoursePage, readWebworkPage, readGradescopePage, readPrairieTestPage, readUbcFinalsPage } = require('./lib/browser');
+const { PRAIRIETEST_HOME, validateExam, mergePrairieTestExams, mergeUbcFinalsExams, normalizeExamLeads, examReminderEvents } = require('./lib/exams');
 const { parsePrairieTestPage } = require('./lib/prairietest');
+const { UBC_FINALS_URL, parseUbcFinalsPage } = require('./lib/ubc-finals');
 const { parseGradescopePage } = require('./lib/gradescope');
 const { NativeBrowserBridge } = require('./lib/native-browser');
 const { createBrowserSyncSession } = require('./lib/browser-sync-session');
@@ -37,9 +38,11 @@ catch (error) { emailConfig.lastError = error.message; }
 const syncingCourseIds = new Set();
 let syncAllPromise = null;
 let prairieTestSyncPromise = null;
+let ubcFinalsSyncPromise = null;
 let sendingWechat = false;
 let sendingEmail = false;
 let syncingPrairieTest = false;
+let syncingUbcFinals = false;
 let autoSyncEnabled = state.courses.some(course => !course.archived && courseAccessConfirmed(course) && course.lastSyncedAt);
 let server;
 let trayProcess = null;
@@ -69,7 +72,7 @@ function publicState() {
     return { ...task, priority: normalizePriority(personal.priority), note: typeof personal.note === 'string' ? personal.note : '' };
   });
   return { version: VERSION, courses: state.courses, tasks, exams: state.exams, prairieTest: state.prairieTest,
-    syncingPrairieTest, syncing: syncingCourseIds.size > 0,
+    ubcFinals: state.ubcFinals, syncingPrairieTest, syncingUbcFinals, syncing: syncingCourseIds.size > 0,
     syncingCourseIds: [...syncingCourseIds], autoSyncEnabled,
     browserMode: browserMode(),
     preferences: state.preferences, systemLocale: Intl.DateTimeFormat().resolvedOptions().locale,
@@ -240,6 +243,25 @@ async function syncPrairieTestCore() {
   } finally { syncingPrairieTest = false; }
 }
 
+function startUbcFinalsSync() {
+  if (!ubcFinalsSyncPromise) ubcFinalsSyncPromise = browserSyncSession.run(async () => {
+    syncingUbcFinals = true;
+    try {
+      const page = await readUbcFinalsPage();
+      const rows = parseUbcFinalsPage(page, state.courses);
+      const count = mergeUbcFinalsExams(state, rows);
+      saveState(state);
+      return count;
+    } catch (error) {
+      state.ubcFinals ||= {};
+      state.ubcFinals.lastError = String(error.message || 'UBC 考试同步失败。').slice(0, 300);
+      saveState(state);
+      throw error;
+    } finally { syncingUbcFinals = false; }
+  }).finally(() => { ubcFinalsSyncPromise = null; });
+  return ubcFinalsSyncPromise;
+}
+
 async function checkDailyWechat() {
   const now = new Date();
   if (sendingWechat || !shouldSendDaily(wechatConfig, now)) return;
@@ -257,8 +279,10 @@ async function checkDailyWechat() {
       browserVisible: browserMode() === 'visible',
       hasCourses: state.courses.some(course => !course.archived && courseAccessConfirmed(course)),
       hasPrairieTest: Boolean(state.prairieTest?.lastSyncedAt),
+      hasUbcFinals: Boolean(state.ubcFinals?.lastSyncedAt),
       syncCourses: () => startAllCoursesSync({ automatic: true }),
       syncPrairieTest: startPrairieTestSync,
+      syncUbcFinals: startUbcFinalsSync,
       onError: (source, error) => console.error(`微信推送前${source}同步失败：${error.message}`),
     });
     const confirmedIds = new Set(state.courses.filter(course => !course.archived && courseAccessConfirmed(course)).map(course => course.id));
@@ -633,6 +657,7 @@ async function handle(request, response) {
           body.academicPeriod !== null && normalizeAcademicPeriod(body.academicPeriod) !== body.academicPeriod) throw new Error('考试课程或学期设置无效。');
       exam.courseId = body.courseId;
       exam.academicPeriod = body.academicPeriod;
+      if (exam.source === 'ubc_finals') exam.courseAssociationManual = true;
       saveState(state); return json(response, 200, publicState());
     }
     if (request.method === 'POST' && url.pathname === '/api/prairietest/open') {
@@ -643,6 +668,15 @@ async function handle(request, response) {
     if (request.method === 'POST' && url.pathname === '/api/prairietest/sync') {
       const count = await startPrairieTestSync();
       return json(response, 200, { message: `已同步 ${count} 项 PrairieTest 考试。`, state: publicState() });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/ubc-finals/open') {
+      if (browserSyncSession.active) throw new Error('请等待同步完成后再打开登录窗口。');
+      await openCoursePage(UBC_FINALS_URL);
+      return json(response, 200, { message: 'UBC 考试日程登录窗口已打开。登录后请停留在 Scheduled Assessments 页面。', state: publicState() });
+    }
+    if (request.method === 'POST' && url.pathname === '/api/ubc-finals/sync') {
+      const count = await startUbcFinalsSync();
+      return json(response, 200, { message: `已只读同步 ${count} 项 UBC 考试。`, state: publicState() });
     }
     if (request.method === 'POST' && url.pathname === '/api/course/access-review') {
       const result = reviewCourseAccess(state, body.confirmedIds);

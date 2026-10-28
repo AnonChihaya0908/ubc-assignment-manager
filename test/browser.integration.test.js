@@ -9,6 +9,7 @@ const { edgePath, cdp, withinSyncDeadline, EXTRACT_PAGE, EXTRACT_WEBWORK_PAGE, E
 const { parseWebworkText, parseWebworkProgress } = require('../lib/webwork');
 const { parseGradescopePage } = require('../lib/gradescope');
 const { EXTRACT_PRAIRIETEST_PAGE } = require('../lib/prairietest');
+const { EXTRACT_UBC_FINALS_PAGE, SCROLL_UBC_FINALS_GRID } = require('../lib/ubc-finals');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -31,6 +32,12 @@ const fixture = `<!doctype html><title>PrairieLearn</title>
 <td>100% until 23:59, Thu, Oct 8</td><td><div class="progress-bar">0%</div></td></tr>
 <tr><td><span data-testid="assessment-set-badge">LAB04</span></td><td><a href="/pl/course_instance/231184/assessment_instance/4/">DIP, LSP &amp; Testability</a></td>
 <td>100% until 23:59, Thu, Oct 15</td><td>Not started</td></tr></tbody></table>`;
+
+const ubcFinalsFixture = `<!doctype html><title>Scheduled Assessments</title><div><div style="height:70px;overflow:auto">
+<table><thead><tr><th>Campus</th><th>Academic Period</th><th>Section</th><th>Exam Date</th><th>Exam Start Time</th><th>Location</th><th>Delivery Mode</th><th>Alpha Split</th><th>Exam Note</th></tr></thead>
+<tbody><tr><td>Vancouver</td><td>2026-27 Winter Term 1 (UBC-V)</td><td>CPSC_V 310-101 - Introduction to Software Engineering</td><td>12/18/2026</td><td>12:00:00</td><td>—</td><td>In Person Learning</td><td>—</td><td>—</td></tr>
+<tr><td>Vancouver</td><td>2026-27 Winter Term 1 (UBC-V)</td><td>CPSC_V 421-101 - Introduction to Theory of Computing</td><td>12/11/2026</td><td>08:30:00</td><td>Room 123</td><td>In Person Learning</td><td>—</td><td>—</td></tr>
+<tr><td>Vancouver</td><td>2026-27 Winter Term 1 (UBC-V)</td><td>STAT_V 251-101 - Introductory Probability and Statistics</td><td>12/14/2026</td><td>15:30:00</td><td>—</td><td>In Person Learning</td><td>—</td><td>—</td></tr></tbody></table></div><span>3 items</span></div>`;
 
 const webworkFixture = `<!doctype html><title>WeBWorK</title><h1>STAT_V 251 101 2026W1 Introductory Probability and Statistics</h1>
 <h2>Open Assignments</h2><div><a href="/webwork2/course/Assignment-03">Assignment-03</a><p>Open. Due October 8, 2026, 11:59:00 PM PDT.</p></div>
@@ -195,7 +202,7 @@ test('dedicated background Edge keeps a headless session for both course sources
 test('Edge reads assignment rows from a rendered student-style table', { timeout: 30000 }, async () => {
   const httpServer = http.createServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    response.end(request.url.includes('Assignment-03') ? webworkDetailFixture :
+    response.end(request.url.includes('ubc-final') ? ubcFinalsFixture : request.url.includes('Assignment-03') ? webworkDetailFixture :
       request.url.includes('Assignment-02') ? webworkPastDetailFixture : request.url.startsWith('/webwork2/') ? webworkFixture : fixture);
   });
   await new Promise(resolve => httpServer.listen(0, '127.0.0.1', resolve));
@@ -262,6 +269,22 @@ test('Edge reads assignment rows from a rendered student-style table', { timeout
     const pastProgress = parseWebworkProgress(progressEvaluation.result.value[1].tables);
     assert.equal(pastProgress.score, '80%');
     assert.equal(pastProgress.sourceComplete, false);
+    const ubcUrl = `http://127.0.0.1:${httpServer.address().port}/ubc-final`;
+    const ubcOpened = await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(ubcUrl)}`, { method: 'PUT' });
+    const ubcTarget = await ubcOpened.json();
+    let ubcGrid;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const evaluation = await cdp(ubcTarget.webSocketDebuggerUrl, 'Runtime.evaluate',
+        { expression: EXTRACT_UBC_FINALS_PAGE, returnByValue: true });
+      ubcGrid = evaluation.result.value;
+      if (ubcGrid?.rows?.length === 3) break;
+      await sleep(100);
+    }
+    assert.equal(ubcGrid.totalItems, 3);
+    assert.equal(ubcGrid.rows.length, 3);
+    const scrolled = await cdp(ubcTarget.webSocketDebuggerUrl, 'Runtime.evaluate',
+      { expression: SCROLL_UBC_FINALS_GRID, returnByValue: true });
+    assert.equal(scrolled.result.value, true);
   } finally {
     if (debugPort) {
       try {
