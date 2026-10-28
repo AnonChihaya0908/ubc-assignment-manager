@@ -248,8 +248,7 @@ function renderFolders() {
   $('nav-dashboard').classList.toggle('active', location.hash.startsWith('#dashboard'));
   $('nav-exams').classList.toggle('active', location.hash.startsWith('#exams'));
   $('nav-exams').querySelector('.notification-dot').hidden = !(state.exams || []).some(exam => !exam.archived && !exam.linkedExamId && examCategory(exam) !== 'ended' &&
-    (exam.source !== 'prairietest' || state.prairieTest?.lastSyncedAt &&
-      Date.parse(exam.lastSyncedAt || '') >= Date.parse(state.prairieTest.lastSyncedAt)));
+    !examIsStale(exam));
   for (const platform of Object.keys(platformFolders)) {
     const [countId, railId, groupId, containerId] = platformFolders[platform];
     const courses = filteredCourses().filter(course => coursePlatform(course) === platform);
@@ -633,16 +632,24 @@ function renderDashboardPage() {
 function examCategory(exam) {
   if (['ended', 'cancelled'].includes(exam.status) || exam.status === 'reserved' && exam.startsAt && exam.durationMinutes &&
       Date.parse(exam.startsAt) + exam.durationMinutes * 60000 < Date.now()) return 'ended';
+  if (exam.source === 'ubc_finals' && exam.startsAt && Date.parse(exam.startsAt) + 86400000 < Date.now()) return 'ended';
   return exam.status;
 }
+function examSourceLabel(exam) {
+  return exam.source === 'manual' ? '手动添加' : exam.source === 'ubc_finals' ? 'UBC 考试日程' : 'PrairieTest';
+}
+function examIsStale(exam) {
+  const synced = exam.source === 'prairietest' ? state.prairieTest?.lastSyncedAt :
+    exam.source === 'ubc_finals' ? state.ubcFinals?.lastSyncedAt : null;
+  return exam.source !== 'manual' && (!synced || Date.parse(exam.lastSyncedAt || '') < Date.parse(synced));
+}
 function examStatusLabel(exam) {
+  if (exam.source === 'ubc_finals' && examCategory(exam) === 'reserved') return '已安排';
   return { unreserved: '待预约', reserved: '已预约', ended: '已结束', cancelled: '已取消' }[examCategory(exam) === 'ended' && exam.status === 'cancelled' ? 'cancelled' : examCategory(exam)] || '未知';
 }
 function visibleExams() {
-  const latestSync = Date.parse(state.prairieTest?.lastSyncedAt || '');
   return (state.exams || []).filter(exam => !exam.linkedExamId && (showArchivedExams ||
-    !exam.archived && (exam.source !== 'prairietest' || !Number.isFinite(latestSync) ||
-      examCategory(exam) === 'ended' || Date.parse(exam.lastSyncedAt || '') >= latestSync)));
+    !exam.archived && (!examIsStale(exam) || examCategory(exam) === 'ended')));
 }
 function examLocalTime(value) {
   if (!value) return '尚未公布';
@@ -685,14 +692,16 @@ function renderExamPage() {
   for (const [key, count] of Object.entries(counts)) $('exam-count-' + key).textContent = count;
   for (const button of document.querySelectorAll('[data-exam-filter]')) button.classList.toggle('active', button.dataset.examFilter === examFilter);
   $('show-archived-exams').checked = showArchivedExams;
-  const activeCount = (state.exams || []).filter(exam => !exam.archived && !exam.linkedExamId && examCategory(exam) !== 'ended' &&
-    (exam.source !== 'prairietest' || state.prairieTest?.lastSyncedAt &&
-      Date.parse(exam.lastSyncedAt || '') >= Date.parse(state.prairieTest.lastSyncedAt))).length;
+  const activeCount = (state.exams || []).filter(exam => !exam.archived && !exam.linkedExamId && examCategory(exam) !== 'ended' && !examIsStale(exam)).length;
   $('nav-exams').querySelector('.notification-dot').hidden = activeCount === 0;
   const synced = state.prairieTest?.lastSyncedAt;
   $('prairietest-status').textContent = state.syncingPrairieTest ? '正在只读同步 PrairieTest…' :
     `${synced ? `上次同步：${formatDate(synced)}` : '尚未同步 PrairieTest。'}${state.prairieTest?.lastError ? ` · 同步失败，已保留上次数据：${state.prairieTest.lastError}` : ''}`;
   $('prairietest-status').classList.toggle('error', Boolean(state.prairieTest?.lastError));
+  const ubcSynced = state.ubcFinals?.lastSyncedAt;
+  $('ubc-finals-status').textContent = state.syncingUbcFinals ? '正在只读同步 UBC 考试日程…' :
+    `${ubcSynced ? `UBC 上次同步：${formatDate(ubcSynced)}` : '尚未同步 UBC 考试日程。'}${state.ubcFinals?.lastError ? ` · 同步失败，已保留上次数据：${state.ubcFinals.lastError}` : ''}`;
+  $('ubc-finals-status').classList.toggle('error', Boolean(state.ubcFinals?.lastError));
   const list = $('exam-list'); list.replaceChildren();
   const filtered = all.filter(exam => (examFilter === 'all' || examCategory(exam) === examFilter) &&
     (!searchTerm || [exam.title, exam.courseName, exam.location].some(value => String(value || '').toLocaleLowerCase().includes(searchTerm))));
@@ -711,7 +720,7 @@ function renderExamPage() {
     .sort((a, b) => (finishedTime(b) ?? -Infinity) - (finishedTime(a) ?? -Infinity) || a.title.localeCompare(b.title));
   const ordered = [...upcoming, ...ended];
   if (!ordered.some(exam => exam.id === selectedExamId)) selectedExamId = ordered[0]?.id || null;
-  if (!filtered.length) list.append(node('p', 'form-note', '当前分类暂无考试。可手动添加，或登录 PrairieTest 后只读同步。'));
+  if (!filtered.length) list.append(node('p', 'form-note', '当前分类暂无考试。可手动添加，或登录考试来源后只读同步。'));
   const sections = examFilter === 'all' ? [['即将到来', upcoming], ['已结束', ended]] : [[null, ordered]];
   for (const [label, exams] of sections) {
     if (!exams.length) continue;
@@ -722,12 +731,11 @@ function renderExamPage() {
       section.append(heading);
     }
     for (const exam of exams) {
-      const stale = exam.source === 'prairietest' && (!state.prairieTest?.lastSyncedAt ||
-        Date.parse(exam.lastSyncedAt || '') < Date.parse(state.prairieTest.lastSyncedAt));
+      const stale = examIsStale(exam);
       const item = node('button', `exam-list-item${exam.id === selectedExamId ? ' active' : ''}`);
       item.type = 'button'; item.setAttribute('aria-current', String(exam.id === selectedExamId));
       item.append(node('span', `exam-status-chip ${examCategory(exam)}`, stale && examCategory(exam) !== 'ended' ? '待核实' : examStatusLabel(exam)),
-        node('strong', '', exam.title), node('small', '', `${exam.courseName || '未关联课程'} · ${exam.source === 'manual' ? '手动添加' : 'PrairieTest'}`),
+        node('strong', '', exam.title), node('small', '', `${exam.courseName || '未关联课程'} · ${examSourceLabel(exam)}`),
         node('small', '', exam.status === 'unreserved' ? exam.startsAt ? `考试时间：${examLocalTime(exam.startsAt)} · 待预约` : exam.reservationDeadline ? `预约截止：${examLocalTime(exam.reservationDeadline)}` : '尚未预约，暂无确定场次'
           : `考试时间：${examLocalTime(exam.startsAt)}`));
       item.addEventListener('click', () => { selectedExamId = exam.id; renderExamPage(); });
@@ -738,15 +746,14 @@ function renderExamPage() {
   const detail = $('exam-detail'); detail.replaceChildren();
   const exam = ordered.find(item => item.id === selectedExamId);
   if (!exam) { detail.append(node('p', 'form-note', '选择考试后可查看预约、时间与提醒信息。')); return; }
-  const stale = exam.source === 'prairietest' && (!state.prairieTest?.lastSyncedAt ||
-    Date.parse(exam.lastSyncedAt || '') < Date.parse(state.prairieTest.lastSyncedAt));
+  const stale = examIsStale(exam);
   detail.append(node('h2', '', exam.title), node('span', `exam-status-chip ${examCategory(exam)}`, examStatusLabel(exam)));
   if (stale) detail.append(node('p', examCategory(exam) === 'ended' ? 'form-note' : 'exam-error', examCategory(exam) === 'ended'
-    ? '这项考试已结束，最新 PrairieTest 当前预约列表不再显示；历史记录已保留。'
-    : '这项考试尚未在最近一次 PrairieTest 同步中确认。已保留记录并暂停该项提醒，请在原网站核实。'));
+    ? '这项考试已结束，最新来源列表不再显示；历史记录已保留。'
+    : '这项考试尚未在最近一次来源同步中确认。已保留记录并暂停该项提醒，请在原网站核实。'));
   const fields = node('dl', '');
   examDetailField(fields, '课程', exam.courseName || state.courses.find(course => course.id === exam.courseId)?.name || '未关联');
-  examDetailField(fields, '来源', exam.source === 'manual' ? '手动添加' : 'PrairieTest');
+  examDetailField(fields, '来源', examSourceLabel(exam));
   examDetailField(fields, '设备当地时间', examLocalTime(exam.startsAt));
   examDetailField(fields, '来源时区时间', exam.startsAt ? examSourceTime(exam) : '尚未确定场次');
   examDetailField(fields, '时长', exam.durationMinutes ? `${exam.durationMinutes} 分钟` : '未提供');
@@ -775,7 +782,7 @@ function renderExamPage() {
     catch (error) { message(error.message, true); }
   });
   detail.append(actions);
-  if (exam.source === 'prairietest') {
+  if (exam.source === 'prairietest' || exam.source === 'ubc_finals') {
     const association = node('div', 'exam-association');
     association.append(node('h3', '', '课程与学期'));
     const linkedManual = (state.exams || []).find(item => item.source === 'manual' && item.linkedExamId === exam.id);
@@ -797,7 +804,7 @@ function renderExamPage() {
       catch (error) { message(error.message, true); }
     });
     association.append(course, period, save);
-    const manualCandidates = (state.exams || []).filter(item => item.source === 'manual' && !item.linkedExamId);
+    const manualCandidates = exam.source === 'prairietest' ? (state.exams || []).filter(item => item.source === 'manual' && !item.linkedExamId) : [];
     if (manualCandidates.length) {
       const pair = document.createElement('select'); pair.setAttribute('aria-label', '关联手动考试');
       pair.append(new Option('选择手动记录', ''));
@@ -1481,6 +1488,8 @@ function render() {
   $('sync-status').classList.toggle('error', Boolean(exams && state.prairieTest?.lastError));
   $('sync').setAttribute('aria-label', exams ? '立即只读同步 PrairieTest 考试' : '立即同步作业');
   $('sync').disabled = syncBusy || (exams ? Boolean(state.syncingPrairieTest) : state.syncing || !activeCourses.some(courseAccessConfirmed));
+  $('sync-ubc-finals').hidden = !exams;
+  $('sync-ubc-finals').disabled = Boolean(state.syncingUbcFinals);
   $('footer-sync').textContent = state.syncing ? '正在同步' : failures ? `${failures} 门同步失败` : stale ? `${stale} 门数据可能过旧` : last ? `上次同步 ${formatDate(last)}` : '尚未同步';
   $('footer-sync').title = state.courses.filter(course => course.lastSyncError).map(course => `${shortCourseName(course)}：${course.lastSyncError}`).join('；');
   $('footer-sync').classList.toggle('error', failures > 0);
@@ -1669,6 +1678,21 @@ $('exam-form').addEventListener('submit', async event => {
 $('open-prairietest').addEventListener('click', async () => {
   try { const result = await api('/api/prairietest/open', 'POST', {}); message(result.message); }
   catch (error) { message(error.message, true); }
+});
+$('open-ubc-finals').addEventListener('click', async () => {
+  try { const result = await api('/api/ubc-finals/open', 'POST', {}); message(result.message); }
+  catch (error) { message(error.message, true); }
+});
+$('sync-ubc-finals').addEventListener('click', async () => {
+  const button = $('sync-ubc-finals');
+  button.disabled = true;
+  try {
+    const result = await api('/api/ubc-finals/sync', 'POST', {});
+    state = result.state; render(); message(result.message);
+  } catch (error) {
+    try { state = await api('/api/state'); } catch { /* Keep cached state. */ }
+    render(); message(error.message, true);
+  } finally { button.disabled = false; }
 });
 $('academic-year').addEventListener('change', async event => {
   try {

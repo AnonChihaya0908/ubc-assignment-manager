@@ -82,6 +82,7 @@
       </div>
       <div class="sync-dock">
         <button id="sync" class="sync-button" type="button">立即同步</button>
+        <button id="sync-ubc-finals" class="sync-button" type="button" hidden>只读同步 UBC 考试</button>
         <span id="sync-status">尚未同步</span>
       </div>
     </aside>
@@ -120,7 +121,7 @@
       <section id="exam-page" class="page" hidden>
         <header class="page-header"><div class="page-title"><p class="breadcrumb">考试 / 考试提醒</p><h1>考试提醒</h1><p class="page-summary">独立管理考试预约与提醒，不计入作业完成率。</p></div></header>
         <div class="exam-page-content">
-          <div class="exam-topline"><p id="prairietest-status" class="form-note" role="status" aria-live="polite"></p><a href="#settings/courses">登录账户：设置 → 课程与登录</a></div>
+          <div class="exam-topline"><div><p id="prairietest-status" class="form-note" role="status" aria-live="polite"></p><p id="ubc-finals-status" class="form-note" role="status" aria-live="polite"></p></div><a href="#settings/courses">登录账户：设置 → 课程与登录</a></div>
           <div class="exam-columns"><div id="exam-list" class="exam-list"></div><aside id="exam-detail" class="exam-detail" aria-label="考试详情"></aside></div>
         </div>
       </section>
@@ -251,6 +252,7 @@
             <select id="browser-engine"><option value="auto">自动选择</option><option value="edge">Microsoft Edge</option><option value="chrome">Google Chrome</option><option value="webkit">应用内置 WebKit（Mac）</option></select>
             <p id="browser-engine-hint" class="form-note">Windows 优先使用 Edge，未安装时使用 Chrome；Mac 默认使用内置 WebKit。</p>
             <div class="setting-row prairie-test-login"><div><h3>PrairieTest</h3><p>登录后可在“考试提醒”中只读同步考试预约。</p></div><button id="open-prairietest" class="secondary-button" type="button">打开登录窗口</button></div>
+            <div class="setting-row prairie-test-login"><div><h3>UBC 考试日程</h3><p>登录后可只读同步 Scheduled Assessments，并关联已注册课程。</p></div><button id="open-ubc-finals" class="secondary-button" type="button">打开登录窗口</button></div>
             <label for="settings-course-select">选择课程</label>
             <div class="input-action"><select id="settings-course-select"></select><button id="open-browser" class="secondary-button" type="button">打开登录窗口</button><button id="hide-browser" class="secondary-button" type="button" hidden>隐藏登录窗口</button></div>
             <details class="paste-panel"><summary>PrairieLearn 页面无法同步？粘贴作业表格</summary><p>在已登录的浏览器中复制 PrairieLearn 作业表格，粘贴到下方导入。WeBWorK 和 Gradescope 请使用登录窗口同步。</p><label for="paste-data">作业表格文字</label><textarea id="paste-data" rows="5"></textarea><button id="import-text" class="secondary-button" type="button">导入所选课程</button></details>
