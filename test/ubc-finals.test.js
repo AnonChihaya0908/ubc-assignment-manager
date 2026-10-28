@@ -52,6 +52,10 @@ test('sync updates the same exam, preserves local association override, and reta
   assert.equal(state.exams[0].startsAt, changed[0].startsAt);
   assert.equal(examCategory(state.exams[3], now), 'ended');
   assert.equal(activeExams(state, now).length, 3);
+  state.exams[0].courseId = '310';
+  state.courses = state.courses.filter(course => course.id !== '310');
+  mergeUbcFinalsExams(state, changed, new Date('2026-10-30T17:00:00Z'));
+  assert.equal(state.exams[0].courseId, null);
 });
 
 test('Vancouver wall clock obeys historic DST and permanent UTC-7', () => {
