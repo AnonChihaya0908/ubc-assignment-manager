@@ -286,6 +286,44 @@ test('WeBWorK due dates and release dates remain distinct', () => {
   assert.equal(parseWebworkDate('October 32, 2026, 11:59:00 PM PDT'), null);
 });
 
+test('PrairieLearn November credit windows use the new date-first wording', () => {
+  const course = 'CPSC 310, 2026W1';
+  const endOfDay = parseDisplayedDeadline('100% until Thu, Nov 26, end of day', course);
+  const evening = parseDisplayedDeadline('100% until Fri, Nov 27, 6:05pm', course);
+  const december = parseDisplayedDeadline('100% until Wed, Dec 2, end of day', course);
+  assert.equal(endOfDay.creditPercent, 100);
+  assert.equal(endOfDay.deadlineKind, 'on_time');
+  assert.deepEqual([new Date(endOfDay.dueAt).getFullYear(), new Date(endOfDay.dueAt).getMonth(),
+    new Date(endOfDay.dueAt).getDate(), new Date(endOfDay.dueAt).getHours(), new Date(endOfDay.dueAt).getMinutes()],
+  [2026, 10, 26, 23, 59]);
+  assert.deepEqual([new Date(evening.dueAt).getDate(), new Date(evening.dueAt).getHours(),
+    new Date(evening.dueAt).getMinutes()], [27, 18, 5]);
+  assert.equal(new Date(december.dueAt).getMonth(), 11);
+  assert.equal(new Date(december.dueAt).getDate(), 2);
+  assert.equal(parseDisplayedDeadline('100% until Fri, Nov 32, 6:05pm', course).dueAt, null);
+  assert.equal(parseDisplayedDeadline('100% until Fri, Nov 27, 13:05pm', course).dueAt, null);
+});
+
+test('WeBWorK Mountain zone dates sync and closed assignments keep their deadline', () => {
+  const state = emptyState();
+  const course = normalizeCourseUrl('https://webwork.elearning.ubc.ca/webwork2/example');
+  state.courses.push(course);
+  const body = 'Open Assignments\nAssignment-08\nOpen. Due November 27, 2026, 11:59:00 PM MST.\n' +
+    'Assignment-09\nOpen. Due December 3, 2026, 11:59:00 PM MST.\n' +
+    'Future Assignments\nAssignment-10\nWill open on December 1, 2026, 12:00:00 AM MST.\n' +
+    'Past Due Assignments\nAssignment-07\nAnswers available for review.';
+  const rows = parseWebworkText(body, {}, course.url);
+  mergeWebworkRows(state, course.id, { rows });
+  const byName = name => state.tasks.find(task => task.name === name);
+  assert.equal(byName('Assignment-08').dueAt, '2026-11-28T06:59:00.000Z');
+  assert.equal(byName('Assignment-09').dueAt, '2026-12-04T06:59:00.000Z');
+  assert.equal(byName('Assignment-10').opensAt, '2026-12-01T07:00:00.000Z');
+  assert.equal(byName('Assignment-10').dueAt, null);
+  assert.equal(parseWebworkDate('June 3, 2026, 11:59:00 PM MDT'), '2026-06-04T05:59:00.000Z');
+  mergeWebworkRows(state, course.id, { rows: [{ ...rows[0], section: 'past_due', dueText: '' }] });
+  assert.equal(byName('Assignment-08').dueAt, '2026-11-28T06:59:00.000Z');
+});
+
 test('WeBWorK completion requires every problem to reach 100%', () => {
   const headers = ['Name', 'Attempts', 'Remaining', 'Worth', 'Status'];
   const complete = parseWebworkProgress([{ headers, rows: [
