@@ -6,7 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { edgePath, cdp, withinSyncDeadline, EXTRACT_PAGE, EXTRACT_WEBWORK_PAGE, EXTRACT_WEBWORK_PROGRESS, EXTRACT_GRADESCOPE_PAGE } = require('../lib/browser');
-const { parseWebworkText, parseWebworkProgress } = require('../lib/webwork');
+const { parseWebworkText, parseWebworkProgress, parseWebworkDate } = require('../lib/webwork');
+const { parseDisplayedDeadline } = require('../lib/deadlines');
 const { parseGradescopePage } = require('../lib/gradescope');
 const { EXTRACT_PRAIRIETEST_PAGE } = require('../lib/prairietest');
 
@@ -30,11 +31,11 @@ const fixture = `<!doctype html><title>PrairieLearn</title>
 <tr><td><span data-testid="assessment-set-badge">LAB03</span></td><td><a href="/pl/course_instance/231184/assessment_instance/3/">Refactoring and Testability</a></td>
 <td>100% until 23:59, Thu, Oct 8</td><td><div class="progress-bar">0%</div></td></tr>
 <tr><td><span data-testid="assessment-set-badge">LAB04</span></td><td><a href="/pl/course_instance/231184/assessment_instance/4/">DIP, LSP &amp; Testability</a></td>
-<td>100% until 23:59, Thu, Oct 15</td><td>Not started</td></tr></tbody></table>`;
+<td>100% until Thu, Nov 26, end of day</td><td>Not started</td></tr></tbody></table>`;
 
 const webworkFixture = `<!doctype html><title>WeBWorK</title><h1>STAT_V 251 101 2026W1 Introductory Probability and Statistics</h1>
-<h2>Open Assignments</h2><div><a href="/webwork2/course/Assignment-03">Assignment-03</a><p>Open. Due October 8, 2026, 11:59:00 PM PDT.</p></div>
-<h2>Future Assignments</h2><div>Assignment-04<p>Will open on October 6, 2026, 12:00:00 AM PDT.</p></div>
+<h2>Open Assignments</h2><div><a href="/webwork2/course/Assignment-03">Assignment-03</a><p>Open. Due November 27, 2026, 11:59:00 PM MST.</p></div>
+<h2>Future Assignments</h2><div>Assignment-04<p>Will open on December 1, 2026, 12:00:00 AM MST.</p></div>
 <h2>Past Due Assignments</h2><div><a href="/webwork2/course/Assignment-02">Assignment-02</a><p>Answers available for review.</p></div>`;
 
 const webworkDetailFixture = `<!doctype html><title>Assignment-03</title><table class="problem_set_table">
@@ -235,6 +236,8 @@ test('Edge reads assignment rows from a rendered student-style table', { timeout
     assert.equal(result.rows.length, 2);
     assert.equal(result.rows[0].code, 'LAB03');
     assert.equal(result.rows[0].creditText, '100% until 23:59, Thu, Oct 8');
+    assert.equal(result.rows[1].creditText, '100% until Thu, Nov 26, end of day');
+    assert.equal(new Date(parseDisplayedDeadline(result.rows[1].creditText, result.courseTitle).dueAt).getDate(), 26);
     assert.equal(result.rows[1].score, 'Not started');
     const webworkUrl = `http://127.0.0.1:${httpServer.address().port}/webwork2/course`;
     const opened = await fetch(`http://127.0.0.1:${debugPort}/json/new?${encodeURIComponent(webworkUrl)}`, { method: 'PUT' });
@@ -249,8 +252,9 @@ test('Edge reads assignment rows from a rendered student-style table', { timeout
     assert.equal(webwork.hasSections, true);
     const webworkRows = parseWebworkText(webwork.bodyText, webwork.links, webworkUrl);
     assert.deepEqual(webworkRows.map(row => row.section), ['open', 'future', 'past_due']);
-    assert.equal(webworkRows[0].dueText, 'October 8, 2026, 11:59:00 PM PDT.');
-    assert.equal(webworkRows[1].openText, 'October 6, 2026, 12:00:00 AM PDT.');
+    assert.equal(webworkRows[0].dueText, 'November 27, 2026, 11:59:00 PM MST.');
+    assert.equal(parseWebworkDate(webworkRows[0].dueText), '2026-11-28T06:59:00.000Z');
+    assert.equal(webworkRows[1].openText, 'December 1, 2026, 12:00:00 AM MST.');
     const progressExpression = `(${EXTRACT_WEBWORK_PROGRESS})(${JSON.stringify([webworkRows[0].url, webworkRows[2].url])})`;
     const progressEvaluation = await cdp(webworkTarget.webSocketDebuggerUrl, 'Runtime.evaluate', {
       expression: progressExpression, returnByValue: true, awaitPromise: true,

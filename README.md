@@ -52,7 +52,7 @@
 
 macOS 版是独立 `.app`；1.3.9 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），PKG 也保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。
 
-下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。macOS 包没有 Developer ID 签名或公证；首次打开可能需要按[安装说明](docs/macos-preview.md)手动允许，学校管理的设备可能禁止侧载。CI 已验证 Sonoma 14 启动与包完整性，真实设备上的首次安装、通知和 Gradescope 登录仍需确认。
+下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。macOS 包没有 Developer ID 签名或公证；首次打开可能需要按[安装说明](docs/macos-preview.md)手动允许，学校管理的设备可能禁止侧载。v1.3.9 的 CI 曾验证 Sonoma 14 启动；GitHub 停用 macOS 14 运行环境后，当前 CI 改在 macOS 15 验证安装、启动与包完整性。Sonoma 14 及真实设备上的首次安装、通知和 Gradescope 登录仍需人工复核。
 
 ### 系统要求
 
