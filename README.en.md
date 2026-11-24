@@ -2,11 +2,11 @@
 
 A desktop app that brings PrairieLearn, UBC WeBWorK, and Gradescope Canada assignments, opening dates, due dates, and reminders into one place.
 
-[Version 1.3.9 for Windows and macOS](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.9) · [Report a problem](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues) · [中文说明](README.md)
+[Version 1.3.10 for Windows and macOS](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.10) · [Report a problem](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues) · [中文说明](README.md)
 
-`main` now includes an updated Exam reminders screen. It groups upcoming and ended exams and moves the add, sign-in, and sync controls. These interface changes are not in the 1.3.9 installers yet.
+Version 1.3.10 includes the updated Exam reminders screen, with upcoming and ended groups and clearer add, sign-in, and sync controls.
 
-Version 1.3.9 keeps a completed PrairieTest exam in the Ended list after it disappears from the current reservations on the source website. Previously synced history stays on this device, so it does not need to be entered again. The time and daily WeChat digest improvements from 1.3.8 remain available.
+This release restores due dates from PrairieLearn's new credit-window wording and WeBWorK's MST time labels. It also improves Gradescope sync for course tables containing rows without assignment links. The daily WeChat digest now refreshes course and exam data before sending.
 
 This is an independent project. It is not an official UBC, PrairieLearn, WeBWorK, or Gradescope app. It reads assignments visible to you after you sign in; it does not need a PrairieLearn API token.
 
@@ -14,20 +14,20 @@ This is an independent project. It is not an official UBC, PrairieLearn, WeBWorK
 
 **Windows:** Download the setup executable from the latest stable release and run it. The installer is per user. The portable ZIP also works, but extract the entire archive before opening the executable; the bundled runtime files are required. No separate Node.js installation or terminal command is needed.
 
-**macOS:** Version 1.3.9 provides `macos-arm64.dmg` / `.zip` for Apple Silicon and `macos-x64.dmg` / `.zip` for Intel. Open the DMG and drag the app to Applications, or extract the ZIP and move the entire `.app` there. PKG remains available. The app has an ad hoc integrity signature but no Developer ID signature or notarization; a physical Mac first-install and notification check is still outstanding. Changing archive format does not bypass macOS app security checks. If you trust the release and want to proceed, try opening the app once, then use **System Settings → Privacy & Security → Open Anyway** if offered. See [Apple’s guidance](https://support.apple.com/en-us/102445) for the current steps. Built-in WebKit handles sign-in and sync by default.
+**macOS:** Version 1.3.10 provides `macos-arm64.dmg` / `.zip` for Apple Silicon and `macos-x64.dmg` / `.zip` for Intel. Open the DMG and drag the app to Applications, or extract the ZIP and move the entire `.app` there. PKG remains available. The app has an ad hoc integrity signature but no Developer ID signature or notarization; a physical Mac first-install and notification check is still outstanding. Changing archive format does not bypass macOS app security checks. If you trust the release and want to proceed, try opening the app once, then use **System Settings → Privacy & Security → Open Anyway** if offered. See [Apple’s guidance](https://support.apple.com/en-us/102445) for the current steps. Built-in WebKit handles sign-in and sync by default.
 
 ## First use
 
 1. On first launch, paste your own student assignment list URL. PrairieLearn URLs end in `/pl/course_instance/<number>/assessments`; UBC WeBWorK URLs begin with `https://webwork.elearning.ubc.ca/webwork2/`; Gradescope Canada course URLs use `https://www.gradescope.ca/courses/<number>`.
 2. Go to **Settings → Courses and login** and open the dedicated sign-in window for each course. Current source supports Edge and Chrome, with built-in WebKit as the Mac default. Complete your school sign-in, then return to the app and choose **Hide sign-in window**.
-3. Select **Sync now** in the lower left. The app reads course pages through the same dedicated profile in the background and keeps it available for scheduled syncs. If school sign-in expires, reopen the sign-in window from course settings. This profile is separate from your everyday browser.
+3. Select **Sync now** in the lower left. The app opens its dedicated browser profile for background sync and closes the browser when sync finishes. If school sign-in expires, reopen the sign-in window from course settings. This profile is separate from your everyday browser.
 4. The app starts in your device language. Change it at **Settings → General and window → Display language**. Language changes do not change assignment dates, completion states, sign-in sessions, or other settings.
 
 If PrairieLearn syncing fails, you can copy its assignment table from an already signed-in browser and use the manual import under Courses and login. WeBWorK and Gradescope must sync through the dedicated sign-in window. Gradescope uses the regular due date for reminders, shows a late due date separately, and treats a submission or published grade as complete even below full credit. Newly installed copies do not contain another user’s courses. Imported or older courses must be confirmed before the app opens their pages, syncs them, or sends reminders.
 
 ## Exam reminders
 
-Select the exam icon on the left to open the separate Exam reminders screen. The controls below describe the current `main` branch. In the 1.3.9 installers, Add exam, PrairieTest sign-in, and read-only sync are still at the top of the exam screen.
+Select the exam icon on the left to open the separate Exam reminders screen. These controls are included in the 1.3.10 installers.
 
 1. **Add an exam:** Select **+** beside the Exam reminders heading in the secondary sidebar. Enter the exam name, course, status, and any known time. You can save an unreserved exam and update it after making a reservation.
 2. **Sync PrairieTest:** Open **Settings → Courses and login → PrairieTest**, sign in through the dedicated window, then return to Exam reminders and select **Sync now** at the bottom left. On this screen, the button reads PrairieTest reservations without changing them. On assignment screens, the same button syncs assignments.
@@ -41,4 +41,4 @@ Deadline notifications use the computer’s local time zone. Closing the main wi
 
 Daily email reminders are also optional. In **Settings → Reminders and sync**, connect your own Gmail address with a Gmail app password, send a test email to your recipient, then enable the daily schedule. The digest includes unfinished assignments, due dates, and source links. The app does not request your main Gmail password or require a hosted server. Gmail app passwords require eligible two-step verification; some school or work accounts restrict them. Outlook sending is not supported in this version because it requires a separate OAuth authorization integration. See [email reminder setup and limits](docs/email-reminders.md). Missed mail is sent only on the same day after the app resumes, with up to three attempts.
 
-Backups include courses, cached assignments, notes, and ordinary settings. They exclude cookies, browser sign-in profiles, the SendKey, email sender authorization, and delivery history. On Mac, version 1.3.9 offers DMG and ZIP downloads for manual app replacement. Windows releases support in-app installation and restart.
+Backups include courses, cached assignments, notes, and ordinary settings. They exclude cookies, browser sign-in profiles, the SendKey, email sender authorization, and delivery history. On Mac, version 1.3.10 offers DMG and ZIP downloads for manual app replacement. Windows releases support in-app installation and restart.

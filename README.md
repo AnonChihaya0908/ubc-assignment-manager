@@ -4,13 +4,13 @@
 
 本地作业管理应用，将 PrairieLearn、UBC WeBWorK 和 Gradescope Canada 的作业、开放时间与截止时间集中到一个界面，并提供考试提醒、系统通知、日历视图和微信每日汇总。
 
-当前正式版本：**1.3.9** · [下载 Windows 与 macOS 安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.9) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
+当前正式版本：**1.3.10** · [下载 Windows 与 macOS 安装包](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/tag/v1.3.10) · [提交问题](https://github.com/AnonChihaya0908/ubc-assignment-manager/issues)
 
-`main` 已包含新版考试提醒界面：考试按“即将到来 / 已结束”分组，添加、登录和同步入口也已调整。此界面更新尚未包含在 1.3.9 安装包中。
+1.3.10 包含新版考试提醒界面：考试按“即将到来 / 已结束”分组，添加、登录和同步入口也已调整。
 
-1.3.9 在同一 Release 提供 Windows 安装版与便携版，以及 macOS arm64 / x64 的 DMG、ZIP、PKG。macOS 包未做 Apple Developer ID 签名和公证，首次打开可能需要手动允许；真实 Mac 上的完整登录与通知流程仍在验证。
+1.3.10 在同一 Release 提供 Windows 安装版与便携版，以及 macOS arm64 / x64 的 DMG、ZIP、PKG。macOS 包未做 Apple Developer ID 签名和公证，首次打开可能需要手动允许；真实 Mac 上的完整登录与通知流程仍在验证。
 
-1.3.9 修复 PrairieTest 考试完成后从当前预约列表消失时，应用也把它从“已结束”列表隐藏的问题。先前同步过的历史记录会保留，无需重新录入。1.3.8 的时间与微信汇总改进继续保留。
+本版修复 PrairieLearn 新版截止时间和 WeBWorK 的 MST 时间解析，并改善 Gradescope 混合行课程同步。每日微信汇总会先刷新课程和考试数据，再生成消息。
 
 > 本项目不是 UBC、PrairieLearn、WeBWorK 或 Gradescope 的官方产品。应用只读取用户登录后有权访问且页面上可见的数据，不使用教师 API，也不需要 PrairieLearn API token。
 
@@ -39,18 +39,18 @@
 ### Windows 安装版（推荐）
 
 1. 前往 [Releases](https://github.com/AnonChihaya0908/ubc-assignment-manager/releases/latest)。
-2. 下载并运行 `ubc-assignment-manager-1.3.9-setup.exe`。
+2. 下载并运行 `ubc-assignment-manager-1.3.10-setup.exe`。
 3. 从桌面或开始菜单打开“UBC作业管理工具”。
 
 安装程序只为当前 Windows 账户安装应用。运行时无需打开 CMD，也无需另行安装 Node.js。
 
 ### Windows 便携版
 
-下载 `ubc-assignment-manager-1.3.9-windows.zip` 并完整解压后运行。请勿只移动其中的 EXE，运行时还需要压缩包内的 `runtime` 等文件。Release 同时提供安装包和 ZIP 的 `.sha256` 校验文件。
+下载 `ubc-assignment-manager-1.3.10-windows.zip` 并完整解压后运行。请勿只移动其中的 EXE，运行时还需要压缩包内的 `runtime` 等文件。Release 同时提供安装包和 ZIP 的 `.sha256` 校验文件。
 
 ### macOS 桌面版
 
-macOS 版是独立 `.app`；1.3.9 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），PKG 也保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。
+macOS 版是独立 `.app`；1.3.10 同时提供 DMG（拖入“应用程序”）与 ZIP（解压后移入“应用程序”），PKG 也保留。从“应用程序”双击打开后，主界面显示在 App 自有窗口，Dock 与应用切换器可找到它；不需要打开普通浏览器标签页，也不用自行安装 Node.js。默认通过应用内置 WebKit 登录与同步，也可在设置中选择 Chrome 或 Edge。
 
 下载时按处理器选择 `macos-arm64.dmg` / `.zip`（Apple Silicon）或 `macos-x64.dmg` / `.zip`（Intel），并保留同名 `.sha256` 文件。macOS 包没有 Developer ID 签名或公证；首次打开可能需要按[安装说明](docs/macos-preview.md)手动允许，学校管理的设备可能禁止侧载。v1.3.9 的 CI 曾验证 Sonoma 14 启动；GitHub 停用 macOS 14 运行环境后，当前 CI 改在 macOS 15 验证安装、启动与包完整性。Sonoma 14 及真实设备上的首次安装、通知和 Gradescope 登录仍需人工复核。
 
@@ -82,7 +82,7 @@ Mac 内置 WebKit 使用与 Safari 相同的网页引擎，但不是 Safari 应�
 
 ## 考试提醒
 
-点击最左侧的考试图标进入独立的“考试提醒”页面。`main` 当前界面的操作方式如下；使用 1.3.9 安装包时，手动添加、登录和只读同步仍位于考试页顶部。
+点击最左侧的考试图标进入独立的“考试提醒”页面。1.3.10 的操作方式如下。
 
 1. 手动录入考试：点击考试二级侧栏“考试提醒”标题旁的 **+**，填写考试名称、课程、状态和已知时间。尚未预约时可以先保存，预约成功后再编辑为“已预约”。
 2. 同步 PrairieTest：到“设置 → 课程与登录”打开 PrairieTest 登录窗口，完成登录后返回考试页，点击左下角“立即同步”。此处只读同步考试；切回作业页，同一按钮同步作业。
