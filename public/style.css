@@ -152,6 +152,7 @@ a { color:inherit; }
 .exam-page-content { padding:19px 26px 32px; }
 .exam-topline { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 18px; color:var(--dim); font-size:11px; }
 .exam-topline .form-note { margin:0; }
+.exam-topline > div:last-child { display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px; }
 .exam-topline a { color:#c4bdba; font-size:11px; text-decoration:none; }
 .exam-topline a:hover { color:#f1d1ba; text-decoration:underline; }
 .exam-columns { display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,31%); gap:16px; align-items:start; margin-top:15px; }
