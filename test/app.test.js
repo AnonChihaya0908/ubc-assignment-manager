@@ -105,6 +105,46 @@ test('late credit windows are not treated as on-time due dates', () => {
   assert.equal(result.creditPercent, 80);
 });
 
+test('PrairieLearn keeps the LAB09 deadline as the site switches to tomorrow and today', t => {
+  const state = emptyState();
+  const course = addPrairieLearnCourse(state);
+  const row = {
+    name: 'Example lab', code: 'LAB09', section: 'Lab Assignments',
+    url: new URL('assessment/9', course.url).href, score: 'Not started',
+  };
+  const page = { courseTitle: 'CPSC 310, 2026W1', rows: [row] };
+  const expected = new Date(2026, 10, 26, 23, 59, 59).toISOString();
+  t.mock.timers.enable({ apis: ['Date'] });
+  for (const [day, creditText] of [
+    [24, '100% until Thu, Nov 26, end of day'],
+    [25, '100% until end of tomorrow'],
+    [26, '100% until end of today'],
+  ]) {
+    t.mock.timers.setTime(new Date(2026, 10, day, 19, 30).getTime());
+    row.creditText = creditText;
+    assert.equal(mergeRows(state, course.id, page), 1);
+    assert.equal(state.tasks[0].dueAt, expected, creditText);
+    assert.equal(state.tasks[0].deadlineKind, 'on_time', creditText);
+  }
+});
+
+test('PrairieLearn relative dates follow the calendar through New Year', () => {
+  const now = new Date(2026, 11, 31, 10);
+  const course = 'Example, 2026W1';
+  assert.deepEqual(parseDisplayedDeadline('80% until tomorrow, 6pm', course, now), {
+    dueAt: new Date(2027, 0, 1, 18).toISOString(),
+    creditPercent: 80,
+    deadlineKind: 'credit_window',
+  });
+  assert.equal(parseDisplayedDeadline('100% until start of tomorrow', course, now).dueAt,
+    new Date(2027, 0, 1).toISOString());
+  assert.equal(parseDisplayedDeadline('100% until today, 12:01:02pm', course, now).dueAt,
+    new Date(2026, 11, 31, 12, 1, 2).toISOString());
+  assert.equal(parseDisplayedDeadline('100% until yesterday, 12am', course, now).dueAt,
+    new Date(2026, 11, 30).toISOString());
+  assert.equal(parseDisplayedDeadline('100% until tomorrow, 13:05pm', course, now).dueAt, null);
+});
+
 test('shared task status covers both platforms, dates, and manual overrides', () => {
   const now = new Date('2026-10-04T12:00:00Z').getTime();
   const pending = { dueAt: '2026-10-05T12:00:00Z', sourceComplete: false };
