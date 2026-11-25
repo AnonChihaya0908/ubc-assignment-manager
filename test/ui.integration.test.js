@@ -669,13 +669,22 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('#download-update-zip').getAttribute('href').endsWith('macos-arm64.zip')"), true);
     assert.equal(await evaluate("document.querySelector('#download-update-zip').hidden"), false);
     assert.equal(await evaluate("document.querySelector('#update-status').textContent.includes('手动安装')"), true);
-    await evaluate("(() => { const input = document.querySelector('#app-language'); input.value = 'en-US'; input.dispatchEvent(new Event('change', { bubbles: true })); })()");
-    for (let i = 0; i < 30; i++) {
-      if (fixtureState.preferences.language === 'en-US' && await evaluate("document.documentElement.lang === 'en-US'")) break;
-      await sleep(100);
-    }
-    assert.equal(fixtureState.preferences.language, 'en-US');
-    await sleep(250);
+    const selectLanguage = async (preference, locale = preference) => {
+      await evaluate(`(() => {
+        const input = document.querySelector('#app-language');
+        input.value = ${JSON.stringify(preference)};
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      })()`);
+      const timeoutAt = Date.now() + 5000;
+      while (Date.now() < timeoutAt) {
+        if (fixtureState.preferences.language === preference &&
+            await evaluate('document.documentElement.lang') === locale) return;
+        await sleep(100);
+      }
+      assert.equal(fixtureState.preferences.language, preference, 'language preference should be saved');
+      assert.equal(await evaluate('document.documentElement.lang'), locale, 'the app should render in the selected language');
+    };
+    await selectLanguage('en-US');
     assert.equal(await evaluate("document.querySelector('[data-settings=general]').textContent"), 'General and window');
     assert.equal(await evaluate("document.querySelector('#app-language').value"), 'en-US');
     assert.equal(await evaluate("document.querySelector('#task-search').placeholder"), 'Search assignments and courses');
@@ -718,11 +727,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
     await evaluate("document.querySelector('#nav-settings').click()");
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
-    await evaluate("(() => { const input = document.querySelector('#app-language'); input.value = 'zh-CN'; input.dispatchEvent(new Event('change', { bubbles: true })); })()");
-    for (let i = 0; i < 20; i++) {
-      if (await evaluate("document.documentElement.lang === 'zh-CN'")) break;
-      await sleep(50);
-    }
+    await selectLanguage('zh-CN');
     assert.equal(await evaluate("document.querySelector('[data-settings=general]').textContent"), '常规与窗口');
     assert.notEqual(await evaluate("formatDate('2026-10-08T22:00:00.000Z')"), englishDate);
     assert.equal(fixtureState.courses.length, 2);
@@ -738,11 +743,7 @@ test('desktop navigation separates sources, settings, and clears red dots after 
     assert.equal(await evaluate("document.querySelector('.assignment-row .score-bar').textContent.includes('90%')"), true);
     assert.equal(await evaluate("document.querySelector('#inspector-content').textContent.includes('45 / 50')"), true);
     fixtureState.systemLocale = 'en-CA';
-    await evaluate("(() => { const input = document.querySelector('#app-language'); input.value = 'auto'; input.dispatchEvent(new Event('change', { bubbles: true })); })()");
-    for (let i = 0; i < 20; i++) {
-      if (await evaluate("document.documentElement.lang === 'en-US'")) break;
-      await sleep(50);
-    }
+    await selectLanguage('auto', 'en-US');
     assert.equal(await evaluate("document.querySelector('[data-settings=general]').textContent"), 'General and window');
     await evaluate("(() => { state.courses = []; state.tasks = []; state.preferences.onboardingDismissed = false; onboardingActive = false; render(); })()");
     await sleep(100);
